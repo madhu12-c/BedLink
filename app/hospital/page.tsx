@@ -11,10 +11,13 @@ import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArriva
 import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { bedLinkStore } from '@/lib/data/store';
-import { BedType, Reservation } from '@/lib/types';
+import { BedType, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/roles';
-import { persistBedHistoryLog, persistPatientHandover } from '@/lib/supabase/sync';
+import { persistBedHistoryLog, persistPatientHandover, persistReservationStatus } from '@/lib/supabase/sync';
+import { executeAutoBedAssignment, BedNeedEvaluation } from '@/lib/utils/bedAutoAssign';
+import { BedAutoAssignedModal } from '@/components/hospital/BedAutoAssignedModal';
+import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import {
   Sparkles,
@@ -45,6 +48,19 @@ export default function HospitalNursePage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showAddBedModal, setShowAddBedModal] = useState(false);
+
+  // Controls whether the AmbulanceArrivalCountdown is visible.
+  // It stays hidden while the IncomingReservationAlert is on screen so the
+  // upper card only slides in after the lower emergency alert has dismissed.
+  const [alertDismissed, setAlertDismissed] = useState(true);
+
+  const [autoAssignResult, setAutoAssignResult] = useState<(BedNeedEvaluation & {
+    logId: string;
+    admittedAt: string;
+    handover: PatientHandoverRecord;
+    patientName: string;
+  }) | null>(null);
+  const [selectedHandoverForModal, setSelectedHandoverForModal] = useState<PatientHandoverRecord | null>(null);
 
   // Voice assistant (Sarvam): read new ambulance requests aloud for busy ER staff
   const voiceAvailability = useVoiceAvailability();
@@ -96,6 +112,8 @@ export default function HospitalNursePage() {
           'Hospital';
         const bed = payload.reservation.bed_type.toUpperCase();
 
+        // New emergency → hide the countdown card until this alert is dismissed
+        setAlertDismissed(false);
         setActiveReservation(payload.reservation);
         playEmergencyAlertSound();
         if (view === 'coordinator') {
@@ -208,69 +226,82 @@ Bed Type: ${bed}
 
   const handleAdmitPatient = (reservationId: string, bedType: string, patientName: string) => {
     const admittedBy = actorName('Bed Coordinator');
-    // 1. Mark reservation accepted, unless the coordinator already accepted it
-    const reservation = bedLinkStore.getReservations().find((r) => r.id === reservationId);
-    if (reservation?.status === 'pending') {
-      bedLinkStore.respondReservationAtomic(reservationId, 'accept', actorId, admittedBy);
-    }
 
-    // 2. Fetch signed handover vitals record
-    const handover = bedLinkStore.getPatientHandover(reservationId, selectedHospitalId);
+    // 1. Perform intelligent Auto Bed Assignment based on Patient Clinical Need
+    const assignment = executeAutoBedAssignment(
+      selectedHospitalId,
+      reservationId,
+      bedType as BedType,
+      patientName,
+      admittedBy
+    );
 
-    const bedId = `${bedType.toUpperCase()}-Bay-${Math.floor(Math.random() * 8) + 1}`;
-    const logId = `bhl-${Date.now()}`;
-    const admittedAt = new Date().toISOString();
+    // 2. Mark reservation status as 'completed'
+    const updatedRes = bedLinkStore.updateReservationStatus(reservationId, 'completed', actorId, admittedBy);
 
     // 3. Log to Bed History with legal SHA-256 seal (local)
     bedLinkStore.addBedHistoryLog({
-      id: logId,
+      id: assignment.logId,
       hospital_id: selectedHospitalId,
-      bed_type: bedType as BedType,
-      bed_identifier: bedId,
-      patient_id: handover.patient_id,
+      bed_type: assignment.assignedBedType,
+      bed_identifier: assignment.bedIdentifier,
+      patient_id: assignment.handover.patient_id,
       patient_name: patientName,
-      diagnosis: handover.chief_complaint,
-      admitted_at: admittedAt,
+      diagnosis: `${assignment.handover.chief_complaint} [Auto Need: ${assignment.needReason}]`,
+      admitted_at: assignment.admittedAt,
       discharged_at: undefined,
       status: 'occupied',
-      handover_sha256: handover.sha256_hash,
+      handover_sha256: assignment.handover.sha256_hash,
       actor_name: admittedBy
     });
 
     // 4. Persist to Supabase → cross-device visibility
     persistBedHistoryLog({
-      id: logId,
+      id: assignment.logId,
       hospital_id: selectedHospitalId,
-      bed_type: bedType,
-      bed_identifier: bedId,
-      patient_id: handover.patient_id,
+      bed_type: assignment.assignedBedType,
+      bed_identifier: assignment.bedIdentifier,
+      patient_id: assignment.handover.patient_id,
       patient_name: patientName,
-      diagnosis: handover.chief_complaint,
-      admitted_at: admittedAt,
+      diagnosis: `${assignment.handover.chief_complaint} [Auto Need: ${assignment.needReason}]`,
+      admitted_at: assignment.admittedAt,
       status: 'occupied',
-      handover_sha256: handover.sha256_hash,
+      handover_sha256: assignment.handover.sha256_hash,
       actor_name: admittedBy,
     });
 
     // 5. Persist SHA-256 sealed handover to Supabase
     persistPatientHandover({
       reservation_id: reservationId,
-      patient_id: handover.patient_id,
-      patient_name: handover.patient_name,
-      patient_age: handover.patient_age,
-      patient_gender: handover.patient_gender,
-      chief_complaint: handover.chief_complaint,
-      triage_level: handover.triage_level,
-      vitals: handover.vitals as unknown as Record<string, unknown>,
-      allergies: handover.allergies,
-      medications_administered: handover.medications_administered,
-      paramedic_badge_id: handover.paramedic_badge_id,
-      ambulance_vehicle_id: handover.ambulance_vehicle_id,
+      patient_id: assignment.handover.patient_id,
+      patient_name: assignment.handover.patient_name,
+      patient_age: assignment.handover.patient_age,
+      patient_gender: assignment.handover.patient_gender,
+      chief_complaint: assignment.handover.chief_complaint,
+      triage_level: assignment.handover.triage_level,
+      vitals: assignment.handover.vitals as unknown as Record<string, unknown>,
+      allergies: assignment.handover.allergies,
+      medications_administered: assignment.handover.medications_administered,
+      paramedic_badge_id: assignment.handover.paramedic_badge_id,
+      ambulance_vehicle_id: assignment.handover.ambulance_vehicle_id,
       destination_hospital_id: selectedHospitalId,
-      sha256_hash: handover.sha256_hash,
+      sha256_hash: assignment.handover.sha256_hash,
     });
 
-    setToastMessage(`✓ Patient ${patientName} admitted to ${bedType.toUpperCase()}! SHA-256 clinical seal saved to Supabase.`);
+    // 6. Persist reservation completion status to Supabase
+    if (updatedRes) {
+      persistReservationStatus(updatedRes);
+    }
+
+    // 7. Trigger UI modal confirmation & toast notification
+    setAutoAssignResult({
+      ...assignment,
+      patientName
+    });
+
+    setToastMessage(
+      `✓ Auto-assigned ${patientName} to Bed ${assignment.bedIdentifier} (${assignment.assignedBedType.toUpperCase()}) based on clinical need!`
+    );
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
@@ -567,20 +598,30 @@ Bed Type: ${bed}
            ========================================================================= */}
         {view === 'coordinator' && (
           <div className="space-y-6">
-            {/* Live Incoming Ambulance ETA Countdown */}
-            <AmbulanceArrivalCountdown
-              incoming={incomingAmbulances}
-              onAdmitPatient={handleAdmitPatient}
-            />
-
-            {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes */}
+            {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes.
+                Rendered first (top of stack) so the coordinator sees it immediately.
+                Once it auto-dismisses, AmbulanceArrivalCountdown slides in below. */}
             {displayReservation && (
               <IncomingReservationAlert
                 reservation={displayReservation}
                 currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
                 onAccept={handleAcceptReservation}
                 onReject={handleRejectReservation}
+                onDismiss={() => setAlertDismissed(true)}
               />
+            )}
+
+            {/* Live Incoming Ambulance ETA Countdown.
+                Only shown after the emergency alert has been dismissed so the
+                two cards don't compete for attention. Slides in smoothly. */}
+            {alertDismissed && (
+              <div className="animate-slide-in-up">
+                <AmbulanceArrivalCountdown
+                  incoming={incomingAmbulances}
+                  onAdmitPatient={handleAdmitPatient}
+                  onAcceptReservation={handleAcceptReservation}
+                />
+              </div>
             )}
 
             {/* Coordinator KPI Summary Cards */}
@@ -681,6 +722,27 @@ Bed Type: ${bed}
           hospitalName={currentHospital.name}
           onClose={() => setShowAddBedModal(false)}
           onAddBeds={handleAddBeds}
+        />
+      )}
+
+      {/* Bed Auto-Assignment Confirmation Modal */}
+      {autoAssignResult && (
+        <BedAutoAssignedModal
+          assignment={autoAssignResult}
+          onClose={() => setAutoAssignResult(null)}
+          onViewHandover={() => {
+            const h = autoAssignResult.handover;
+            setAutoAssignResult(null);
+            setSelectedHandoverForModal(h);
+          }}
+        />
+      )}
+
+      {/* Detailed Patient Handover Sheet Modal */}
+      {selectedHandoverForModal && (
+        <PatientHandoverModal
+          handover={selectedHandoverForModal}
+          onClose={() => setSelectedHandoverForModal(null)}
         />
       )}
     </div>

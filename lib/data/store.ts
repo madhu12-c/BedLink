@@ -769,6 +769,35 @@ class BedLinkDataStore {
     }
   }
 
+  public updateReservationStatus(
+    reservationId: string,
+    status: ReservationStatus,
+    actorId = 'nurse-1',
+    actorName = 'Staff Nurse'
+  ): Reservation | undefined {
+    const res = this.reservations.find((r) => r.id === reservationId);
+    if (res) {
+      res.status = status;
+      res.responded_at = new Date().toISOString();
+      if (status === 'accepted' || status === 'completed') {
+        res.accepted_by = actorId;
+      }
+      const event: ReservationEvent = {
+        id: generateUUID(),
+        reservation_id: reservationId,
+        event_type: status === 'completed' ? 'reservation_accepted' : 'reservation_created',
+        actor_id: actorId,
+        actor_name: actorName,
+        metadata: { status, hospital_id: res.hospital_id },
+        created_at: new Date().toISOString()
+      };
+      this.reservationEvents.unshift(event);
+      this.broadcast('reservation_updated', { reservation: res, event });
+    }
+    return res;
+  }
+
+
   /**
    * Authoritative backend timeout check (Step 19)
    */
@@ -1245,9 +1274,9 @@ class BedLinkDataStore {
   }
 
   public getIncomingAmbulances(hospitalId: string) {
-    // Active reservations en route (either accepted or holding pending)
+    // Active reservations en route (only accepted reservations after hospital accepts hold)
     const active = this.reservations.filter(
-      (r) => r.hospital_id === hospitalId && (r.status === 'accepted' || r.status === 'pending')
+      (r) => r.hospital_id === hospitalId && r.status === 'accepted'
     );
 
     return active.map((res, index) => {

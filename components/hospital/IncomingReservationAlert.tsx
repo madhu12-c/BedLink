@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle,
   Clock,
@@ -19,17 +19,62 @@ interface IncomingReservationAlertProps {
   currentInventory?: BedInventory;
   onAccept: (reservationId: string) => Promise<void>;
   onReject: (reservationId: string, reason?: string) => Promise<void>;
+  onDismiss?: () => void;
 }
 
 export function IncomingReservationAlert({
   reservation,
   currentInventory,
   onAccept,
-  onReject
+  onReject,
+  onDismiss
 }: IncomingReservationAlertProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
   const [selectedReason, setSelectedReason] = useState('Staffing & Resus bay currently saturated');
+
+  const [dismissCountdown, setDismissCountdown] = useState<number | null>(null);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+  const [isFullyDismissed, setIsFullyDismissed] = useState(false);
+
+  const isAccepted = reservation.status === 'accepted';
+  const isRejected = reservation.status === 'rejected';
+  const isExpired = reservation.status === 'expired';
+  const isAnswered = isAccepted || isRejected || isExpired;
+
+  // When reservation is answered (accepted/rejected/expired), trigger 5-second auto-close timer!
+  useEffect(() => {
+    if (isAnswered && dismissCountdown === null && !isFadingOut && !isFullyDismissed) {
+      setDismissCountdown(5);
+    }
+  }, [isAnswered, dismissCountdown, isFadingOut, isFullyDismissed]);
+
+  useEffect(() => {
+    if (dismissCountdown === null) return;
+
+    if (dismissCountdown <= 0) {
+      setIsFadingOut(true);
+      const timer = setTimeout(() => {
+        setIsFullyDismissed(true);
+        onDismiss?.();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+
+    const interval = setInterval(() => {
+      setDismissCountdown((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [dismissCountdown, onDismiss]);
+
+  const handleManualDismiss = () => {
+    setIsFadingOut(true);
+    setTimeout(() => {
+      setIsFullyDismissed(true);
+      onDismiss?.();
+    }, 400);
+  };
 
   const handleAccept = async () => {
     setIsProcessing(true);
@@ -50,17 +95,21 @@ export function IncomingReservationAlert({
     }
   };
 
-  const isAccepted = reservation.status === 'accepted';
-  const isRejected = reservation.status === 'rejected';
-  const isExpired = reservation.status === 'expired';
+  if (isFullyDismissed) {
+    return null;
+  }
 
   return (
     <div
-      className={`rounded-2xl border-2 p-5 sm:p-6 shadow-xl transition-all duration-300 ${
+      className={`rounded-2xl border-2 p-5 sm:p-6 shadow-xl transition-all duration-500 transform ${
+        isFadingOut
+          ? 'opacity-0 scale-95 -translate-y-4 max-h-0 overflow-hidden pointer-events-none p-0 my-0 border-0'
+          : 'opacity-100 scale-100 translate-y-0 max-h-[800px]'
+      } ${
         isAccepted
           ? 'bg-emerald-50 border-emerald-500 text-emerald-950'
           : isRejected || isExpired
-          ? 'bg-slate-100 border-slate-300 text-slate-700 opacity-80'
+          ? 'bg-slate-100 border-slate-300 text-slate-700 opacity-90'
           : 'bg-red-50/80 border-red-600 text-slate-900 shadow-red-500/10'
       }`}
       role="alertdialog"
@@ -70,24 +119,53 @@ export function IncomingReservationAlert({
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-red-200/80">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center animate-pulse shadow-md">
-            <AlertTriangle className="w-5 h-5" />
+          <div
+            className={`w-10 h-10 rounded-full text-white flex items-center justify-center shadow-md ${
+              isAccepted
+                ? 'bg-emerald-600'
+                : isRejected || isExpired
+                ? 'bg-slate-600'
+                : 'bg-red-600 animate-pulse'
+            }`}
+          >
+            {isAccepted ? (
+              <Check className="w-5 h-5" />
+            ) : isRejected || isExpired ? (
+              <XCircle className="w-5 h-5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5" />
+            )}
           </div>
           <div>
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-red-700 block">
-              INCOMING EMERGENCY RESERVATION
+              {isAccepted
+                ? 'BED HOLD SECURED & VERIFIED'
+                : isRejected
+                ? 'RESERVATION REJECTED & RE-ROUTED'
+                : 'INCOMING EMERGENCY RESERVATION'}
             </span>
             <h2 id="incoming-alert-title" className="text-lg sm:text-xl font-extrabold text-slate-900">
-              CRITICAL PATIENT EN ROUTE
+              {isAccepted
+                ? 'PATIENT TRANSFER CONFIRMED'
+                : isRejected
+                ? 'FALLBACK ROUTING IN PROGRESS'
+                : 'CRITICAL PATIENT EN ROUTE'}
             </h2>
           </div>
         </div>
 
-        {/* 2-Minute Authoritative Countdown */}
+        {/* 2-Minute Authoritative Countdown or 5s Auto-Close Badge */}
         {reservation.status === 'pending' && (
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-600 hidden sm:inline">Respond within:</span>
             <ReservationTimer expiresAt={reservation.expires_at} size="lg" />
+          </div>
+        )}
+
+        {isAnswered && dismissCountdown !== null && (
+          <div className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm">
+            <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            <span>Auto-clearing in {dismissCountdown}s</span>
           </div>
         )}
       </div>
@@ -163,26 +241,75 @@ export function IncomingReservationAlert({
         </div>
       ) : isAccepted ? (
         <div className="p-4 bg-emerald-600 text-white rounded-xl flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-2">
-            <Check className="w-6 h-6" />
+          <div className="flex items-center gap-3">
+            <Check className="w-6 h-6 text-emerald-200 shrink-0 animate-bounce" />
             <div>
               <span className="font-extrabold text-base block">BED SECURED & HELD</span>
-              <span className="text-xs text-emerald-100 font-mono">
-                Reservation ID: {reservation.id.slice(0, 8)}... · Ambulance dispatched to your ER
+              <span className="text-xs text-emerald-100 font-mono block">
+                Ambulance en route to ER. Moving to Live Telemetry in {dismissCountdown ?? 5}s...
               </span>
             </div>
           </div>
-          <span className="text-xs font-semibold bg-emerald-700/80 px-2.5 py-1 rounded">
-            Hold Active
-          </span>
+          <button
+            type="button"
+            onClick={handleManualDismiss}
+            className="text-xs font-bold bg-emerald-700/90 hover:bg-emerald-800 px-3 py-1.5 rounded-lg border border-emerald-500/50 flex items-center gap-1 transition-all shrink-0"
+          >
+            <span>Dismiss ({dismissCountdown ?? 5}s)</span>
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       ) : isRejected ? (
-        <div className="p-3 bg-slate-200 text-slate-700 rounded-xl text-center text-xs font-medium">
-          Reservation rejected. Request immediately re-routed to next eligible hospital.
+        <div className="p-4 bg-slate-800 text-white rounded-xl flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-6 h-6 text-red-400 shrink-0" />
+            <div>
+              <span className="font-extrabold text-sm block">RESERVATION REJECTED & RE-ROUTED</span>
+              <span className="text-xs text-slate-300 font-mono block">
+                Request re-routed to next hospital. Clearing alert in {dismissCountdown ?? 5}s...
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleManualDismiss}
+            className="text-xs font-bold bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all shrink-0"
+          >
+            <span>Dismiss ({dismissCountdown ?? 5}s)</span>
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       ) : (
-        <div className="p-3 bg-amber-100 text-amber-900 rounded-xl text-center text-xs font-medium">
-          2-Minute response window timed out. System automatically contacted next hospital candidate.
+        <div className="p-4 bg-amber-900 text-white rounded-xl flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-3">
+            <Clock className="w-6 h-6 text-amber-300 shrink-0" />
+            <div>
+              <span className="font-extrabold text-sm block">RESPONSE WINDOW TIMED OUT</span>
+              <span className="text-xs text-amber-200 font-mono block">
+                Contacting next candidate. Clearing alert in {dismissCountdown ?? 5}s...
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleManualDismiss}
+            className="text-xs font-bold bg-amber-800 hover:bg-amber-700 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all shrink-0"
+          >
+            <span>Dismiss ({dismissCountdown ?? 5}s)</span>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Animated 5-Second Progress Bar */}
+      {isAnswered && dismissCountdown !== null && (
+        <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden mt-4">
+          <div
+            className={`h-full transition-all duration-1000 ease-linear ${
+              isAccepted ? 'bg-emerald-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${(dismissCountdown / 5) * 100}%` }}
+          />
         </div>
       )}
 

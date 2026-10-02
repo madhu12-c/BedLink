@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
-  Bed
+  Bed,
+  Check
 } from 'lucide-react';
 import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
 
@@ -30,22 +31,28 @@ export interface IncomingAmbulanceItem {
 interface AmbulanceArrivalCountdownProps {
   incoming: IncomingAmbulanceItem[];
   onAdmitPatient: (reservationId: string, bedType: string, patientName: string) => void;
+  onAcceptReservation?: (reservationId: string) => void;
 }
 
 export function AmbulanceArrivalCountdown({
   incoming,
-  onAdmitPatient
+  onAdmitPatient,
+  onAcceptReservation
 }: AmbulanceArrivalCountdownProps) {
   const [selectedHandover, setSelectedHandover] = useState<PatientHandoverRecord | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  // Tick every second for live countdown
+  // Tick every second for live countdown only when ambulances are en-route
+  // NOTE: dependency is hasIncoming (boolean) not incoming (array) — keeps the
+  // hook array size constant and prevents the React "size between renders" error.
+  const hasIncoming = incoming.length > 0;
   useEffect(() => {
+    if (!hasIncoming) return;
     const timer = setInterval(() => {
       setNow(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [hasIncoming]);
 
   if (incoming.length === 0) {
     return (
@@ -86,22 +93,28 @@ export function AmbulanceArrivalCountdown({
         </div>
 
         <div className="grid grid-cols-1 gap-3">
-          {incoming.map((item) => {
+          {incoming.map((item, index) => {
             const remainingMs = Math.max(0, item.targetArrivalMs - now);
             const totalSeconds = Math.floor(remainingMs / 1000);
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             const isImminent = remainingMs <= 1000 * 60 * 2; // Under 2 mins
+            const isPendingAcceptance = item.reservation.status === 'pending';
+            // Staggered entrance: each card slides up with a small delay offset
+            const entranceDelay = `${index * 60}ms`;
 
             return (
               <div
                 key={item.reservation.id}
-                className={`p-4 rounded-2xl border transition-all ${
+                className={`p-4 rounded-2xl border transition-all animate-slide-in-up ${
                   isImminent
                     ? 'bg-red-50/70 border-red-200 shadow-md ring-1 ring-red-400/40'
+                    : isPendingAcceptance
+                    ? 'bg-amber-50/40 border-amber-200 shadow-sm'
                     : 'bg-white border-slate-200 shadow-sm'
                 }`}
+                style={{ animationDelay: entranceDelay }}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   {/* Left: Ambulance & Patient Info */}
@@ -110,6 +123,8 @@ export function AmbulanceArrivalCountdown({
                       className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
                         isImminent
                           ? 'bg-red-600 text-white animate-pulse'
+                          : isPendingAcceptance
+                          ? 'bg-amber-600 text-white animate-pulse'
                           : 'bg-blue-600 text-white'
                       }`}
                     >
@@ -117,7 +132,7 @@ export function AmbulanceArrivalCountdown({
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
                           {item.ambulanceId}
                         </span>
@@ -130,10 +145,18 @@ export function AmbulanceArrivalCountdown({
                         >
                           {item.patientUrgency.toUpperCase()}
                         </span>
-                        <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1">
-                          <Bed className="w-3 h-3" />
-                          <span>{item.bedType.toUpperCase()} Bed Held</span>
-                        </span>
+
+                        {isPendingAcceptance ? (
+                          <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 flex items-center gap-1 animate-pulse">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>Pending Hospital Acceptance</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1">
+                            <Bed className="w-3 h-3 text-blue-600" />
+                            <span>{item.bedType.toUpperCase()} Bed Held</span>
+                          </span>
+                        )}
                       </div>
 
                       <h4 className="text-sm font-black text-slate-900 mt-1">
@@ -181,14 +204,32 @@ export function AmbulanceArrivalCountdown({
                         <span className="md:hidden">Vitals</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => onAdmitPatient(item.reservation.id, item.bedType, item.patientName)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Admit</span>
-                      </button>
+                      {/* STEP 1: "ACCEPT & SECURE BED" when pending (bounces for urgency) */}
+                      {/* STEP 2: "ADMIT" pops in with spring animation once accepted */}
+                      {isPendingAcceptance ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onAcceptReservation) {
+                              onAcceptReservation(item.reservation.id);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-all animate-bounce"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Accept &amp; Secure Bed</span>
+                        </button>
+                      ) : (
+                        // Pop-in: spring-scale bounce when the Admit button appears after acceptance
+                        <button
+                          type="button"
+                          onClick={() => onAdmitPatient(item.reservation.id, item.bedType, item.patientName)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-colors animate-pop-in"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Admit</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -198,7 +239,7 @@ export function AmbulanceArrivalCountdown({
         </div>
       </div>
 
-      {/* Handover Modal with SHA-256 Verification */}
+      {/* Patient Handover Sheet Modal */}
       {selectedHandover && (
         <PatientHandoverModal
           handover={selectedHandover}
