@@ -155,3 +155,49 @@ export interface AuditLogItem {
   description: string;
   metadata?: Record<string, unknown>;
 }
+
+export interface PatientVitals {
+  gcs: number; // Glasgow Coma Scale (3 - 15)
+  gcs_breakdown?: { eye: number; verbal: number; motor: number };
+  bp: string; // e.g. "128/84"
+  spo2: number; // percentage e.g. 97
+  heart_rate: number; // bpm e.g. 84
+  resp_rate: number; // /min e.g. 18
+  temperature?: number; // deg F e.g. 98.6
+  blood_glucose?: number; // mg/dL e.g. 115
+}
+
+export interface PatientHandoverRecord {
+  id: string;
+  reservation_id: string;
+  patient_id: string;
+  patient_name?: string;
+  patient_age?: number;
+  patient_gender?: string;
+  chief_complaint: string;
+  triage_level: 'red' | 'yellow' | 'green';
+  vitals: PatientVitals;
+  allergies?: string[];
+  medications_administered?: string[];
+  paramedic_badge_id: string;
+  ambulance_vehicle_id: string;
+  destination_hospital_id: string;
+  timestamp: string;
+  sha256_hash: string;
+}
+
+export interface BedHistoryLog {
+  id: string;
+  hospital_id: string;
+  bed_type: BedType;
+  bed_identifier: string; // e.g. "ICU-Bed-02", "Vent-Room-104"
+  patient_id?: string;
+  patient_name?: string;
+  diagnosis?: string;
+  admitted_at: string;
+  discharged_at?: string;
+  status: 'occupied' | 'discharged' | 'reserved' | 'cleaning' | 'available';
+  handover_sha256?: string;
+  actor_name: string;
+}
+

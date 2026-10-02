@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { CheckCircle2, Navigation, Phone, X, Bed } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Navigation, Phone, X, Bed, ShieldCheck } from 'lucide-react';
 import { Reservation } from '@/lib/types';
+import { bedLinkStore } from '@/lib/data/store';
+import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
 
 interface BedConfirmedAlertProps {
   reservation: Reservation;
@@ -15,6 +17,7 @@ interface BedConfirmedAlertProps {
  */
 export function BedConfirmedAlert({ reservation, onDismiss }: BedConfirmedAlertProps) {
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const [showHandover, setShowHandover] = useState(false);
 
   useEffect(() => {
     // 1. Browser vibration (mobile ambulance phone)
@@ -156,14 +159,23 @@ export function BedConfirmedAlert({ reservation, onDismiss }: BedConfirmedAlertP
             <Navigation className="w-4 h-4" />
             Navigate
           </a>
-          <a
-            href="tel:108"
+          <button
+            type="button"
+            onClick={() => setShowHandover(true)}
             className="flex items-center justify-center gap-2 bg-white/20 border border-white/40 text-white font-extrabold text-sm py-3.5 rounded-2xl active:scale-95 transition-transform"
           >
-            <Phone className="w-4 h-4" />
-            Call 108
-          </a>
+            <ShieldCheck className="w-4 h-4 text-emerald-300" />
+            Vitals (SHA-256)
+          </button>
         </div>
+
+        <a
+          href="tel:108"
+          className="w-full flex items-center justify-center gap-2 bg-emerald-900/40 border border-emerald-400/40 text-white font-bold text-xs py-2.5 rounded-xl active:scale-95 transition-transform"
+        >
+          <Phone className="w-3.5 h-3.5" />
+          Emergency 108 CAD Control Line
+        </a>
 
         {/* Swipe to dismiss hint */}
         <button
@@ -174,6 +186,14 @@ export function BedConfirmedAlert({ reservation, onDismiss }: BedConfirmedAlertP
           Tap to dismiss
         </button>
       </div>
+
+      {/* Patient Handover Sheet & SHA-256 Seal Modal */}
+      {showHandover && (
+        <PatientHandoverModal
+          handover={bedLinkStore.getPatientHandover(reservation.id, reservation.hospital_id)}
+          onClose={() => setShowHandover(false)}
+        />
+      )}
     </div>
   );
 }

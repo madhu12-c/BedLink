@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { LoadIndicator } from '@/components/dispatch/LoadIndicator';
 import { FreshnessIndicator } from '@/components/dispatch/FreshnessIndicator';
+import { CityIcuHeatmap } from '@/components/dashboard/CityIcuHeatmap';
 
 export default function DashboardMetricsPage() {
   const [role, setRole] = useState<UserRole>('admin');
@@ -167,6 +168,9 @@ export default function DashboardMetricsPage() {
             <span className="text-[11px] text-emerald-600 font-semibold mt-2">Well within 120s SLA</span>
           </div>
         </div>
+
+        {/* City Control Room Free ICU Rooms Heatmap */}
+        <CityIcuHeatmap candidates={candidates} />
 
         {/* Hospital Telemetry Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

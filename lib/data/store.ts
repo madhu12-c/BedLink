@@ -1,10 +1,12 @@
 import {
   AuditLogItem,
+  BedHistoryLog,
   BedInventory,
   BedType,
   EmergencyRequest,
   Hospital,
   HospitalCapability,
+  PatientHandoverRecord,
   Reservation,
   ReservationEvent,
   ReservationStatus,
@@ -15,6 +17,8 @@ import {
   INITIAL_CAPABILITIES,
   INITIAL_HOSPITALS
 } from '../demo/seed-data';
+import { INITIAL_BED_HISTORY_LOGS } from '../demo/bed-history-data';
+import { generateDefaultHandover } from '../crypto/handoverSha';
 import { rankHospitals } from '../dispatch/ranking';
 
 export type SyncHandler = {
@@ -39,6 +43,8 @@ class BedLinkDataStore {
   private reservations: Reservation[] = [];
   private reservationEvents: ReservationEvent[] = [];
   private emergencyRequests: EmergencyRequest[] = [];
+  private bedHistoryLogs: BedHistoryLog[] = [];
+  private patientHandovers: Map<string, PatientHandoverRecord> = new Map();
   private broadcastChannel: BroadcastChannel | null = null;
   private listeners: Set<(event: { type: string; payload: unknown }) => void> = new Set();
   private expirationInterval: NodeJS.Timeout | null = null;
@@ -154,6 +160,8 @@ class BedLinkDataStore {
     this.reservations = [];
     this.reservationEvents = [];
     this.emergencyRequests = [];
+    this.bedHistoryLogs = JSON.parse(JSON.stringify(INITIAL_BED_HISTORY_LOGS));
+    this.patientHandovers = new Map();
   }
 
   private broadcast(type: string, payload: unknown) {
@@ -629,6 +637,128 @@ class BedLinkDataStore {
     }
 
     return nextTarget;
+  }
+
+  // --- BED HISTORY & CLINICAL HANDOVER METHODS ---
+
+  public getBedHistoryLogs(hospitalId?: string): BedHistoryLog[] {
+    let list = [...this.bedHistoryLogs];
+    if (hospitalId) {
+      list = list.filter((l) => l.hospital_id === hospitalId);
+    }
+    return list.sort((a, b) => new Date(b.admitted_at).getTime() - new Date(a.admitted_at).getTime());
+  }
+
+  public addBedHistoryLog(log: BedHistoryLog) {
+    this.bedHistoryLogs.unshift(log);
+    this.broadcast('bed_history_logged', { log });
+  }
+
+  public getPatientHandover(reservationId: string, hospitalId?: string): PatientHandoverRecord {
+    const existing = this.patientHandovers.get(reservationId);
+    if (existing) return existing;
+
+    const res = this.reservations.find((r) => r.id === reservationId);
+    const targetHospId = hospitalId || res?.hospital_id || this.hospitals[0]?.id || '';
+    const generated = generateDefaultHandover(reservationId, targetHospId, {
+      chief_complaint: res?.notes || 'Severe chest discomfort and respiratory difficulty',
+      triage_level: res?.patient_urgency === 'critical' ? 'red' : 'yellow'
+    });
+    this.patientHandovers.set(reservationId, generated);
+    return generated;
+  }
+
+  public setPatientHandover(record: PatientHandoverRecord) {
+    this.patientHandovers.set(record.reservation_id, record);
+    this.broadcast('handover_updated', { handover: record });
+  }
+
+  public addNewBedTypeOrUnits(
+    hospitalId: string,
+    bedType: BedType,
+    totalToAdd: number,
+    availableToAdd: number,
+    actorName = 'Hospital Nurse / Admin'
+  ) {
+    let inventory = this.bedInventories.find(
+      (b) => b.hospital_id === hospitalId && b.bed_type === bedType
+    );
+
+    if (inventory) {
+      inventory.total_beds += totalToAdd;
+      inventory.available_beds += availableToAdd;
+      inventory.updated_at = new Date().toISOString();
+      inventory.updated_by = actorName;
+    } else {
+      inventory = {
+        id: `inv-${hospitalId.slice(0, 4)}-${bedType}`,
+        hospital_id: hospitalId,
+        bed_type: bedType,
+        total_beds: totalToAdd,
+        available_beds: availableToAdd,
+        updated_at: new Date().toISOString(),
+        updated_by: actorName
+      };
+      this.bedInventories.push(inventory);
+    }
+
+    // Also update hospital emergency capacity
+    const hosp = this.getHospital(hospitalId);
+    if (hosp) {
+      hosp.emergency_capacity += totalToAdd;
+    }
+
+    // Log to reservation_events / audit
+    const event: ReservationEvent = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+      reservation_id: `bed-add-${hospitalId}`,
+      event_type: 'bed_updated',
+      actor_name: actorName,
+      metadata: {
+        hospital_id: hospitalId,
+        bed_type: bedType,
+        total_added: totalToAdd,
+        available_added: availableToAdd,
+        new_total: inventory.total_beds,
+        new_available: inventory.available_beds
+      },
+      created_at: new Date().toISOString()
+    };
+    this.reservationEvents.unshift(event);
+
+    this.broadcast('bed_inventory_updated', {
+      hospitalId,
+      bedType,
+      inventory
+    });
+  }
+
+  public getIncomingAmbulances(hospitalId: string) {
+    // Active reservations en route (either accepted or holding pending)
+    const active = this.reservations.filter(
+      (r) => r.hospital_id === hospitalId && (r.status === 'accepted' || r.status === 'pending')
+    );
+
+    return active.map((res, index) => {
+      // Estimated arrival: requested_at + eta_minutes (or dynamic 4-8 mins for demo)
+      const requestedTime = new Date(res.requested_at).getTime();
+      const etaMinutes = res.eta_minutes || (res.status === 'accepted' ? 6 : 8);
+      const targetArrivalMs = requestedTime + etaMinutes * 60 * 1000;
+      const handover = this.getPatientHandover(res.id, hospitalId);
+
+      return {
+        reservation: res,
+        handover,
+        etaMinutes,
+        targetArrivalMs,
+        ambulanceId: handover.ambulance_vehicle_id || `MH-02-EMS-${108 + index * 4}`,
+        paramedicId: handover.paramedic_badge_id || 'Paramedic 108 CAD',
+        patientName: handover.patient_name || 'Emergency Patient',
+        patientUrgency: res.patient_urgency || 'critical',
+        bedType: res.bed_type,
+        distanceKm: Number(((etaMinutes * 0.45) + 0.3).toFixed(1))
+      };
+    });
   }
 }
 

@@ -4,11 +4,17 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Header } from '@/components/shared/Header';
 import { BedUpdateGrid } from '@/components/hospital/BedUpdateGrid';
 import { IncomingReservationAlert } from '@/components/hospital/IncomingReservationAlert';
+import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArrivalCountdown';
+import { AddBedModal } from '@/components/hospital/AddBedModal';
+import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, Reservation, UserRole } from '@/lib/types';
 import {
   Sparkles,
-  Bell
+  Bell,
+  Plus,
+  Bed,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function HospitalNursePage() {
@@ -20,6 +26,7 @@ export default function HospitalNursePage() {
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
+  const [showAddBedModal, setShowAddBedModal] = useState(false);
 
   // Subscribe to realtime store events
   useEffect(() => {
@@ -89,7 +96,61 @@ export default function HospitalNursePage() {
     return list.find((r) => r.status === 'pending') || null;
   }, [activeReservation, selectedHospitalId, lastUpdateTrigger]);
 
+  const incomingAmbulances = useMemo(() => {
+    void lastUpdateTrigger;
+    return bedLinkStore.getIncomingAmbulances(selectedHospitalId);
+  }, [selectedHospitalId, lastUpdateTrigger]);
+
+  const bedHistoryLogs = useMemo(() => {
+    void lastUpdateTrigger;
+    return bedLinkStore.getBedHistoryLogs(selectedHospitalId);
+  }, [selectedHospitalId, lastUpdateTrigger]);
+
   // Handlers
+  const handleAddBeds = (type: BedType, totalCount: number, availableCount: number, wardName: string) => {
+    bedLinkStore.addNewBedTypeOrUnits(
+      selectedHospitalId,
+      type,
+      totalCount,
+      availableCount,
+      `Nurse Coordinator (${currentHospital?.name})`
+    );
+    setToastMessage(`✓ Added ${totalCount} ${type.toUpperCase()} bed(s) in ${wardName}!`);
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
+  const handleAdmitPatient = (reservationId: string, bedType: string, patientName: string) => {
+    // 1. Mark reservation accepted/completed
+    bedLinkStore.respondReservationAtomic(
+      reservationId,
+      'accept',
+      'nurse-active',
+      `Staff Nurse (${currentHospital?.name})`
+    );
+
+    // 2. Fetch signed handover vitals record
+    const handover = bedLinkStore.getPatientHandover(reservationId, selectedHospitalId);
+
+    // 3. Log to Bed History with legal SHA-256 seal
+    bedLinkStore.addBedHistoryLog({
+      id: `bhl-${Date.now()}`,
+      hospital_id: selectedHospitalId,
+      bed_type: bedType as BedType,
+      bed_identifier: `${bedType.toUpperCase()}-Bay-${Math.floor(Math.random() * 8) + 1}`,
+      patient_id: handover.patient_id,
+      patient_name: patientName,
+      diagnosis: handover.chief_complaint,
+      admitted_at: new Date().toISOString(),
+      discharged_at: undefined,
+      status: 'occupied',
+      handover_sha256: handover.sha256_hash,
+      actor_name: `Staff Nurse (${currentHospital?.name})`
+    });
+
+    setToastMessage(`✓ Patient ${patientName} admitted to ${bedType.toUpperCase()}! SHA-256 clinical seal archived.`);
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
   const handleUpdateCount = async (bedType: BedType, delta: number) => {
     if (!currentHospital) return;
     bedLinkStore.updateBedCount(
@@ -191,26 +252,43 @@ export default function HospitalNursePage() {
             <p className="text-xs text-slate-500 mt-0.5">{currentHospital?.address}</p>
           </div>
 
-          {/* Hospital Switcher */}
-          <div className="flex flex-col gap-1 sm:items-end">
-            <label htmlFor="hospital-select" className="text-xs font-semibold text-slate-500">
-              Select Operating Hospital:
-            </label>
-            <select
-              id="hospital-select"
-              aria-label="Operating Hospital Selector"
-              value={selectedHospitalId}
-              onChange={(e) => setSelectedHospitalId(e.target.value)}
-              className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[44px]"
+          {/* Hospital Switcher & Add Bed Action */}
+          <div className="flex flex-wrap items-end gap-2.5 sm:justify-end">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="hospital-select" className="text-xs font-semibold text-slate-500">
+                Select Operating Hospital:
+              </label>
+              <select
+                id="hospital-select"
+                aria-label="Operating Hospital Selector"
+                value={selectedHospitalId}
+                onChange={(e) => setSelectedHospitalId(e.target.value)}
+                className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[44px]"
+              >
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} (Load: {h.current_load}%)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAddBedModal(true)}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 min-h-[44px] transition-all"
             >
-              {hospitals.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name} (Load: {h.current_load}%)
-                </option>
-              ))}
-            </select>
+              <Plus className="w-4 h-4" />
+              <span>Add Beds</span>
+            </button>
           </div>
         </div>
+
+        {/* Live Incoming Ambulance ETA Countdown */}
+        <AmbulanceArrivalCountdown
+          incoming={incomingAmbulances}
+          onAdmitPatient={handleAdmitPatient}
+        />
 
         {/* Realtime Incoming Emergency Alert Modal / Card */}
         {displayReservation && (
@@ -232,11 +310,17 @@ export default function HospitalNursePage() {
           />
         )}
 
+        {/* Patient Bed Occupancy History & Handover Audit Trail */}
+        <BedHistoryLogTable
+          logs={bedHistoryLogs}
+          hospitalName={currentHospital?.name || 'Hospital'}
+        />
+
         {/* Demo Helper Action */}
         <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
           <div>
-            <strong className="text-slate-800 font-semibold block">Need to test incoming emergency alert?</strong>
-            <span>Click below to simulate a live ambulance reservation request sent to this hospital.</span>
+            <strong className="text-slate-800 font-semibold block">Need to test incoming emergency alert & countdown?</strong>
+            <span>Click below to simulate a live ambulance reservation request with signed SHA-256 handover vitals.</span>
           </div>
           <button
             type="button"
@@ -248,6 +332,15 @@ export default function HospitalNursePage() {
           </button>
         </div>
       </main>
+
+      {/* Add Bed Modal */}
+      {showAddBedModal && currentHospital && (
+        <AddBedModal
+          hospitalName={currentHospital.name}
+          onClose={() => setShowAddBedModal(false)}
+          onAddBeds={handleAddBeds}
+        />
+      )}
     </div>
   );
 }
