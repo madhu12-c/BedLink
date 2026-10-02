@@ -12,6 +12,8 @@ import { ScoredHospital, Reservation } from '@/lib/types';
 import { generateUUID } from '@/lib/crypto/uuid';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
+import { ActiveHoldBar } from '@/components/dispatch/ActiveHoldBar';
+import { resetDemoInDatabase } from '@/lib/supabase/sync';
 import { VoiceBestMatch, VoiceIntakePanel } from '@/components/voice/VoiceIntakePanel';
 import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
 import { useVoiceAvailability, useVoicePlayer, useVoiceSettings } from '@/lib/voice/hooks';
@@ -77,7 +79,9 @@ export default function DispatcherPage() {
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, role, demoMode } = useAuth();
+  // Demo-only controls (scenario, reset) are for the admin running the demo
+  const showDemoControls = role === 'admin' || demoMode;
   const [currentRequestId, setCurrentRequestId] = useState(getTabRequestId);
   // Restored when coming back from another page, so an accepted hold is still shown.
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(() =>
@@ -143,37 +147,52 @@ export default function DispatcherPage() {
     }
   }, []);
 
+  // Only this crew's own patient drives the status bar, popups and sounds. Other ambulances'
+  // holds just refresh the hospital list (otherwise a second dispatch phone shows them as its own).
+  const handleOwnReservationEvent = useEffectEvent((event: { type: string; payload: unknown }) => {
+    const data = (event.payload ?? {}) as { reservation?: Reservation; newReservation?: Reservation };
+    const own = data.reservation ?? data.newReservation;
+    if (!own || own.request_id !== currentRequestId) return;
+
+    if (event.type === 'reservation_cancelled' || event.type === 'reservation_updated') {
+      setActiveReservation(own);
+      return;
+    }
+    if (event.type === 'reservation_created') {
+      const payload = event.payload as { reservation: Reservation };
+      playEmergencyAlertSound();
+      triggerEmergencyNotification('🛏️ EMERGENCY BED HOLD ACTIVE', {
+        body: `Facility: ${payload.reservation.hospital_name || 'Hospital'}\nBed: ${payload.reservation.bed_type.toUpperCase()}\n2-minute confirmation timer started.`
+      });
+      setActiveReservation(payload.reservation);
+      setActionNotice(`Hold initiated for ${payload.reservation.hospital_name || 'Hospital'}. 2-minute confirmation timer started.`);
+      // Auto-switch to hospitals tab to see the hold
+      setMobileTab('hospitals');
+    } else if (event.type === 'reservation_accepted') {
+      const payload = event.payload as { reservation: Reservation };
+      setActiveReservation(payload.reservation);
+      setActionNotice(`✓ BED CONFIRMED! Hospital accepted patient intake.`);
+      setShowConfirmedAlert(true); // Trigger fullscreen alert + push notification
+      setMobileTab('hospitals');
+    } else if (event.type === 'reservation_rejected') {
+      setActiveReservation(own);
+      setActionNotice(`Hospital rejected hold. Automatic fallback routing triggered.`);
+    } else if (event.type === 'reservation_expired') {
+      setActiveReservation(own);
+      setActionNotice(`Hold expired (2 min timeout). Automatic fallback routing triggered.`);
+    } else if (event.type === 'fallback_triggered') {
+      const payload = event.payload as { hospital: ScoredHospital; newReservation: Reservation };
+      setActiveReservation(payload.newReservation);
+      setActionNotice(`Re-routed to: ${payload.hospital.hospital.name}.`);
+    }
+  });
+
   // Subscribe to realtime store events
   useEffect(() => {
     const unsubscribe = bedLinkStore.subscribe((event) => {
       setLastUpdateTrigger((prev) => prev + 1);
       announceStoreEvent(event);
-
-      if (event.type === 'reservation_created') {
-        const payload = event.payload as { reservation: Reservation };
-        playEmergencyAlertSound();
-        triggerEmergencyNotification('🛏️ EMERGENCY BED HOLD ACTIVE', {
-          body: `Facility: ${payload.reservation.hospital_name || 'Hospital'}\nBed: ${payload.reservation.bed_type.toUpperCase()}\n2-minute confirmation timer started.`
-        });
-        setActiveReservation(payload.reservation);
-        setActionNotice(`Hold initiated for ${payload.reservation.hospital_name || 'Hospital'}. 2-minute confirmation timer started.`);
-        // Auto-switch to hospitals tab to see the hold
-        setMobileTab('hospitals');
-      } else if (event.type === 'reservation_accepted') {
-        const payload = event.payload as { reservation: Reservation };
-        setActiveReservation(payload.reservation);
-        setActionNotice(`✓ BED CONFIRMED! Hospital accepted patient intake.`);
-        setShowConfirmedAlert(true); // Trigger fullscreen alert + push notification
-        setMobileTab('hospitals');
-      } else if (event.type === 'reservation_rejected') {
-        setActionNotice(`Hospital rejected hold. Automatic fallback routing triggered.`);
-      } else if (event.type === 'reservation_expired') {
-        setActionNotice(`Hold expired (2 min timeout). Automatic fallback routing triggered.`);
-      } else if (event.type === 'fallback_triggered') {
-        const payload = event.payload as { hospital: ScoredHospital; newReservation: Reservation };
-        setActiveReservation(payload.newReservation);
-        setActionNotice(`Re-routed to: ${payload.hospital.hospital.name}.`);
-      }
+      handleOwnReservationEvent(event);
     });
     return () => unsubscribe();
   }, []);
@@ -314,11 +333,25 @@ export default function DispatcherPage() {
     setActionNotice('Loaded demo: Critical STEMI patient on 90 Feet Rd — ICU + Ventilator + Cardiac.');
   };
 
-  const handleResetDemo = () => {
+  const handleResetDemo = async () => {
     bedLinkStore.resetToDefaults();
     setActiveReservation(null);
     setShowConfirmedAlert(false);
-    setActionNotice('Reset all hospitals, beds, and reservations to clean demo state.');
+    setLastUpdateTrigger((prev) => prev + 1);
+    setActionNotice('Resetting demo on every phone…');
+    const problem = await resetDemoInDatabase();
+    setActionNotice(problem ?? 'Demo reset: bed counts back to start, open holds cleared on every phone.');
+  };
+
+  // The crew tapped the wrong hospital: withdraw the hold so the bed is freed straight away
+  const handleCancelHold = (reservationId: string) => {
+    try {
+      const cancelled = bedLinkStore.cancelHold(reservationId, dispatcherId, dispatcherName);
+      setActiveReservation(cancelled);
+      setActionNotice(`Hold at ${cancelled.hospital_name ?? 'the hospital'} cancelled. The bed is free again.`);
+    } catch (err: unknown) {
+      setActionNotice(err instanceof Error ? err.message : 'Could not cancel the hold.');
+    }
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
@@ -427,29 +460,9 @@ export default function DispatcherPage() {
       )}
       <Header hideBottomNav />
 
-      {/* Active Reservation Status Bar — sticky, always visible */}
-      {activeReservation && activeReservation.status === 'pending' && (
-        <div
-          className="bg-blue-600 text-white px-4 py-3 text-sm font-bold flex items-center justify-between shadow-lg animate-fade-in z-30"
-          role="status"
-        >
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse shrink-0" />
-            <span className="truncate">
-              ⏱ HOLDING: {activeReservation.hospital_name} · 2-min timer
-            </span>
-          </div>
-        </div>
-      )}
-
-      {activeReservation && activeReservation.status === 'accepted' && (
-        <div
-          className="bg-emerald-600 text-white px-4 py-3 text-sm font-extrabold flex items-center gap-2 shadow-lg animate-fade-in z-30"
-          role="status"
-        >
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <span>✅ BED CONFIRMED — {activeReservation.hospital_name}</span>
-        </div>
+      {/* This crew's hold: big countdown, Navigate / Call, Cancel */}
+      {activeReservation && (
+        <ActiveHoldBar reservation={activeReservation} onCancel={handleCancelHold} />
       )}
 
       {/* Action Notice Banner */}
@@ -482,8 +495,9 @@ export default function DispatcherPage() {
             formData={formData}
             onChange={setFormData}
             onUseCurrentLocation={handleUseCurrentLocation}
-            onQuickLoadCriticalScenario={handleQuickLoadCriticalScenario}
+            onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
           />
+          {showDemoControls && (
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider block">Demo Controls</span>
             <p className="text-slate-500 text-[11px]">Test rejection, 2-min timeout, and auto-fallback.</p>
@@ -496,6 +510,7 @@ export default function DispatcherPage() {
               <span>Reset Demo Data</span>
             </button>
           </div>
+          )}
         </div>
 
         {/* Column 2: Map (Fixed viewport pane) */}
@@ -602,9 +617,10 @@ export default function DispatcherPage() {
               formData={formData}
               onChange={setFormData}
               onUseCurrentLocation={handleUseCurrentLocation}
-              onQuickLoadCriticalScenario={handleQuickLoadCriticalScenario}
+              onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
             />
-            {/* Quick Actions */}
+            {/* Demo actions (admin only) */}
+            {showDemoControls && (
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -623,6 +639,7 @@ export default function DispatcherPage() {
                 Reset Demo
               </button>
             </div>
+            )}
             {/* CTA to go to results */}
             <button
               type="button"

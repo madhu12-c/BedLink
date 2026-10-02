@@ -29,7 +29,8 @@ interface PatientNeedFormProps {
   formData: DispatchFormParams;
   onChange: (data: DispatchFormParams) => void;
   onUseCurrentLocation: () => void;
-  onQuickLoadCriticalScenario: () => void;
+  /** Demo only (admin): fills in the critical cardiac scenario. Hidden when not given. */
+  onQuickLoadCriticalScenario?: () => void;
   className?: string;
 }
 
@@ -74,6 +75,7 @@ export function PatientNeedForm({
           <h2 className="text-base font-bold text-slate-900">Patient Emergency Intake</h2>
           <p className="text-xs text-slate-500">Configure triage resources for hospital matching</p>
         </div>
+        {onQuickLoadCriticalScenario && (
         <button
           type="button"
           onClick={onQuickLoadCriticalScenario}
@@ -83,6 +85,7 @@ export function PatientNeedForm({
           <Sparkles className="w-3.5 h-3.5 text-blue-600" />
           <span>Demo Scenario</span>
         </button>
+        )}
       </div>
 
       {/* Critical Patient Banner (Step 28 / DESIGN.md) */}

@@ -10,12 +10,16 @@ import {
   ArrowRight,
   Sparkles,
   Bed,
-  Check
+  Check,
+  Navigation,
+  Phone
 } from 'lucide-react';
 import { BedType, Reservation, ScoredHospital } from '@/lib/types';
 import { FreshnessIndicator } from './FreshnessIndicator';
 import { LoadIndicator } from './LoadIndicator';
 import { ReservationTimer } from './ReservationTimer';
+import { callUrl, navigateUrl } from './ActiveHoldBar';
+import { DEFAULT_RANKING_WEIGHTS } from '@/lib/dispatch/ranking';
 
 interface HospitalResultCardProps {
   scoredHospital: ScoredHospital;
@@ -57,6 +61,16 @@ export function HospitalResultCard({
 
   const ventInv = inventory['ventilator'];
   const hasVentilator = (ventInv?.available_beds ?? 0) > 0;
+
+  // "Why this hospital": each factor's share of the score, in points out of 100
+  const w = DEFAULT_RANKING_WEIGHTS;
+  const points = (score: number, weight: number) => Math.round(score * weight * 100);
+  const why = [
+    { label: isExactMatch ? 'Has everything needed' : 'Missing something', pts: points(scoredHospital.bedMatchScore, w.bedMatch), max: Math.round(w.bedMatch * 100) },
+    { label: `${etaMinutes} min drive`, pts: points(scoredHospital.travelScore, w.travel), max: Math.round(w.travel * 100) },
+    { label: 'How fresh the bed data is', pts: points(scoredHospital.freshnessScore, w.freshness), max: Math.round(w.freshness * 100) },
+    { label: `Hospital ${hospital.current_load}% busy`, pts: points(scoredHospital.loadScore, w.load), max: Math.round(w.load * 100) }
+  ];
 
   return (
     <article
@@ -189,6 +203,53 @@ export function HospitalResultCard({
           </div>
         </div>
       )}
+
+      {/* Why this hospital: score breakdown */}
+      <details className="mb-3 text-xs group" onClick={(e) => e.stopPropagation()}>
+        <summary className="cursor-pointer select-none font-semibold text-slate-600 hover:text-slate-900 list-none flex items-center justify-between">
+          <span>Why this hospital?</span>
+          <span className="font-mono text-slate-800">Score {Math.round(scoredHospital.totalScore * 100)}/100</span>
+        </summary>
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {why.map((row) => (
+            <li key={row.label} className="flex items-center gap-2">
+              <span className="flex-1 text-slate-600">{row.label}</span>
+              <span className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-hidden="true">
+                <span className="block h-full bg-blue-500" style={{ width: `${row.max ? (row.pts / row.max) * 100 : 0}%` }} />
+              </span>
+              <span className="w-14 text-right font-mono text-slate-800">
+                {row.pts}/{row.max}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+
+      {/* Call / Navigate */}
+      <div className="flex gap-2 mb-3">
+        {hospital.phone && (
+          <a
+            href={callUrl(hospital.phone)}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[40px]"
+            aria-label={`Call ${hospital.name}`}
+          >
+            <Phone className="w-3.5 h-3.5" />
+            Call
+          </a>
+        )}
+        <a
+          href={navigateUrl(hospital.latitude, hospital.longitude)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[40px]"
+          aria-label={`Directions to ${hospital.name}`}
+        >
+          <Navigation className="w-3.5 h-3.5" />
+          Navigate
+        </a>
+      </div>
 
       {/* Freshness & Load Indicators */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 mb-3 text-xs">

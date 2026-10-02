@@ -509,6 +509,40 @@ export async function persistReservationExpired(reservationId: string, hospitalI
 }
 
 /**
+ * Admin "Reset demo": puts the shared database back to the demo bed counts with fresh times
+ * and cancels every open hold, so all phones reset together (they follow through realtime).
+ * Call after bedLinkStore.resetToDefaults(), which provides the values to write.
+ */
+export async function resetDemoInDatabase(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return null;
+
+  const now = new Date().toISOString();
+  const { error: resErr } = await supabase
+    .from('reservations')
+    .update({ status: 'cancelled', responded_at: now })
+    .in('status', ['pending', 'accepted', 'shadow']);
+  if (resErr) return `Could not clear open holds: ${resErr.message}`;
+
+  for (const hospital of bedLinkStore.getHospitals()) {
+    await supabase
+      .from('hospitals')
+      .update({ current_load: hospital.current_load, load_updated_at: hospital.load_updated_at })
+      .eq('id', ensureUUID(hospital.id));
+    for (const inv of bedLinkStore.getBedInventories(hospital.id)) {
+      const { error } = await supabase
+        .from('bed_inventory')
+        .update({ total_beds: inv.total_beds, available_beds: inv.available_beds, updated_at: inv.updated_at })
+        .eq('hospital_id', ensureUUID(hospital.id))
+        .eq('bed_type', inv.bed_type);
+      if (error) return `Could not reset ${hospital.name}: ${error.message}`;
+    }
+  }
+  return null;
+}
+
+/**
  * "All counts still correct": refreshes the update time of every bed type at this hospital.
  * Only the times are written, so a count someone changed meanwhile is never overwritten.
  */
