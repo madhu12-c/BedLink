@@ -117,10 +117,11 @@ export const ANSWER_KEYTERMS = [
 
 export async function transcribeAudio(
   audio: Blob,
-  keyterms: readonly string[]
+  keyterms: readonly string[],
+  fileName = 'speech.wav'
 ): Promise<{ transcript: string; languageCode: string | null }> {
   const form = new FormData();
-  form.append('file', audio, 'speech.wav');
+  form.append('file', audio, fileName);
   form.append('model', STT_MODEL);
   form.append('mode', 'transcribe');
   form.append('keyterms', JSON.stringify(keyterms));
@@ -236,6 +237,58 @@ export async function extractIntakeFields(
     throw new VoiceServiceError('UPSTREAM', 'The AI reply had unexpected fields.');
   }
   return parsed.data;
+}
+
+// ── Bed counts from a nurse's message (Telegram text or voice note) ──
+
+// Bias speech recognition toward words nurses say about beds.
+export const BED_COUNT_KEYTERMS = ['ICU', 'ventilator', 'oxygen', 'O2', 'cardiac', 'CCU', 'burns', 'beds', 'khali', 'free'];
+
+const BED_COUNT_BED_TYPES = ['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general'] as const;
+
+const freeBeds = z.number().int().min(0).max(999).nullish();
+const BedCountsSchema = z.object({
+  icu: freeBeds,
+  ventilator: freeBeds,
+  oxygen: freeBeds,
+  cardiac: freeBeds,
+  burns: freeBeds,
+  emergency: freeBeds,
+  general: freeBeds
+});
+
+const BED_COUNT_SYSTEM_PROMPT = `You read a hospital nurse's short message about how many beds are FREE right now, for BedLink, a hospital bed finder in India. The message may be in Hindi, Marathi, English or a mix.
+
+Return ONLY a JSON object with exactly these keys: "icu", "ventilator", "oxygen", "cardiac", "burns", "emergency", "general". Each value is the whole number of FREE beds of that type, or null if the message does not say.
+
+Rules:
+- "khali", "khaali", "rikama", "rikame", "free", "available", "vacant" mean free.
+- Number words: ek=1, do/don=2, teen/tin=3, char/chaar=4, paanch/pach=5, chhe/saha=6, saat=7, aath=8, nau=9, das/daha=10; "koi nahi", "ekhi nahi", "full", "none" mean 0.
+- "O2" means oxygen; "CCU" or "heart" means cardiac; "vent" means ventilator; "casualty" or "ER" means emergency; "ward" means general.
+- Use null for every type the message does not mention. Never invent numbers.`;
+
+/** Free-bed counts from a nurse's message in any Indian language; only the types it mentions. */
+export async function extractBedCounts(
+  message: string,
+  languageCode: string | null
+): Promise<Partial<Record<(typeof BED_COUNT_BED_TYPES)[number], number>>> {
+  const content = await chatJsonCompletion(
+    [
+      { role: 'system', content: BED_COUNT_SYSTEM_PROMPT },
+      { role: 'user', content: `Detected language: ${languageCode ?? 'unknown'}\nMessage: """${message}"""` }
+    ],
+    { maxTokens: 200, timeoutMs: 10_000 }
+  );
+  const parsed = BedCountsSchema.safeParse(extractJsonObject(content));
+  if (!parsed.success) {
+    throw new VoiceServiceError('UPSTREAM', 'The AI reply had unexpected fields.');
+  }
+  const counts: Partial<Record<(typeof BED_COUNT_BED_TYPES)[number], number>> = {};
+  for (const type of BED_COUNT_BED_TYPES) {
+    const n = parsed.data[type];
+    if (typeof n === 'number') counts[type] = n;
+  }
+  return counts;
 }
 
 // ── Translation (Sarvam Translate) ──
