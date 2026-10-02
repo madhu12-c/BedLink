@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:users": "node scripts/create-demo-users.mjs"
+    "seed:users": "node scripts/create-demo-users.mjs",
+    "race-test": "node scripts/race-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
