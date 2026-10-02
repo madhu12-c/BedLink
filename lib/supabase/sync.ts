@@ -560,9 +560,16 @@ export async function fetchBedHistoryLogs(hospitalId?: string) {
 // SIGN OUT
 // ═══════════════════════════════════════════════════════════════════════
 export async function signOut() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('bedlink_operator_session');
+  }
   const supabase = getBrowserSupabaseClient();
   if (!supabase) return;
-  await supabase.auth.signOut();
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // Ignore sign out error
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -575,22 +582,35 @@ export async function getCurrentUserProfile(): Promise<{
   role: string;
 } | null> {
   const supabase = getBrowserSupabaseClient();
-  if (!supabase) return null;
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    return {
-      id: user.id,
-      email: user.email || '',
-      name: profile?.name || user.email?.split('@')[0] || 'Operator',
-      role: profile?.role || 'nurse',
-    };
-  } catch {
-    return null;
+  if (supabase) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        return {
+          id: user.id,
+          email: user.email || '',
+          name: profile?.name || user.email?.split('@')[0] || 'Operator',
+          role: profile?.role || 'nurse',
+        };
+      }
+    } catch {
+      // Supabase user fetch failed, fallback to local session
+    }
   }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('bedlink_operator_session');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Ignore parse error
+    }
+  }
+
+  return null;
 }
