@@ -17,6 +17,20 @@ import {
 } from '../demo/seed-data';
 import { rankHospitals } from '../dispatch/ranking';
 
+export type SyncHandler = {
+  onBedUpdate?: (hospitalId: string, bedType: BedType, newAvailable: number, actorId?: string) => void;
+  onReservationHold?: (reservation: Reservation, actorId?: string) => void;
+  onReservationResponse?: (
+    reservationId: string,
+    hospitalId: string,
+    bedType: BedType,
+    action: 'accept' | 'reject',
+    actorId?: string,
+    rejectionReason?: string
+  ) => void;
+  onReservationExpired?: (reservationId: string, hospitalId: string, bedType: BedType) => void;
+};
+
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
 class BedLinkDataStore {
   private hospitals: Hospital[] = [];
@@ -28,6 +42,7 @@ class BedLinkDataStore {
   private broadcastChannel: BroadcastChannel | null = null;
   private listeners: Set<(event: { type: string; payload: unknown }) => void> = new Set();
   private expirationInterval: NodeJS.Timeout | null = null;
+  private syncHandler: SyncHandler | null = null;
 
   constructor() {
     this.resetToDefaults();
@@ -52,6 +67,83 @@ class BedLinkDataStore {
       this.expirationInterval = setInterval(() => {
         this.checkAndExpirePendingReservations();
       }, 2000);
+    }
+  }
+
+  public registerSyncHandler(handler: SyncHandler) {
+    this.syncHandler = handler;
+  }
+
+  public hydrateFromSerialized(data: {
+    hospitals?: Hospital[];
+    capabilities?: HospitalCapability[];
+    bedInventories?: BedInventory[];
+    reservations?: Reservation[];
+    reservationEvents?: ReservationEvent[];
+  }) {
+    if (!data) return;
+    if (data.hospitals && data.hospitals.length > 0) this.hospitals = data.hospitals;
+    if (data.capabilities && data.capabilities.length > 0) this.capabilities = data.capabilities;
+    if (data.bedInventories && data.bedInventories.length > 0) this.bedInventories = data.bedInventories;
+    if (data.reservations) this.reservations = data.reservations;
+    if (data.reservationEvents) this.reservationEvents = data.reservationEvents;
+    this.notifyListeners('SYNC_STATE', null);
+  }
+
+  public applyExternalBedUpdate(item: BedInventory) {
+    const idx = this.bedInventories.findIndex(
+      (b) => b.hospital_id === item.hospital_id && b.bed_type === item.bed_type
+    );
+    if (idx >= 0) {
+      this.bedInventories[idx] = { ...this.bedInventories[idx], ...item };
+    } else {
+      this.bedInventories.push(item);
+    }
+    const hosp = this.hospitals.find((h) => h.id === item.hospital_id);
+    if (hosp) {
+      const hospBeds = this.bedInventories.filter((b) => b.hospital_id === item.hospital_id);
+      const total = hospBeds.reduce((acc, curr) => acc + curr.total_beds, 0);
+      const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
+      if (total > 0) {
+        hosp.current_load = Math.round(((total - avail) / total) * 100);
+        hosp.load_updated_at = new Date().toISOString();
+      }
+    }
+    this.broadcast('bed_updated', {
+      hospitalId: item.hospital_id,
+      bedType: item.bed_type,
+      available_beds: item.available_beds,
+      inv: item
+    });
+  }
+
+  public applyExternalReservation(item: Reservation) {
+    const idx = this.reservations.findIndex((r) => r.id === item.id);
+    if (idx >= 0) {
+      this.reservations[idx] = { ...this.reservations[idx], ...item };
+    } else {
+      this.reservations.unshift(item);
+    }
+    const hosp = this.getHospital(item.hospital_id);
+    const enriched = { ...item, hospital_name: hosp?.name || 'Hospital' };
+    this.broadcast(
+      item.status === 'accepted'
+        ? 'reservation_accepted'
+        : item.status === 'rejected'
+        ? 'reservation_rejected'
+        : item.status === 'expired'
+        ? 'reservation_expired'
+        : 'reservation_created',
+      { reservation: enriched }
+    );
+  }
+
+  public applyExternalHospitalUpdate(update: { id: string; current_load: number; load_updated_at: string }) {
+    const hosp = this.hospitals.find((h) => h.id === update.id);
+    if (hosp) {
+      hosp.current_load = update.current_load;
+      hosp.load_updated_at = update.load_updated_at;
+      this.broadcast('hospital_updated', hosp);
     }
   }
 
@@ -206,6 +298,7 @@ class BedLinkDataStore {
     }
 
     this.broadcast('bed_updated', { hospitalId, bedType, available_beds: newCount, inv, actorName });
+    this.syncHandler?.onBedUpdate?.(hospitalId, bedType, newCount, actorId);
     return { ...inv };
   }
 
@@ -296,6 +389,7 @@ class BedLinkDataStore {
 
     this.broadcast('reservation_created', { reservation, event });
     this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, inv });
+    this.syncHandler?.onReservationHold?.(reservation, actorId);
 
     return reservation;
   }
@@ -350,6 +444,7 @@ class BedLinkDataStore {
       this.reservationEvents.unshift(event);
 
       this.broadcast('reservation_accepted', { reservation, event });
+      this.syncHandler?.onReservationResponse?.(reservationId, reservation.hospital_id, reservation.bed_type, 'accept', actorId);
       return { success: true, status: 'accepted' };
     } else {
       // Reject: restore held bed back into available inventory!
@@ -388,6 +483,15 @@ class BedLinkDataStore {
           inv
         });
       }
+
+      this.syncHandler?.onReservationResponse?.(
+        reservationId,
+        reservation.hospital_id,
+        reservation.bed_type,
+        'reject',
+        actorId,
+        reservation.rejection_reason
+      );
 
       // Step 20 — Automatic Fallback to Next Best Eligible Hospital
       const nextHospital = this.triggerAutomaticFallback(reservation.request_id, reservation.hospital_id);
@@ -444,6 +548,8 @@ class BedLinkDataStore {
         inv
       });
     }
+
+    this.syncHandler?.onReservationExpired?.(reservation.id, reservation.hospital_id, reservation.bed_type);
 
     // Trigger automatic fallback to next eligible hospital
     this.triggerAutomaticFallback(reservation.request_id, reservation.hospital_id);
@@ -523,23 +629,6 @@ class BedLinkDataStore {
     }
 
     return nextTarget;
-  }
-
-  private hydrateFromSerialized(data: unknown) {
-    if (data && typeof data === 'object') {
-      const typedData = data as {
-        hospitals?: Hospital[];
-        bedInventories?: BedInventory[];
-        reservations?: Reservation[];
-        reservationEvents?: ReservationEvent[];
-        emergencyRequests?: EmergencyRequest[];
-      };
-      if (typedData.hospitals) this.hospitals = typedData.hospitals;
-      if (typedData.bedInventories) this.bedInventories = typedData.bedInventories;
-      if (typedData.reservations) this.reservations = typedData.reservations;
-      if (typedData.reservationEvents) this.reservationEvents = typedData.reservationEvents;
-      if (typedData.emergencyRequests) this.emergencyRequests = typedData.emergencyRequests;
-    }
   }
 }
 

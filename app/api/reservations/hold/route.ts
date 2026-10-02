@@ -32,6 +32,36 @@ export async function POST(req: NextRequest) {
       actorName || 'EMS Dispatch Control'
     );
 
+    try {
+      const { createServerSupabaseClient } = await import('@/lib/supabase/server');
+      const supabase = await createServerSupabaseClient();
+      if (supabase) {
+        await supabase.from('reservations').insert({
+          id: reservation.id,
+          request_id: reservation.request_id,
+          hospital_id: reservation.hospital_id,
+          bed_type: reservation.bed_type,
+          status: reservation.status,
+          requested_at: reservation.requested_at,
+          expires_at: reservation.expires_at
+        });
+
+        const inv = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
+        if (inv) {
+          await supabase
+            .from('bed_inventory')
+            .update({
+              available_beds: inv.available_beds,
+              updated_at: new Date().toISOString()
+            })
+            .eq('hospital_id', hospitalId)
+            .eq('bed_type', bedType);
+        }
+      }
+    } catch {
+      // Continue even if Supabase sync fails
+    }
+
     return NextResponse.json({
       success: true,
       reservation,

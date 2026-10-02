@@ -494,3 +494,48 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'status', v_res.status, 'message', 'Not eligible for expiration');
 END;
 $$;
+
+-- Enable Replica Identity for full row payload on Realtime updates
+ALTER TABLE bed_inventory REPLICA IDENTITY FULL;
+ALTER TABLE reservations REPLICA IDENTITY FULL;
+ALTER TABLE hospitals REPLICA IDENTITY FULL;
+
+-- Add tables to supabase_realtime publication
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE reservation_events;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE hospitals;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+END $$;
+
+-- Public/Demo policies for anon client (essential for hackathon & rapid testing)
+CREATE POLICY "Anon public read hospitals" ON hospitals FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon public read capabilities" ON hospital_capabilities FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon public read bed_inventory" ON bed_inventory FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon public update bed_inventory" ON bed_inventory FOR UPDATE TO anon USING (true);
+CREATE POLICY "Anon public read reservations" ON reservations FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon public insert reservations" ON reservations FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Anon public update reservations" ON reservations FOR UPDATE TO anon USING (true);
+CREATE POLICY "Anon public read events" ON reservation_events FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon public insert events" ON reservation_events FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Anon public read emergency_requests" ON emergency_requests FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon public insert emergency_requests" ON emergency_requests FOR INSERT TO anon WITH CHECK (true);
+
+-- Grant RPC execution to anon and authenticated
+GRANT EXECUTE ON FUNCTION hold_bed_atomic(UUID, UUID, TEXT, UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION respond_reservation_atomic(UUID, TEXT, UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION expire_reservation_atomic(UUID) TO anon, authenticated;
+

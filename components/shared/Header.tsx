@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useSyncExternalStore } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -13,6 +13,7 @@ import {
   Radio
 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
+import { initSupabaseSync, subscribeSupabaseStatus } from '@/lib/supabase/sync';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -37,6 +38,20 @@ export function Header({
   hideBottomNav = false
 }: HeaderProps) {
   const pathname = usePathname();
+
+  const [supabaseState, setSupabaseState] = useState({
+    configured: false,
+    connected: false,
+    lastSyncTime: null as string | null
+  });
+
+  useEffect(() => {
+    initSupabaseSync();
+    const unsub = subscribeSupabaseStatus((status) => {
+      setSupabaseState(status);
+    });
+    return () => unsub();
+  }, []);
 
   const isOnline = useSyncExternalStore(
     subscribeOnline,
@@ -110,14 +125,48 @@ export function Header({
 
           {/* Right Controls: Role Switcher & Realtime status */}
           <div className="flex items-center gap-3">
-            {/* Realtime Live Pulse */}
+            {/* Realtime Live Pulse / Supabase Status */}
             <div
-              className="hidden sm:flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200"
-              title="Supabase & Realtime Broadcast Active"
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                supabaseState.connected
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : supabaseState.configured
+                  ? 'bg-blue-50 text-blue-800 border-blue-200'
+                  : 'bg-slate-50 text-slate-700 border-slate-200'
+              }`}
+              title={
+                supabaseState.connected
+                  ? `Supabase Live Connected - Realtime Synced${supabaseState.lastSyncTime ? ` at ${supabaseState.lastSyncTime}` : ''}`
+                  : supabaseState.configured
+                  ? 'Connecting to Supabase Realtime...'
+                  : 'In-Memory Local Sync Mode (Set .env.local to connect live Supabase)'
+              }
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <Radio className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="font-mono text-[11px] font-semibold text-slate-700">REALTIME SYNC</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  supabaseState.connected
+                    ? 'bg-emerald-500 animate-ping'
+                    : supabaseState.configured
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-slate-400'
+                }`}
+              />
+              <Radio
+                className={`w-3.5 h-3.5 ${
+                  supabaseState.connected
+                    ? 'text-emerald-600'
+                    : supabaseState.configured
+                    ? 'text-amber-600'
+                    : 'text-slate-500'
+                }`}
+              />
+              <span className="font-mono text-[10px] sm:text-[11px] font-bold">
+                {supabaseState.connected
+                  ? 'SUPABASE LIVE'
+                  : supabaseState.configured
+                  ? 'SYNCING...'
+                  : 'DEMO MODE'}
+              </span>
             </div>
 
             {/* Role Switcher Dropdown (Allows instant switching between Dispatcher and Hospital Nurses for demo) */}

@@ -32,6 +32,24 @@ export async function POST(req: NextRequest) {
       actorName || 'Staff Nurse'
     );
 
+    try {
+      const { createServerSupabaseClient } = await import('@/lib/supabase/server');
+      const supabase = await createServerSupabaseClient();
+      if (supabase) {
+        await supabase
+          .from('bed_inventory')
+          .update({
+            available_beds: updated.available_beds,
+            updated_at: updated.updated_at,
+            updated_by: actorId || null
+          })
+          .eq('hospital_id', hospitalId)
+          .eq('bed_type', bedType);
+      }
+    } catch {
+      // Continue even if Supabase sync fails
+    }
+
     return NextResponse.json({
       success: true,
       inventory: updated,

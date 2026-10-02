@@ -32,6 +32,38 @@ export async function POST(req: NextRequest) {
       rejectionReason
     );
 
+    try {
+      const { createServerSupabaseClient } = await import('@/lib/supabase/server');
+      const supabase = await createServerSupabaseClient();
+      if (supabase) {
+        await supabase
+          .from('reservations')
+          .update({
+            status: result.status,
+            responded_at: new Date().toISOString(),
+            rejection_reason: rejectionReason || null
+          })
+          .eq('id', reservationId);
+
+        const res = bedLinkStore.getReservations().find((r) => r.id === reservationId);
+        if (res && action === 'reject') {
+          const inv = bedLinkStore.getBedInventories(res.hospital_id).find((b) => b.bed_type === res.bed_type);
+          if (inv) {
+            await supabase
+              .from('bed_inventory')
+              .update({
+                available_beds: inv.available_beds,
+                updated_at: new Date().toISOString()
+              })
+              .eq('hospital_id', res.hospital_id)
+              .eq('bed_type', res.bed_type);
+          }
+        }
+      }
+    } catch {
+      // Continue even if Supabase sync fails
+    }
+
     return NextResponse.json({
       success: true,
       result,
