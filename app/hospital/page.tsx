@@ -538,7 +538,7 @@ Bed Type: ${bed}
             )}
             {displayReservation && (
               <IncomingReservationAlert
-                key={displayReservation.id}
+                key={`alert-${displayReservation.id}`}
                 reservation={displayReservation}
                 currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
                 onAccept={handleAcceptReservation}
@@ -550,7 +550,7 @@ Bed Type: ${bed}
             {/* Quick messages with the ambulance crew for this request */}
             {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
               <QuickMessages
-                key={displayReservation.id}
+                key={`messages-${displayReservation.id}`}
                 reservationId={displayReservation.id}
                 from="hospital"
                 author={currentHospital.name}
