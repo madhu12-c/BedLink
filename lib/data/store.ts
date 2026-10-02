@@ -1610,6 +1610,18 @@ class BedLinkDataStore {
     });
   }
 
+  /** Holds made at a hospital for one bed type in the last `minutes`: how busy it is right now. */
+  public recentHoldCount(hospitalId: string, bedType: BedType, minutes = 60): number {
+    const since = Date.now() - minutes * 60_000;
+    return this.reservations.filter(
+      (r) =>
+        r.hospital_id === hospitalId &&
+        r.bed_type === bedType &&
+        r.status !== 'shadow' &&
+        Date.parse(r.requested_at) >= since
+    ).length;
+  }
+
   public getIncomingAmbulances(hospitalId: string) {
     // Active reservations en route (only accepted reservations after hospital accepts hold)
     const active = this.reservations.filter(

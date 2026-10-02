@@ -22,6 +22,7 @@ import { LoadIndicator } from './LoadIndicator';
 import { ReservationTimer } from './ReservationTimer';
 import { callUrl, navigateUrl } from './ActiveHoldBar';
 import { DEFAULT_RANKING_WEIGHTS, likelyFreeFor } from '@/lib/dispatch/ranking';
+import { bedLinkStore } from '@/lib/data/store';
 
 interface HospitalResultCardProps {
   scoredHospital: ScoredHospital;
@@ -83,8 +84,9 @@ export function HospitalResultCard({
     { label: `Reliability ${hospital.reliability ?? 100}/100`, pts: points(scoredHospital.reliabilityScore ?? 1, w.reliability), max: Math.round(w.reliability * 100) }
   ];
   const onDiversion = hospital.ed_status === 'diversion';
-  // Chance a bed is still free on arrival (data age + drive time)
-  const likelyFree = availableBeds > 0 ? likelyFreeFor(scoredHospital, requiredBedType) : 0;
+  // Chance a bed is still free on arrival: data age + drive time + how busy the hospital is
+  const recentHolds = bedLinkStore.recentHoldCount(hospital.id, requiredBedType);
+  const likelyFree = availableBeds > 0 ? likelyFreeFor(scoredHospital, requiredBedType, recentHolds) : 0;
   const reliability = hospital.reliability ?? 100;
   const likelyFreeColour =
     likelyFree >= 70 ? 'text-emerald-700' : likelyFree >= 40 ? 'text-amber-700' : 'text-red-700';
@@ -193,7 +195,7 @@ export function HospitalResultCard({
         </div>
         <div
           className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-2 text-center"
-          title="Based on how old the bed count is and how long the drive takes"
+          title="Estimate from: free beds, how old the count is, the drive time, how full the hospital is, and how many other ambulances took this bed type here in the last hour"
         >
           <span className={`block text-xl font-extrabold leading-none ${availableBeds > 0 ? likelyFreeColour : 'text-slate-400'}`} suppressHydrationWarning>
             {availableBeds > 0 ? `${likelyFree}%` : '–'}
@@ -296,6 +298,14 @@ export function HospitalResultCard({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Busy right now: lowers the chance a bed is still free on arrival */}
+          {recentHolds > 0 && (
+            <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+              Busy: {recentHolds} ambulance{recentHolds === 1 ? '' : 's'} took {requiredBedType.toUpperCase()} beds here in the
+              last hour, so beds may go faster.
+            </p>
           )}
 
           {/* How full + how reliable */}
