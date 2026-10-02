@@ -29,7 +29,8 @@ import {
   Building2,
   Lock,
   AlertTriangle,
-  Ambulance
+  Ambulance,
+  Settings
 } from 'lucide-react';
 
 type HospitalView = 'nurse' | 'coordinator';
@@ -55,6 +56,7 @@ export default function HospitalNursePage() {
   // It stays hidden while the IncomingReservationAlert is on screen so the
   // upper card only slides in after the lower emergency alert has dismissed.
   const [alertDismissed, setAlertDismissed] = useState(true);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   const [autoAssignResult, setAutoAssignResult] = useState<(BedNeedEvaluation & {
     logId: string;
@@ -209,6 +211,8 @@ Bed Type: ${bed}
   }, [currentHospital, lastUpdateTrigger]);
 
   // Derive active pending reservation from store
+  const voicePanelOpen = showVoiceSettings || (voiceSettings.announce && voicePlayer.status === 'blocked');
+
   const displayReservation = useMemo(() => {
     void lastUpdateTrigger;
     if (
@@ -500,6 +504,111 @@ Bed Type: ${bed}
       )}
 
       <main className="flex-1 max-w-5xl xl:max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+        {/* Staff account with no (or an unknown) hospital: show nothing rather than another hospital's data */}
+        {isHospitalStaff && !currentHospital && (
+          <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-900 flex items-start gap-3" role="alert">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+            <span>
+              Your account is not linked to a hospital yet, so there is nothing to show. Ask the BedLink admin to set
+              your hospital, then sign in again.
+            </span>
+          </div>
+        )}
+
+        {currentHospital && (
+        <>
+        {/* 1. Incoming ambulance first: it is the one thing that can't wait */}
+        {view === 'coordinator' ? (
+          <div className="space-y-4">
+            {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes.
+                Rendered first (top of stack) so the coordinator sees it immediately.
+                Once it auto-dismisses, AmbulanceArrivalCountdown slides in below. */}
+            {displayReservation && (
+              <IncomingReservationAlert
+                reservation={displayReservation}
+                currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
+                onAccept={handleAcceptReservation}
+                onReject={handleRejectReservation}
+                onDismiss={() => setAlertDismissed(true)}
+              />
+            )}
+
+            {/* Quick messages with the ambulance crew for this request */}
+            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+              <QuickMessages
+                key={displayReservation.id}
+                reservationId={displayReservation.id}
+                from="hospital"
+                author={currentHospital.name}
+              />
+            )}
+
+            {/* Live Incoming Ambulance ETA Countdown.
+                Only shown after the emergency alert has been dismissed so the
+                two cards don't compete for attention. Slides in smoothly. */}
+            {alertDismissed && (
+              <div className="animate-slide-in-up">
+                <AmbulanceArrivalCountdown
+                  incoming={incomingAmbulances}
+                  onAdmitPatient={handleAdmitPatient}
+                  onBedLost={handleBedLost}
+                  onAcceptReservation={handleAcceptReservation}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Incoming request heads-up (read-only: the coordinator accepts or rejects) */}
+            {displayReservation &&
+              (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+                <div
+                  role="status"
+                  className={`p-4 rounded-2xl border-2 flex items-start gap-3 ${
+                    displayReservation.status === 'pending'
+                      ? 'bg-red-50 border-red-300 text-red-900'
+                      : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  }`}
+                >
+                  <Ambulance className="w-6 h-6 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5">
+                    <strong className="text-sm font-black">
+                      {displayReservation.status === 'pending'
+                        ? 'Incoming ambulance request'
+                        : 'Bed allotted: patient on the way'}
+                    </strong>
+                    <span className="text-xs font-semibold">
+                      {displayReservation.bed_type.toUpperCase()} bed
+                      {displayReservation.patient_urgency ? ` · ${displayReservation.patient_urgency}` : ''}
+                      {displayReservation.eta_minutes ? ` · ETA ${displayReservation.eta_minutes} min` : ''}
+                    </span>
+                    <span className="text-xs">
+                      {displayReservation.status === 'pending'
+                        ? 'The hospital coordinator is deciding (2-minute timer). Get the bed ready in case it is accepted.'
+                        : 'Accepted by the coordinator. Prepare the bed to receive the patient.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            {!(displayReservation &&
+              (displayReservation.status === 'pending' || displayReservation.status === 'accepted')) && (
+              <div className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center gap-3 text-slate-600">
+                <Ambulance className="w-6 h-6 text-slate-400 shrink-0" />
+                <span className="text-sm font-semibold">No ambulance on the way right now</span>
+              </div>
+            )}
+            {/* Messages from the crew also show on the ward screen */}
+            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+              <QuickMessages
+                key={`nurse-${displayReservation.id}`}
+                reservationId={displayReservation.id}
+                from="hospital"
+                author={currentHospital.name}
+              />
+            )}
+          </div>
+        )}
+
         {/* Admin only: preview either hospital screen. Staff get the screen for their role. */}
         {!isHospitalStaff && (
           <div className="bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
@@ -543,33 +652,6 @@ Bed Type: ${bed}
           </div>
         )}
 
-        {/* Voice alerts: new ambulance requests are read aloud in the chosen language */}
-        <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs font-bold text-slate-700">Voice alerts for new requests and allotted beds</span>
-          <VoiceSettingsBar
-            availability={voiceAvailability}
-            settings={voiceSettings}
-            onChange={updateVoiceSettings}
-            playerStatus={voicePlayer.status}
-            playerError={voicePlayer.error}
-            onUnlock={voicePlayer.unlock}
-            label="Voice alerts"
-          />
-        </div>
-
-        {/* Staff account with no (or an unknown) hospital: show nothing rather than another hospital's data */}
-        {isHospitalStaff && !currentHospital && (
-          <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-900 flex items-start gap-3" role="alert">
-            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-            <span>
-              Your account is not linked to a hospital yet, so there is nothing to show. Ask the BedLink admin to set
-              your hospital, then sign in again.
-            </span>
-          </div>
-        )}
-
-        {currentHospital && (
-        <>
         {/* Hospital Header (admins can switch hospital; staff are fixed to their own) */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -640,6 +722,19 @@ Bed Type: ${bed}
           </div>
 
           <div className="flex flex-wrap items-end gap-2.5 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setShowVoiceSettings((open) => !open)}
+              aria-expanded={voicePanelOpen}
+              className={`px-3 py-2 rounded-lg border font-bold text-sm flex items-center gap-1.5 min-h-[44px] ${
+                voicePanelOpen
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              Voice alerts {voiceSettings.announce ? 'on' : 'off'}
+            </button>
             {!isHospitalStaff && (
               <div className="flex flex-col gap-1">
                 <label htmlFor="hospital-select" className="text-xs font-semibold text-slate-500">
@@ -674,53 +769,27 @@ Bed Type: ${bed}
           </div>
         </div>
 
+        {/* Voice alerts: new ambulance requests are read aloud in the chosen language */}
+        {voicePanelOpen && (
+          <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2 animate-fade-in">
+            <span className="text-sm font-bold text-slate-700">Read new requests and allotted beds aloud</span>
+            <VoiceSettingsBar
+              availability={voiceAvailability}
+              settings={voiceSettings}
+              onChange={updateVoiceSettings}
+              playerStatus={voicePlayer.status}
+              playerError={voicePlayer.error}
+              onUnlock={voicePlayer.unlock}
+              label="Voice alerts"
+            />
+          </div>
+        )}
+
         {/* =========================================================================
             VIEW 1: WARD NURSE (bed counts; sees requests but no accept/reject)
            ========================================================================= */}
         {view === 'nurse' && (
           <div className="space-y-6">
-            {/* Messages from the crew also show on the ward screen */}
-            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
-              <QuickMessages
-                key={`nurse-${displayReservation.id}`}
-                reservationId={displayReservation.id}
-                from="hospital"
-                author={currentHospital.name}
-              />
-            )}
-
-            {/* Incoming request heads-up (read-only: the coordinator accepts or rejects) */}
-            {displayReservation &&
-              (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
-                <div
-                  role="status"
-                  className={`p-4 rounded-2xl border-2 flex items-start gap-3 ${
-                    displayReservation.status === 'pending'
-                      ? 'bg-red-50 border-red-300 text-red-900'
-                      : 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                  }`}
-                >
-                  <Ambulance className="w-6 h-6 shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-0.5">
-                    <strong className="text-sm font-black">
-                      {displayReservation.status === 'pending'
-                        ? 'Incoming ambulance request'
-                        : 'Bed allotted: patient on the way'}
-                    </strong>
-                    <span className="text-xs font-semibold">
-                      {displayReservation.bed_type.toUpperCase()} bed
-                      {displayReservation.patient_urgency ? ` · ${displayReservation.patient_urgency}` : ''}
-                      {displayReservation.eta_minutes ? ` · ETA ${displayReservation.eta_minutes} min` : ''}
-                    </span>
-                    <span className="text-xs">
-                      {displayReservation.status === 'pending'
-                        ? 'The hospital coordinator is deciding (2-minute timer). Get the bed ready in case it is accepted.'
-                        : 'Accepted by the coordinator. Prepare the bed to receive the patient.'}
-                    </span>
-                  </div>
-                </div>
-              )}
-
             {/* Nothing changed? One tap keeps this hospital fresh for dispatch */}
             <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
 
@@ -755,43 +824,6 @@ Bed Type: ${bed}
            ========================================================================= */}
         {view === 'coordinator' && (
           <div className="space-y-6">
-            {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes.
-                Rendered first (top of stack) so the coordinator sees it immediately.
-                Once it auto-dismisses, AmbulanceArrivalCountdown slides in below. */}
-            {displayReservation && (
-              <IncomingReservationAlert
-                reservation={displayReservation}
-                currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
-                onAccept={handleAcceptReservation}
-                onReject={handleRejectReservation}
-                onDismiss={() => setAlertDismissed(true)}
-              />
-            )}
-
-            {/* Quick messages with the ambulance crew for this request */}
-            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
-              <QuickMessages
-                key={displayReservation.id}
-                reservationId={displayReservation.id}
-                from="hospital"
-                author={currentHospital.name}
-              />
-            )}
-
-            {/* Live Incoming Ambulance ETA Countdown.
-                Only shown after the emergency alert has been dismissed so the
-                two cards don't compete for attention. Slides in smoothly. */}
-            {alertDismissed && (
-              <div className="animate-slide-in-up">
-                <AmbulanceArrivalCountdown
-                  incoming={incomingAmbulances}
-                  onAdmitPatient={handleAdmitPatient}
-                  onBedLost={handleBedLost}
-                  onAcceptReservation={handleAcceptReservation}
-                />
-              </div>
-            )}
-
             {/* Coordinator KPI Summary Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
