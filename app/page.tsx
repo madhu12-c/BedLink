@@ -8,6 +8,7 @@ import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
 import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
 import { ScoredHospital, UserRole, Reservation } from '@/lib/types';
+import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
 import {
   ShieldAlert,
   Sparkles,
@@ -48,8 +49,16 @@ export default function DispatcherPage() {
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
+  const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
   // Real road-ranked results (updated async from OSRM)
   const [realRanked, setRealRanked] = useState<{ exactMatches: import('@/lib/types').ScoredHospital[]; partialMatches: import('@/lib/types').ScoredHospital[] } | null>(null);
+
+  // Request notification permission early so push fires immediately on accept
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
 
   // Subscribe to realtime store events
   useEffect(() => {
@@ -66,6 +75,8 @@ export default function DispatcherPage() {
         const payload = event.payload as { reservation: Reservation };
         setActiveReservation(payload.reservation);
         setActionNotice(`✓ BED CONFIRMED! Hospital accepted patient intake.`);
+        setShowConfirmedAlert(true); // Trigger fullscreen alert + push notification
+        setMobileTab('hospitals');
       } else if (event.type === 'reservation_rejected') {
         setActionNotice(`Hospital rejected hold. Automatic fallback routing triggered.`);
       } else if (event.type === 'reservation_expired') {
@@ -183,6 +194,7 @@ export default function DispatcherPage() {
   const handleResetDemo = () => {
     bedLinkStore.resetToDefaults();
     setActiveReservation(null);
+    setShowConfirmedAlert(false);
     setActionNotice('Reset all hospitals, beds, and reservations to clean demo state.');
     setLastUpdateTrigger((prev) => prev + 1);
   };
@@ -196,6 +208,14 @@ export default function DispatcherPage() {
 
   return (
     <div className="min-h-screen lg:h-screen flex flex-col bg-slate-50 lg:overflow-hidden">
+
+      {/* ── BED CONFIRMED FULLSCREEN ALERT (ambulance crew notification) ── */}
+      {showConfirmedAlert && activeReservation && (
+        <BedConfirmedAlert
+          reservation={activeReservation}
+          onDismiss={() => setShowConfirmedAlert(false)}
+        />
+      )}
       <Header
         currentRole={role}
         selectedHospitalId={selectedHospitalForNurse}
