@@ -38,7 +38,7 @@ export async function computeSha256(data: string): Promise<string> {
  * Deterministically canonicalizes vital signs and clinical metadata into an immutable payload.
  */
 export function canonicalizeHandoverPayload(record: Omit<PatientHandoverRecord, 'sha256_hash'>): string {
-  const normalized = {
+  const normalized: Record<string, unknown> = {
     patient_id: record.patient_id,
     reservation_id: record.reservation_id,
     destination_hospital_id: record.destination_hospital_id,
@@ -59,6 +59,10 @@ export function canonicalizeHandoverPayload(record: Omit<PatientHandoverRecord, 
     allergies: (record.allergies || []).map((a) => a.trim().toLowerCase()).sort(),
     medications_administered: (record.medications_administered || []).map((m) => m.trim().toLowerCase()).sort()
   };
+
+  if (record.procedures_performed && record.procedures_performed.length > 0) {
+    normalized.procedures_performed = record.procedures_performed.map((p) => p.trim().toLowerCase()).sort();
+  }
 
   return JSON.stringify(normalized);
 }
@@ -132,6 +136,12 @@ export function generateDefaultHandover(
       'Nitroglycerin 0.4mg SL',
       'Normal Saline 500mL IV bolus',
       'Supplemental High-Flow O2 @ 6L/min'
+    ],
+    procedures_performed: overrides?.procedures_performed || [
+      '12-Lead Pre-Hospital ECG Transmitted',
+      '18G Peripheral IV Cannulation (Left Forearm)',
+      'Supplemental High-Flow O2 via NRB Mask',
+      'Continuous Cardiac & SpO2 Telemetry'
     ],
     paramedic_badge_id: overrides?.paramedic_badge_id || 'PARAMEDIC-BMC-108-744',
     ambulance_vehicle_id: overrides?.ambulance_vehicle_id || 'MH-02-EMS-108',

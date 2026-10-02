@@ -1502,6 +1502,48 @@ class BedLinkDataStore {
     return generated;
   }
 
+  public getPatientHandoverByHash(hash: string): PatientHandoverRecord | undefined {
+    for (const record of this.patientHandovers.values()) {
+      if (record.sha256_hash === hash) return record;
+    }
+    return undefined;
+  }
+
+  public getPatientHandoverForLog(log: BedHistoryLog): PatientHandoverRecord {
+    if (log.handover_sha256) {
+      const byHash = this.getPatientHandoverByHash(log.handover_sha256);
+      if (byHash) return byHash;
+    }
+
+    return {
+      id: `ho-${log.id}`,
+      reservation_id: `res-${log.id}`,
+      patient_id: log.patient_id || 'PT-108-EMG',
+      patient_name: log.patient_name || 'Emergency Admission',
+      patient_age: log.patient_age || 52,
+      patient_gender: log.patient_gender || 'Not specified',
+      chief_complaint: log.diagnosis || 'Emergency Ward Admission',
+      triage_level: log.triage_level || 'yellow',
+      vitals: log.vitals || {
+        gcs: 15,
+        bp: '120/80',
+        spo2: 98,
+        heart_rate: 76,
+        resp_rate: 18,
+        temperature: 98.6,
+        blood_glucose: 110
+      },
+      allergies: log.allergies || ['No Known Drug Allergies (NKDA)'],
+      medications_administered: log.medications_administered || [],
+      procedures_performed: log.procedures_performed || [],
+      paramedic_badge_id: log.paramedic_badge_id || 'PARAMEDIC-BMC-108',
+      ambulance_vehicle_id: log.ambulance_vehicle_id || 'MH-02-EMS-108',
+      destination_hospital_id: log.hospital_id,
+      timestamp: log.admitted_at,
+      sha256_hash: log.handover_sha256 || 'RECORD_SEALED'
+    };
+  }
+
   public setPatientHandover(record: PatientHandoverRecord) {
     this.patientHandovers.set(record.reservation_id, record);
     this.broadcast('handover_updated', { handover: record });

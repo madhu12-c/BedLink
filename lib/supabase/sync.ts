@@ -915,6 +915,7 @@ export async function persistPatientHandover(handover: {
   vitals: Record<string, unknown>;
   allergies?: string[];
   medications_administered?: string[];
+  procedures_performed?: string[];
   paramedic_badge_id: string;
   ambulance_vehicle_id: string;
   destination_hospital_id: string;
