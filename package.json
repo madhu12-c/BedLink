@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "seed:users": "node scripts/create-demo-users.mjs",
-    "race-test": "node scripts/race-test.mjs"
+    "race-test": "node scripts/race-test.mjs",
+    "telegram": "node scripts/telegram.mjs poll",
+    "telegram:webhook": "node scripts/telegram.mjs webhook"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
