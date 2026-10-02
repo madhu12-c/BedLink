@@ -16,6 +16,8 @@ import { ActiveHoldBar } from '@/components/dispatch/ActiveHoldBar';
 import { HoldTimeline } from '@/components/dispatch/HoldTimeline';
 import { QuickMessages } from '@/components/shared/QuickMessages';
 import { StabiliseSuggestion } from '@/components/dispatch/StabiliseSuggestion';
+import { CasualtyHoldResult, MassCasualtyPanel } from '@/components/dispatch/MassCasualtyPanel';
+import { CasualtyPlanRow } from '@/lib/dispatch/massCasualty';
 import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
 import { VoiceBestMatch, VoiceIntakePanel } from '@/components/voice/VoiceIntakePanel';
 import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
@@ -32,6 +34,7 @@ import {
   ClipboardList,
   Building2,
   Map,
+  Siren,
   X
 } from 'lucide-react';
 
@@ -374,6 +377,42 @@ export default function DispatcherPage() {
     }
   };
 
+  // ── Mass casualty: many patients from one place, spread across hospitals ──
+  const [showMassCasualty, setShowMassCasualty] = useState(false);
+  const holdCasualties = (rows: CasualtyPlanRow[]): CasualtyHoldResult[] =>
+    rows.map((row) => {
+      if (!row.hospital) return { patientNo: row.patientNo, requestId: null };
+      const requestId = generateUUID();
+      registerRequest(requestId, {
+        ...formData,
+        bedType: row.bedType,
+        requiresVentilator: false,
+        specialty: 'none',
+        urgency: 'critical',
+        needsFreeCare: false,
+        notes: ''
+      });
+      try {
+        bedLinkStore.holdBedAtomic(requestId, row.hospital.hospital.id, row.bedType, dispatcherId, dispatcherName, {
+          urgency: 'critical',
+          etaMinutes: row.hospital.etaMinutes
+        });
+        return { patientNo: row.patientNo, requestId };
+      } catch (err: unknown) {
+        return { patientNo: row.patientNo, requestId: null, error: err instanceof Error ? err.message : 'Hold failed' };
+      }
+    });
+  const massCasualtyButton = (
+    <button
+      type="button"
+      onClick={() => setShowMassCasualty(true)}
+      className="w-full py-3 px-4 rounded-xl border-2 border-red-300 bg-red-50 hover:bg-red-100 text-red-800 font-extrabold text-sm flex items-center justify-center gap-2 min-h-[52px]"
+    >
+      <Siren className="w-5 h-5" />
+      Mass casualty (many patients)
+    </button>
+  );
+
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -673,6 +712,7 @@ export default function DispatcherPage() {
             onUseCurrentLocation={handleUseCurrentLocation}
             onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
           />
+          {massCasualtyButton}
           {showDemoControls && (
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider block">Demo Controls</span>
@@ -810,6 +850,7 @@ export default function DispatcherPage() {
               onUseCurrentLocation={handleUseCurrentLocation}
               onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
             />
+            {massCasualtyButton}
             {/* Demo actions (admin only) */}
             {showDemoControls && (
             <button
@@ -1011,6 +1052,16 @@ export default function DispatcherPage() {
           })}
         </nav>
       </div>
+
+      {showMassCasualty && (
+        <MassCasualtyPanel
+          candidates={candidates}
+          location={{ latitude: formData.latitude, longitude: formData.longitude, address: formData.address }}
+          roads={routesForOrigin}
+          onHoldAll={holdCasualties}
+          onClose={() => setShowMassCasualty(false)}
+        />
+      )}
     </div>
   );
 }
