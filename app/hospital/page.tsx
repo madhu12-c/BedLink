@@ -182,7 +182,7 @@ export default function HospitalNursePage() {
       patient_gender: handover.patient_gender,
       chief_complaint: handover.chief_complaint,
       triage_level: handover.triage_level,
-      vitals: handover.vitals as Record<string, unknown>,
+      vitals: handover.vitals as unknown as Record<string, unknown>,
       allergies: handover.allergies,
       medications_administered: handover.medications_administered,
       paramedic_badge_id: handover.paramedic_badge_id,
