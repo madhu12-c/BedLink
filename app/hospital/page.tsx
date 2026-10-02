@@ -298,21 +298,38 @@ Bed Type: ${bed}
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
+  // Store errors (request not synced to this device yet, already answered, past the 2 minutes)
+  // become a message for the coordinator instead of crashing the screen.
+  const respondErrorMessage = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : 'Could not respond to this request.';
+    return msg === 'Reservation not found'
+      ? 'This request has not reached this screen yet. Wait a second and try again, or refresh the page.'
+      : msg;
+  };
+
   const handleAcceptReservation = async (reservationId: string) => {
-    bedLinkStore.respondReservationAtomic(reservationId, 'accept', actorId, actorName('Bed Coordinator'));
-    setToastMessage('Reservation accepted! Ambulance is en route.');
+    try {
+      bedLinkStore.respondReservationAtomic(reservationId, 'accept', actorId, actorName('Bed Coordinator'));
+      setToastMessage('Reservation accepted! Ambulance is en route.');
+    } catch (err: unknown) {
+      setToastMessage(respondErrorMessage(err));
+    }
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
   const handleRejectReservation = async (reservationId: string, reason?: string) => {
-    bedLinkStore.respondReservationAtomic(
-      reservationId,
-      'reject',
-      actorId,
-      actorName('Bed Coordinator'),
-      reason
-    );
-    setToastMessage('Reservation rejected. Bed released & re-routed to next facility.');
+    try {
+      bedLinkStore.respondReservationAtomic(
+        reservationId,
+        'reject',
+        actorId,
+        actorName('Bed Coordinator'),
+        reason
+      );
+      setToastMessage('Reservation rejected. Bed released & re-routed to next facility.');
+    } catch (err: unknown) {
+      setToastMessage(respondErrorMessage(err));
+    }
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
