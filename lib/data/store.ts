@@ -144,11 +144,14 @@ class BedLinkDataStore {
 
   public applyExternalReservation(item: Reservation) {
     const idx = this.reservations.findIndex((r) => r.id === item.id);
+    const knownStatus = idx >= 0 ? this.reservations[idx].status : null;
     if (idx >= 0) {
       this.reservations[idx] = { ...this.reservations[idx], ...item };
     } else {
       this.reservations.unshift(item);
     }
+    // Our own write echoing back from Supabase: nothing new, so don't announce it twice.
+    if (knownStatus === item.status) return;
     const hosp = this.getHospital(item.hospital_id);
     const enriched = { ...item, hospital_name: hosp?.name || 'Hospital' };
     this.broadcast(
