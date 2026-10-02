@@ -9,11 +9,17 @@ import {
 import { calculateHaversineDistanceKm, calculateEmergencyETA } from '../routing';
 
 export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
-  bedMatch: 0.45,
+  bedMatch: 0.40,
   travel: 0.25,
-  freshness: 0.20,
+  freshness: 0.15,
   load: 0.10,
+  reliability: 0.10,
 };
+
+/** 0-1 from the hospital's reliability (100 = never rejected, timed out or lost a bed). */
+export function calculateReliabilityScore(reliability: number | undefined): number {
+  return Number((Math.max(0, Math.min(100, reliability ?? 100)) / 100).toFixed(3));
+}
 
 export interface RankingOptions {
   weights?: RankingWeights;
@@ -105,7 +111,11 @@ function scoreCandidate(
     if (!hasSpecialty) missing.push(`${options.requiredSpecialty} Capability`);
   }
 
-  const isExactMatch = hasRequestedBed && hasVentilator && hasSpecialty;
+  // On diversion the ED is closed to ambulances: never an exact match
+  const onDiversion = hospital.ed_status === 'diversion';
+  if (onDiversion) missing.push('On diversion (not taking ambulances)');
+
+  const isExactMatch = hasRequestedBed && hasVentilator && hasSpecialty && !onDiversion;
 
   let bedMatchScore: number;
   if (isExactMatch) {
@@ -125,20 +135,25 @@ function scoreCandidate(
   const mostRecentUpdate =
     requestedBedInventory?.updated_at || hospital.load_updated_at || hospital.created_at || new Date().toISOString();
   const { score: freshnessScore } = calculateFreshnessScore(mostRecentUpdate);
-  const loadScore = calculateLoadScore(hospital.current_load);
+  // A hospital that says it is busy counts as more loaded
+  const loadScore = Number(
+    (calculateLoadScore(hospital.current_load) * (hospital.ed_status === 'busy' ? 0.5 : 1)).toFixed(3)
+  );
+  const reliabilityScore = calculateReliabilityScore(hospital.reliability);
 
   const totalScore = Number((
     bedMatchScore * weights.bedMatch +
     travelScore * weights.travel +
     freshnessScore * weights.freshness +
-    loadScore * weights.load
+    loadScore * weights.load +
+    reliabilityScore * weights.reliability
   ).toFixed(3));
 
   return {
     hospital, inventory, capabilities,
     distanceKm: roadDistanceKm,
     etaMinutes,
-    bedMatchScore, travelScore, freshnessScore, loadScore,
+    bedMatchScore, travelScore, freshnessScore, loadScore, reliabilityScore,
     totalScore, isExactMatch,
     missingResources: missing,
     lastUpdated: mostRecentUpdate

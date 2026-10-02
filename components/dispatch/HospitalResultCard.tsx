@@ -69,8 +69,11 @@ export function HospitalResultCard({
     { label: isExactMatch ? 'Has everything needed' : 'Missing something', pts: points(scoredHospital.bedMatchScore, w.bedMatch), max: Math.round(w.bedMatch * 100) },
     { label: `${etaMinutes} min drive`, pts: points(scoredHospital.travelScore, w.travel), max: Math.round(w.travel * 100) },
     { label: 'How fresh the bed data is', pts: points(scoredHospital.freshnessScore, w.freshness), max: Math.round(w.freshness * 100) },
-    { label: `Hospital ${hospital.current_load}% busy`, pts: points(scoredHospital.loadScore, w.load), max: Math.round(w.load * 100) }
+    { label: `Hospital ${hospital.current_load}% full${hospital.ed_status === 'busy' ? ' (says busy)' : ''}`, pts: points(scoredHospital.loadScore, w.load), max: Math.round(w.load * 100) },
+    { label: `Reliability ${hospital.reliability ?? 100}/100`, pts: points(scoredHospital.reliabilityScore ?? 1, w.reliability), max: Math.round(w.reliability * 100) }
   ];
+  const onDiversion = hospital.ed_status === 'diversion';
+  const reliability = hospital.reliability ?? 100;
 
   return (
     <article
@@ -115,6 +118,30 @@ export function HospitalResultCard({
           </span>
         )}
       </div>
+
+      {/* Hospital status: diversion / busy / reliability */}
+      {(onDiversion || hospital.ed_status === 'busy' || reliability < 90) && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {onDiversion && (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+              On diversion: not taking ambulances
+            </span>
+          )}
+          {hospital.ed_status === 'busy' && (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              Hospital says: busy
+            </span>
+          )}
+          {reliability < 90 && (
+            <span
+              className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200"
+              title="Drops when this hospital rejects, ignores, or loses a held bed"
+            >
+              Reliability {reliability}/100
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Distance, ETA, Address */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3">
@@ -283,20 +310,20 @@ export function HospitalResultCard({
         ) : (
           <button
             type="button"
-            disabled={availableBeds <= 0 || isLoading}
+            disabled={availableBeds <= 0 || isLoading || onDiversion}
             onClick={(e) => {
               e.stopPropagation();
               onHoldBed(hospital.id);
             }}
             className={`w-full py-3.5 sm:py-2.5 px-4 rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm transition-all duration-150 flex items-center justify-center gap-2 min-h-[54px] sm:min-h-[44px] ${
-              availableBeds > 0
+              availableBeds > 0 && !onDiversion
                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl active:scale-[0.98]'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
             }`}
             aria-label={`Hold bed at ${hospital.name}`}
           >
-            <span>{availableBeds > 0 ? '🔒 HOLD BED (2 MIN)' : 'NO BEDS AVAILABLE'}</span>
-            {availableBeds > 0 && <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4" />}
+            <span>{onDiversion ? 'ON DIVERSION' : availableBeds > 0 ? '🔒 HOLD BED (2 MIN)' : 'NO BEDS AVAILABLE'}</span>
+            {availableBeds > 0 && !onDiversion && <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4" />}
           </button>
         )}
       </div>
