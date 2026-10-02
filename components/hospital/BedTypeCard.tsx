@@ -95,16 +95,60 @@ export function BedTypeCard({
         </div>
       </div>
 
-      {/* Illustrated bed image */}
-      <div className="relative w-full h-40 my-2 flex items-center justify-center">
-        <Image
-          src={meta.image}
-          alt={`${meta.label} illustration`}
-          fill
-          className="object-contain"
-          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
-          priority={false}
-        />
+      {/* Illustration + Numbered Bed Grid */}
+      <div className="flex gap-3 my-2 items-start">
+        {/* Illustration */}
+        <div className="relative shrink-0 w-36 h-28 sm:w-40 sm:h-32">
+          <Image
+            src={meta.image}
+            alt={`${meta.label} illustration`}
+            fill
+            className="object-contain"
+            sizes="160px"
+            priority={false}
+          />
+        </div>
+
+        {/* Numbered bed grid */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            Bed Status
+          </p>
+          <div
+            className="grid gap-1 overflow-y-auto max-h-28"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(26px, 1fr))' }}
+            aria-label={`Bed grid: ${inventory.available_beds} of ${inventory.total_beds} available`}
+          >
+            {Array.from({ length: inventory.total_beds }, (_, i) => {
+              const bedNum = i + 1;
+              const isAvailable = bedNum <= inventory.available_beds;
+              return (
+                <div
+                  key={bedNum}
+                  title={`Bed ${bedNum}: ${isAvailable ? 'Available' : 'Occupied'}`}
+                  className={`flex items-center justify-center rounded-md text-[11px] font-bold h-6 w-full select-none transition-colors ${
+                    isAvailable
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-rose-100 text-rose-700 border border-rose-300'
+                  }`}
+                >
+                  {bedNum}
+                </div>
+              );
+            })}
+          </div>
+          {/* Legend */}
+          <div className="flex items-center gap-3 mt-1.5">
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-400 inline-block" />
+              Available
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-200 border border-rose-400 inline-block" />
+              Occupied
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Main Count & Large Touch Controls (DESIGN.md: 28-40px numbers, 44x44px touch targets) */}
