@@ -1,6 +1,6 @@
 import { getBrowserSupabaseClient, isSupabaseConfigured } from './client';
 import { bedLinkStore } from '../data/store';
-import { BedHistoryLog, BedInventory, BedType, EdStatus, Hospital, HospitalCapability, QuickMessage, Reservation, ReservationEvent } from '../types';
+import { BedHistoryLog, BedInventory, BedType, EdStatus, Hospital, HospitalCapability, PatientHandoverRecord, QuickMessage, Reservation, ReservationEvent } from '../types';
 import { isUUID, ensureUUID, generateUUID } from '../crypto/uuid';
 
 let initPromise: Promise<boolean> | null = null;
@@ -102,6 +102,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     },
     onMessage: (message) => {
       persistMessage(message);
+    },
+    onHandover: (record) => {
+      persistHandoverSent(record);
     }
   });
 
@@ -171,6 +174,8 @@ async function runSupabaseSyncInit(): Promise<boolean> {
       for (const row of eventsRes.data || []) {
         const message = messageFromEventRow(row as Record<string, unknown>);
         if (message) bedLinkStore.applyExternalMessage(message);
+        const handover = handoverFromEventRow(row as Record<string, unknown>);
+        if (handover) bedLinkStore.applyExternalHandover(handover);
       }
 
       const liveEvents: ReservationEvent[] = (eventsRes.data || []).map((e) => ({
@@ -279,6 +284,8 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         (payload) => {
           const message = messageFromEventRow(payload.new as Record<string, unknown>);
           if (message) bedLinkStore.applyExternalMessage(message);
+          const handover = handoverFromEventRow(payload.new as Record<string, unknown>);
+          if (handover) bedLinkStore.applyExternalHandover(handover);
         }
       )
       .on(
@@ -616,6 +623,39 @@ function messageFromEventRow(row: Record<string, unknown> | null | undefined): Q
     author: typeof meta.author === 'string' ? meta.author : '',
     created_at: String(row.created_at ?? new Date().toISOString())
   };
+}
+
+/** The crew's sealed handover sheet stored as a reservation_events row ('handover_sent'), or null. */
+function handoverFromEventRow(row: Record<string, unknown> | null | undefined): PatientHandoverRecord | null {
+  if (!row || row.event_type !== 'handover_sent') return null;
+  const record = ((row.metadata ?? {}) as { handover?: PatientHandoverRecord }).handover;
+  if (!record || typeof record.reservation_id !== 'string' || !record.vitals || typeof record.sha256_hash !== 'string') {
+    return null;
+  }
+  return record;
+}
+
+/**
+ * Sends the crew's sealed handover sheet to the hospital. It travels like a quick message
+ * (a reservation_events row, delivered live), so no extra table or realtime setup is needed.
+ */
+export async function persistHandoverSent(record: PatientHandoverRecord) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from('reservation_events').insert({
+      id: generateUUID(),
+      reservation_id: ensureUUID(record.reservation_id),
+      event_type: 'handover_sent',
+      actor_id: null,
+      metadata: { handover: record },
+      created_at: record.timestamp
+    });
+    if (error) console.warn('[BedLink] vitals not sent:', error.message);
+  } catch (err) {
+    console.warn('[BedLink] Failed to send vitals:', err);
+  }
 }
 
 /** Saves a quick message so the other side's screen gets it through realtime. */
