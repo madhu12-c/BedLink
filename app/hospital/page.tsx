@@ -9,6 +9,7 @@ import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, Reservation, UserRole } from '@/lib/types';
+import { persistBedHistoryLog, persistPatientHandover } from '@/lib/supabase/sync';
 import {
   Sparkles,
   Bell,
@@ -136,23 +137,61 @@ export default function HospitalNursePage() {
     // 2. Fetch signed handover vitals record
     const handover = bedLinkStore.getPatientHandover(reservationId, selectedHospitalId);
 
-    // 3. Log to Bed History with legal SHA-256 seal
+    const bedId = `${bedType.toUpperCase()}-Bay-${Math.floor(Math.random() * 8) + 1}`;
+    const logId = `bhl-${Date.now()}`;
+    const admittedAt = new Date().toISOString();
+    const actorName = `Staff Nurse (${currentHospital?.name})`;
+
+    // 3. Log to Bed History with legal SHA-256 seal (local)
     bedLinkStore.addBedHistoryLog({
-      id: `bhl-${Date.now()}`,
+      id: logId,
       hospital_id: selectedHospitalId,
       bed_type: bedType as BedType,
-      bed_identifier: `${bedType.toUpperCase()}-Bay-${Math.floor(Math.random() * 8) + 1}`,
+      bed_identifier: bedId,
       patient_id: handover.patient_id,
       patient_name: patientName,
       diagnosis: handover.chief_complaint,
-      admitted_at: new Date().toISOString(),
+      admitted_at: admittedAt,
       discharged_at: undefined,
       status: 'occupied',
       handover_sha256: handover.sha256_hash,
-      actor_name: `Staff Nurse (${currentHospital?.name})`
+      actor_name: actorName
     });
 
-    setToastMessage(`✓ Patient ${patientName} admitted to ${bedType.toUpperCase()}! SHA-256 clinical seal archived.`);
+    // 4. Persist to Supabase → cross-device visibility
+    persistBedHistoryLog({
+      id: logId,
+      hospital_id: selectedHospitalId,
+      bed_type: bedType,
+      bed_identifier: bedId,
+      patient_id: handover.patient_id,
+      patient_name: patientName,
+      diagnosis: handover.chief_complaint,
+      admitted_at: admittedAt,
+      status: 'occupied',
+      handover_sha256: handover.sha256_hash,
+      actor_name: actorName,
+    });
+
+    // 5. Persist SHA-256 sealed handover to Supabase
+    persistPatientHandover({
+      reservation_id: reservationId,
+      patient_id: handover.patient_id,
+      patient_name: handover.patient_name,
+      patient_age: handover.patient_age,
+      patient_gender: handover.patient_gender,
+      chief_complaint: handover.chief_complaint,
+      triage_level: handover.triage_level,
+      vitals: handover.vitals as Record<string, unknown>,
+      allergies: handover.allergies,
+      medications_administered: handover.medications_administered,
+      paramedic_badge_id: handover.paramedic_badge_id,
+      ambulance_vehicle_id: handover.ambulance_vehicle_id,
+      destination_hospital_id: selectedHospitalId,
+      sha256_hash: handover.sha256_hash,
+    });
+
+    setToastMessage(`✓ Patient ${patientName} admitted to ${bedType.toUpperCase()}! SHA-256 clinical seal saved to Supabase.`);
     setLastUpdateTrigger((prev) => prev + 1);
   };
 

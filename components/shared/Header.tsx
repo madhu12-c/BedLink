@@ -18,7 +18,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
-import { initSupabaseSync, subscribeSupabaseStatus } from '@/lib/supabase/sync';
+import { initSupabaseSync, subscribeSupabaseStatus, signOut, getCurrentUserProfile } from '@/lib/supabase/sync';
+import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -51,6 +52,10 @@ export function Header({
     lastSyncTime: null as string | null
   });
 
+  // Logged-in user
+  const [userProfile, setUserProfile] = useState<{ name: string; role: string; email: string } | null>(null);
+  const router = useRouter();
+
   // Client-only Live Emergency Clock (Hydration safe)
   const [currentTime, setCurrentTime] = useState<string | null>(null);
 
@@ -59,6 +64,12 @@ export function Header({
     const unsub = subscribeSupabaseStatus((status) => {
       setSupabaseState(status);
     });
+
+    // Load logged-in user
+    getCurrentUserProfile().then((profile) => {
+      if (profile) setUserProfile(profile);
+    });
+
 
     const updateClock = () => {
       const d = new Date();
@@ -282,6 +293,31 @@ export function Header({
               <PhoneCall className="w-3.5 h-3.5 text-red-500 animate-bounce" />
               <span>108 HOTLINE</span>
             </div>
+
+            {/* User Profile + Sign Out */}
+            {userProfile && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                  {userProfile.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden sm:block">
+                  <span className="font-bold text-slate-800 block leading-none text-[11px]">{userProfile.name}</span>
+                  <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">{userProfile.role}</span>
+                </div>
+                <button
+                  type="button"
+                  title="Sign out"
+                  onClick={async () => {
+                    await signOut();
+                    router.push('/login');
+                    router.refresh();
+                  }}
+                  className="ml-1 p-1 rounded-md hover:bg-red-50 hover:text-red-600 text-slate-400 transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
           </div>
         </div>

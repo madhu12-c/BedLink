@@ -404,3 +404,151 @@ export async function persistReservationExpired(reservationId: string, hospitalI
     console.warn('Failed to persist expired reservation to Supabase:', err);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// BED HISTORY LOG — Persist to Supabase (cross-device audit trail)
+// ═══════════════════════════════════════════════════════════════════════
+export async function persistBedHistoryLog(log: {
+  id: string;
+  hospital_id: string;
+  bed_type: string;
+  bed_identifier: string;
+  patient_id?: string;
+  patient_name?: string;
+  diagnosis?: string;
+  admitted_at: string;
+  discharged_at?: string;
+  status: string;
+  handover_sha256?: string;
+  actor_name: string;
+}) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from('bed_history_logs').upsert({
+      id: log.id,
+      hospital_id: log.hospital_id,
+      bed_type: log.bed_type,
+      bed_identifier: log.bed_identifier,
+      patient_id: log.patient_id || null,
+      patient_name: log.patient_name || null,
+      diagnosis: log.diagnosis || null,
+      admitted_at: log.admitted_at,
+      discharged_at: log.discharged_at || null,
+      status: log.status,
+      handover_sha256: log.handover_sha256 || null,
+      actor_name: log.actor_name,
+    }, { onConflict: 'id' });
+  } catch (err) {
+    console.warn('[BedLink] Failed to persist bed history log:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PATIENT HANDOVER — Persist SHA-256 sealed record to Supabase
+// ═══════════════════════════════════════════════════════════════════════
+export async function persistPatientHandover(handover: {
+  reservation_id: string;
+  patient_id: string;
+  patient_name?: string;
+  patient_age?: number;
+  patient_gender?: string;
+  chief_complaint: string;
+  triage_level: string;
+  vitals: Record<string, unknown>;
+  allergies?: string[];
+  medications_administered?: string[];
+  paramedic_badge_id: string;
+  ambulance_vehicle_id: string;
+  destination_hospital_id: string;
+  sha256_hash: string;
+}) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from('patient_handovers').upsert({
+      reservation_id: handover.reservation_id,
+      patient_id: handover.patient_id,
+      patient_name: handover.patient_name || null,
+      patient_age: handover.patient_age || null,
+      patient_gender: handover.patient_gender || null,
+      chief_complaint: handover.chief_complaint,
+      triage_level: handover.triage_level,
+      vitals: handover.vitals,
+      allergies: handover.allergies ? JSON.stringify(handover.allergies) : null,
+      medications_administered: handover.medications_administered ? JSON.stringify(handover.medications_administered) : null,
+      paramedic_badge_id: handover.paramedic_badge_id,
+      ambulance_vehicle_id: handover.ambulance_vehicle_id,
+      destination_hospital_id: handover.destination_hospital_id,
+      sha256_hash: handover.sha256_hash,
+    }, { onConflict: 'reservation_id' });
+  } catch (err) {
+    console.warn('[BedLink] Failed to persist patient handover:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FETCH BED HISTORY — Load from Supabase (cross-device)
+// ═══════════════════════════════════════════════════════════════════════
+export async function fetchBedHistoryLogs(hospitalId?: string) {
+  if (!isSupabaseConfigured()) return [];
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return [];
+  try {
+    let query = supabase
+      .from('bed_history_logs')
+      .select('*')
+      .order('admitted_at', { ascending: false })
+      .limit(100);
+    if (hospitalId) {
+      query = query.eq('hospital_id', hospitalId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn('[BedLink] Failed to fetch bed history logs:', err);
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SIGN OUT
+// ═══════════════════════════════════════════════════════════════════════
+export async function signOut() {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  await supabase.auth.signOut();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GET CURRENT USER PROFILE
+// ═══════════════════════════════════════════════════════════════════════
+export async function getCurrentUserProfile(): Promise<{
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+} | null> {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    return {
+      id: user.id,
+      email: user.email || '',
+      name: profile?.name || user.email?.split('@')[0] || 'Operator',
+      role: profile?.role || 'nurse',
+    };
+  } catch {
+    return null;
+  }
+}
