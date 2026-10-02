@@ -379,7 +379,6 @@ export default function HospitalNursePage() {
                 bedInventory={bedInventories}
                 capabilities={capabilities}
                 onUpdateCount={handleUpdateCount}
-                onUpdateTotalBeds={handleUpdateTotalBeds}
               />
             )}
 
