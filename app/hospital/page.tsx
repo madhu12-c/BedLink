@@ -14,6 +14,7 @@ import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { TelegramConnectButton } from '@/components/hospital/TelegramConnectButton';
 import { IncomingAmbulanceMap } from '@/components/hospital/IncomingAmbulanceMap';
+import { QuickBedUpdate } from '@/components/hospital/QuickBedUpdate';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -623,8 +624,19 @@ Bed Type: ${bed}
           </div>
         )}
 
-        {/* Accepted ambulances moving along the road to this hospital (both screens) */}
-        <IncomingAmbulanceMap key={currentHospital.id} hospital={currentHospital} incoming={incomingAmbulances} />
+        {/* Accepted ambulances moving along the road to this hospital (coordinator: keeps the
+            nurse page light on cheap phones) */}
+        {view === 'coordinator' && (
+          <IncomingAmbulanceMap key={currentHospital.id} hospital={currentHospital} incoming={incomingAmbulances} />
+        )}
+
+        {/* Nurse: the 10-second update comes right after "is an ambulance coming?" */}
+        {view === 'nurse' && (
+          <>
+            <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
+            <QuickBedUpdate bedInventory={bedInventories} onUpdateCount={handleUpdateCount} />
+          </>
+        )}
 
         {/* Admin only: preview either hospital screen. Staff get the screen for their role. */}
         {!isHospitalStaff && (
@@ -680,7 +692,7 @@ Bed Type: ${bed}
                     : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
                 }`}
               >
-                {view === 'nurse' ? 'Floor Nurse Desk' : 'Bed Capacity Operations'}
+                {view === 'nurse' ? 'Nurse' : 'Coordinator'}
               </span>
               <span className="text-xs text-slate-400">
                 {view === 'nurse' ? 'Update free beds' : 'Manage beds'}
@@ -738,13 +750,13 @@ Bed Type: ${bed}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-end gap-2.5 sm:justify-end">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-2.5 sm:justify-end">
             <TelegramConnectButton key={`${currentHospital.id}-${view}`} hospitalId={currentHospital.id} role={view} />
             <button
               type="button"
               onClick={() => setShowVoiceSettings((open) => !open)}
               aria-expanded={voicePanelOpen}
-              className={`px-3 py-2 rounded-lg border font-bold text-sm flex items-center gap-1.5 min-h-[44px] ${
+              className={`px-3 py-2 rounded-lg border font-bold text-sm flex items-center justify-center gap-1.5 min-h-[44px] ${
                 voicePanelOpen
                   ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -754,7 +766,7 @@ Bed Type: ${bed}
               Voice alerts {voiceSettings.announce ? 'on' : 'off'}
             </button>
             {!isHospitalStaff && (
-              <div className="flex flex-col gap-1">
+              <div className="col-span-2 flex flex-col gap-1">
                 <label htmlFor="hospital-select" className="text-xs font-semibold text-slate-500">
                   Operating Hospital:
                 </label>
@@ -778,10 +790,10 @@ Bed Type: ${bed}
               <button
                 type="button"
                 onClick={() => setShowAddBedModal(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-md flex items-center gap-1.5 min-h-[44px] transition-all"
+                className="col-span-2 sm:col-span-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-md flex items-center justify-center gap-1.5 min-h-[44px] transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Authorize & Add Beds</span>
+                <span>Add beds</span>
               </button>
             )}
           </div>
@@ -808,16 +820,21 @@ Bed Type: ${bed}
            ========================================================================= */}
         {view === 'nurse' && (
           <div className="space-y-6">
-            {/* Nothing changed? One tap keeps this hospital fresh for dispatch */}
-            <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
-
-            {/* Bedside Rapid Bed Count Update Grid */}
-            <BedUpdateGrid
-              hospital={currentHospital}
-              bedInventory={bedInventories}
-              capabilities={capabilities}
-              onUpdateCount={handleUpdateCount}
-            />
+            {/* Bed-by-bed view (which bed numbers are taken): optional, below the quick update */}
+            <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm">
+              <summary className="list-none cursor-pointer select-none px-4 min-h-[52px] flex items-center justify-between gap-2 text-sm font-bold text-slate-800">
+                Bed-by-bed view: mark which bed numbers are taken
+                <span className="text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+              </summary>
+              <div className="p-4 pt-0">
+                <BedUpdateGrid
+                  hospital={currentHospital}
+                  bedInventory={bedInventories}
+                  capabilities={capabilities}
+                  onUpdateCount={handleUpdateCount}
+                />
+              </div>
+            </details>
 
             {/* Patient Bed Occupancy History & Handover Audit Trail with total patient details */}
             <BedHistoryLogTable
@@ -846,50 +863,50 @@ Bed Type: ${bed}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  Total Hospital Capacity
+                  Total beds
                 </span>
                 <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
                   {currentHospital?.emergency_capacity || 0} Beds
                 </span>
-                <span className="text-xs text-indigo-600 font-semibold mt-1 block">
-                  Admin Authorized
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Emergency capacity
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  Currently Free Beds
+                  Free now
                 </span>
                 <span className="text-2xl font-black font-mono text-emerald-600 mt-1 block">
                   {bedInventories.reduce((sum, b) => sum + b.available_beds, 0)}
                 </span>
                 <span className="text-xs text-slate-400 mt-1 block">
-                  Across all units
+                  All bed types
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  Critical Care Reserve
+                  ICU + ventilator
                 </span>
                 <span className="text-2xl font-black font-mono text-blue-600 mt-1 block">
                   {(bedInventories.find((b) => b.bed_type === 'icu')?.available_beds || 0) +
                     (bedInventories.find((b) => b.bed_type === 'ventilator')?.available_beds || 0)}
                 </span>
                 <span className="text-xs text-slate-400 mt-1 block">
-                  ICU + Ventilator Free
+                  Free right now
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  How full the hospital is
+                  How full
                 </span>
                 <span className="text-2xl font-black font-mono text-amber-600 mt-1 block">
                   {currentHospital?.current_load}%
                 </span>
                 <span className="text-xs text-slate-400 mt-1 block">
-                  Active Emergency Load
+                  Of all beds in use
                 </span>
               </div>
             </div>

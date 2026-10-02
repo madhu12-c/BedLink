@@ -9,6 +9,8 @@ interface FreshnessIndicatorProps {
   updatedAt: string;
   className?: string;
   showIcon?: boolean;
+  /** Small coloured text on one line ("19 min ago"), for tight rows on phones */
+  compact?: boolean;
 }
 
 export function getFreshnessInfo(updatedAtIso: string, currentTimeMs = Date.now()): {
@@ -51,7 +53,8 @@ export function getFreshnessInfo(updatedAtIso: string, currentTimeMs = Date.now(
 export function FreshnessIndicator({
   updatedAt,
   className = '',
-  showIcon = true
+  showIcon = true,
+  compact = false
 }: FreshnessIndicatorProps) {
   const mounted = useHydrated();
   const [now, setNow] = useState(() => Date.now());
@@ -99,6 +102,24 @@ export function FreshnessIndicator({
   };
 
   const currentStyle = styleMap[info.category];
+
+  if (compact) {
+    return (
+      <span
+        suppressHydrationWarning
+        className={`inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap ${currentStyle.text} ${className}`}
+        title="How old this bed count is"
+        role="status"
+        aria-label={`${info.label} ${currentStyle.labelSuffix}`}
+      >
+        <span className={`w-2 h-2 rounded-full shrink-0 ${currentStyle.dot}`} aria-hidden="true" />
+        <span suppressHydrationWarning>
+          {info.category === 'stale' ? 'Old: ' : ''}
+          {info.label.replace(/^Updated /, '').replace(/^Stale · /, '')}
+        </span>
+      </span>
+    );
+  }
 
   return (
     <span
