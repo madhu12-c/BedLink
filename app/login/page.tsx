@@ -1,32 +1,35 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { getBrowserSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Bed,
+  Activity,
   Mail,
   Lock,
   Eye,
   EyeOff,
   AlertCircle,
   Loader2,
-  HeartPulse,
-  Activity,
-  Shield,
-  Zap,
+  ShieldCheck,
   ArrowRight,
   UserPlus,
+  PhoneCall,
+  CheckCircle2,
+  Ambulance,
+  Building2,
+  Shield
 } from "lucide-react";
 
 type AuthMode = "login" | "signup";
 type UserRole = "dispatcher" | "nurse" | "coordinator" | "admin";
 
 const ROLE_OPTIONS: { value: UserRole; label: string; desc: string; icon: string }[] = [
-  { value: "dispatcher", label: "EMS Dispatcher", desc: "Ambulance routing & emergency triage", icon: "🚑" },
-  { value: "nurse", label: "Floor Nurse", desc: "Bedside triage & emergency hold decisions", icon: "👩‍⚕️" },
-  { value: "coordinator", label: "Bed Coordinator", desc: "Hospital capacity & ward management", icon: "🏥" },
-  { value: "admin", label: "Admin", desc: "Full system access", icon: "🛡️" },
+  { value: "dispatcher", label: "EMS Dispatcher", desc: "108 ambulance triage & dispatch", icon: "🚑" },
+  { value: "nurse", label: "Hospital Nurse", desc: "Ward bed updates & patient admissions", icon: "👩‍⚕️" },
+  { value: "coordinator", label: "Bed Coordinator", desc: "Hospital capacity & ward allocations", icon: "🏥" },
+  { value: "admin", label: "Regional EMS Command", desc: "Audit logs & citywide emergency oversight", icon: "🛡️" },
 ];
 
 export default function LoginPage() {
@@ -57,7 +60,7 @@ export default function LoginPage() {
 
     const supabase = getBrowserSupabaseClient();
     if (!supabase) {
-      setError("Supabase not configured. Add your credentials to .env.local");
+      setError("Supabase connection not configured. Check environment credentials.");
       setLoading(false);
       return;
     }
@@ -78,297 +81,323 @@ export default function LoginPage() {
         if (signUpError) throw signUpError;
 
         if (data.user) {
-          // Upsert profile row
           await supabase.from("profiles").upsert({
             id: data.user.id,
-            name,
+            name: name.trim() || email.split("@")[0],
             role,
           });
         }
 
-        setSuccess(
-          "Account created! Check your email to confirm, then log in."
-        );
+        setSuccess("Account successfully registered! You can now sign in.");
         setMode("login");
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "An error occurred";
+      const msg = err instanceof Error ? err.message : "Authentication failed";
       setError(msg);
     } finally {
       setLoading(false);
     }
   }
 
+  function handleQuickFill(demoEmail: string, demoRole: UserRole) {
+    setEmail(demoEmail);
+    setPassword("bedlink2026");
+    setRole(demoRole);
+    setError(null);
+  }
+
   return (
-    <div className="min-h-screen flex bg-slate-950">
-      {/* Left Panel — Brand Hero */}
-      <div className="hidden lg:flex flex-col justify-between w-[52%] bg-gradient-to-br from-blue-950 via-blue-900 to-indigo-900 p-12 relative overflow-hidden">
-        {/* Background grid pattern */}
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(59,130,246,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.5) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-        {/* Glowing orbs */}
-        <div className="absolute top-20 right-20 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-32 left-10 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl" />
-
-        {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Bed className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <span className="text-2xl font-black text-white tracking-tight">BedLink</span>
-            <span className="text-xs text-blue-300 font-semibold block -mt-0.5">EMS Coordination Platform</span>
-          </div>
-        </div>
-
-        {/* Hero copy */}
-        <div className="relative z-10">
-          <h1 className="text-5xl font-black text-white leading-tight mb-6">
-            Real-Time
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-cyan-300">
-              Emergency Bed
-            </span>
-            <br />
-            Coordination.
-          </h1>
-          <p className="text-blue-200 text-lg leading-relaxed mb-10 max-w-md">
-            Connecting paramedics, dispatchers, and hospital staff across Mumbai — every
-            bed update instantly visible across all devices.
-          </p>
-
-          {/* Feature pills */}
-          <div className="flex flex-col gap-3">
-            {[
-              { icon: <Activity className="w-4 h-4" />, text: "Live bed counts across all hospitals" },
-              { icon: <HeartPulse className="w-4 h-4" />, text: "SHA-256 sealed patient handover records" },
-              { icon: <Shield className="w-4 h-4" />, text: "Role-based access — Nurse, Dispatcher, Admin" },
-              { icon: <Zap className="w-4 h-4" />, text: "Sub-second Supabase Realtime sync" },
-            ].map(({ icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-300 shrink-0">
-                  {icon}
-                </div>
-                <span className="text-sm text-blue-100 font-medium">{text}</span>
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between text-slate-900 font-sans">
+      {/* Top Professional Navigation Bar */}
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3.5 shadow-sm">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
+              <Activity className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-lg tracking-tight text-slate-900">
+                  Bed<span className="text-blue-600">Link</span>
+                </span>
+                <span className="text-[10px] font-black tracking-widest uppercase bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">
+                  108 CAD
+                </span>
               </div>
-            ))}
+              <span className="text-[11px] text-slate-500 font-medium">
+                Emergency Hospital Bed Coordination
+              </span>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1.5 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg text-red-700 text-xs font-bold">
+              <PhoneCall className="w-3.5 h-3.5 text-red-600" />
+              <span>108 HOTLINE ACTIVE</span>
+            </div>
+            <Link
+              href="/"
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors min-h-[36px] flex items-center"
+            >
+              Continue as Guest &rarr;
+            </Link>
           </div>
         </div>
+      </header>
 
-        {/* Bottom badge */}
-        <div className="relative z-10">
-          <span className="text-xs text-blue-400 font-semibold uppercase tracking-wider">
-            Mumbai 108 EMS · Brihanmumbai Healthcare Network
-          </span>
-        </div>
-      </div>
-
-      {/* Right Panel — Auth Form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="w-9 h-9 bg-blue-500 rounded-xl flex items-center justify-center">
-              <Bed className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-black text-white">BedLink</span>
-          </div>
-
-          {/* Card */}
-          <div className="bg-slate-900 rounded-3xl border border-slate-800 p-8 shadow-2xl shadow-black/40">
-            {/* Mode toggle */}
-            <div className="flex bg-slate-800/60 rounded-xl p-1 mb-8 border border-slate-700/50">
-              {(["login", "signup"] as AuthMode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => { setMode(m); setError(null); setSuccess(null); }}
-                  className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all capitalize ${
-                    mode === m
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {m === "login" ? "Sign In" : "Create Account"}
-                </button>
-              ))}
+      {/* Main Container */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-lg">
+          {/* Card Container */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-8">
+            
+            {/* Mode Switcher */}
+            <div className="flex bg-slate-100 p-1 rounded-xl mb-6 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => { setMode("login"); setError(null); setSuccess(null); }}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+                  mode === "login"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode("signup"); setError(null); setSuccess(null); }}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all min-h-[44px] flex items-center justify-center ${
+                  mode === "signup"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Create Account
+              </button>
             </div>
 
+            {/* Header copy */}
             <div className="mb-6">
-              <h2 className="text-2xl font-black text-white">
-                {mode === "login" ? "Welcome back" : "Join BedLink"}
-              </h2>
-              <p className="text-slate-400 text-sm mt-1">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                {mode === "login" ? "Operator Sign In" : "Register Operator"}
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
                 {mode === "login"
-                  ? "Sign in to your operator account"
-                  : "Create your EMS operator account"}
+                  ? "Access real-time hospital bed allocations, dispatch triage, and admission records."
+                  : "Create an authorized medical coordinator or ambulance dispatcher account."}
               </p>
             </div>
 
-            {/* Not configured warning */}
+            {/* Config Status Banner */}
             {!configured && (
-              <div className="mb-5 p-3 bg-amber-900/30 border border-amber-700/40 rounded-xl flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-300">
-                  Supabase not configured. Add <code className="bg-amber-900/50 px-1 rounded">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="bg-amber-900/50 px-1 rounded">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to <code className="bg-amber-900/50 px-1 rounded">.env.local</code>
-                </p>
+              <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-800">
+                  <span className="font-bold block">Local Offline / Demo Mode Active</span>
+                  <span>Supabase credentials not detected. You can test workflows with Guest Mode or configure credentials in .env.local.</span>
+                </div>
               </div>
             )}
 
+            {/* Alerts */}
+            {error && (
+              <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <p className="text-xs font-medium text-red-700">{error}</p>
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs font-medium text-emerald-800">{success}</p>
+              </div>
+            )}
+
+            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Name (signup only) */}
+              {/* Full Name (Sign Up Only) */}
               {mode === "signup" && (
                 <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                    Full Name
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                    Full Name & Title <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required={mode === "signup"}
+                    required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Dr. / Paramedic name"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/60 transition-all"
+                    placeholder="e.g. Staff Nurse Sunita R. / Paramedic K. Patil"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 min-h-[44px]"
                   />
                 </div>
               )}
 
               {/* Email */}
               <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Email
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  Work Email Address <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="operator@hospital.gov.in"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/60 transition-all"
+                    className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 min-h-[44px]"
                   />
                 </div>
               </div>
 
               {/* Password */}
               <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  {mode === "login" && (
+                    <span className="text-[11px] text-slate-500">Min. 6 characters</span>
+                  )}
+                </div>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type={showPassword ? "text" : "password"}
                     required
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-12 py-3 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/60 transition-all"
+                    placeholder="••••••••"
+                    className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-11 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 min-h-[44px]"
                   />
                   <button
                     type="button"
                     tabIndex={-1}
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    title={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Role (signup only) */}
+              {/* Role Selection (Sign Up Only) */}
               {mode === "signup" && (
                 <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                    Your Role
+                  <label className="text-xs font-bold text-slate-700 block mb-2">
+                    Designated Clinical Role <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {ROLE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
                         onClick={() => setRole(opt.value)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
+                        className={`p-3 rounded-xl border text-left transition-all min-h-[48px] ${
                           role === opt.value
-                            ? "bg-blue-600/20 border-blue-500/60 text-blue-200"
-                            : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-600"
+                            ? "bg-blue-50 border-blue-600 text-blue-900 ring-1 ring-blue-600"
+                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
                         }`}
                       >
-                        <span className="text-base block mb-0.5">{opt.icon}</span>
-                        <span className="text-xs font-bold block">{opt.label}</span>
-                        <span className="text-[10px] opacity-70 block leading-tight">{opt.desc}</span>
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span>{opt.icon}</span>
+                          <span>{opt.label}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">{opt.desc}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Error */}
-              {error && (
-                <div className="flex items-start gap-2.5 p-3 bg-red-900/30 border border-red-700/40 rounded-xl">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-300">{error}</p>
-                </div>
-              )}
-
-              {/* Success */}
-              {success && (
-                <div className="flex items-start gap-2.5 p-3 bg-emerald-900/30 border border-emerald-700/40 rounded-xl">
-                  <Shield className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-emerald-300">{success}</p>
-                </div>
-              )}
-
-              {/* Submit */}
+              {/* Primary Action Button (WCAG AA min 44px) */}
               <button
                 type="submit"
-                disabled={loading || !configured}
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2 group mt-2"
+                disabled={loading}
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 mt-4"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : mode === "login" ? (
                   <>
                     <span>Sign In to BedLink</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4" />
-                    <span>Create Account</span>
+                    <span>Complete Registration</span>
                   </>
                 )}
               </button>
             </form>
 
-            {mode === "login" && (
-              <p className="text-center text-xs text-slate-500 mt-5">
-                Don&apos;t have an account?{" "}
+            {/* Quick Demo Operator Buttons (1-Tap Experience) */}
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2.5">
+                Quick Demo Operator Autofill (1-Tap):
+              </span>
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => { setMode("signup"); setError(null); }}
-                  className="text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                  onClick={() => handleQuickFill("nurse.kem@hospital.gov.in", "nurse")}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left transition-all min-h-[44px] flex flex-col justify-center"
                 >
-                  Create one
+                  <span className="font-bold text-xs text-slate-800 flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-blue-600" />
+                    Nurse
+                  </span>
+                  <span className="text-[10px] text-slate-500">KEM Hospital</span>
                 </button>
-              </p>
-            )}
-          </div>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill("cad.paramedic@108ems.gov.in", "dispatcher")}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left transition-all min-h-[44px] flex flex-col justify-center"
+                >
+                  <span className="font-bold text-xs text-slate-800 flex items-center gap-1">
+                    <Ambulance className="w-3 h-3 text-red-600" />
+                    108 CAD
+                  </span>
+                  <span className="text-[10px] text-slate-500">Dispatch Team</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill("command@mumbai.ems.gov.in", "admin")}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left transition-all min-h-[44px] flex flex-col justify-center"
+                >
+                  <span className="font-bold text-xs text-slate-800 flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-purple-600" />
+                    Admin
+                  </span>
+                  <span className="text-[10px] text-slate-500">EMS Command</span>
+                </button>
+              </div>
+            </div>
 
-          {/* Footer */}
-          <p className="text-center text-xs text-slate-600 mt-6">
-            BedLink EMS Platform · Mumbai 108 Emergency Network
-          </p>
+            {/* Direct Guest Link */}
+            <div className="mt-5 text-center">
+              <Link
+                href="/"
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+              >
+                Skip login and continue to live dashboard as guest &rarr;
+              </Link>
+            </div>
+
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Clean Footer */}
+      <footer className="border-t border-slate-200 bg-white py-4 px-4 text-center text-xs text-slate-500">
+        <p>
+          BedLink Emergency Coordination System · Brihanmumbai 108 Emergency Network · WCAG AA Compliant
+        </p>
+      </footer>
     </div>
   );
 }
