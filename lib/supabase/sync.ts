@@ -419,7 +419,7 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
       p_eta_minutes: reservation.eta_minutes ?? null
     });
     if (!holdErr) {
-      const result = (held ?? {}) as { success?: boolean; error?: string };
+      const result = (held ?? {}) as { success?: boolean; error?: string; duplicate?: boolean };
       if (result.success === false) {
         bedLinkStore.rollbackHold(
           reservation.id,
@@ -427,6 +427,8 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
             ? 'Hospital is on diversion'
             : 'Another ambulance got the last bed first'
         );
+      } else if (!result.duplicate) {
+        notifyTelegram(safeReservationId);
       }
       return;
     }
@@ -483,6 +485,7 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
         expires_at: reservation.expires_at
       }
     });
+    if (safeStatus === 'pending') notifyTelegram(safeReservationId);
   } catch (err) {
     console.warn('[BedLink] Failed to persist reservation hold to Supabase:', err);
   }
@@ -634,6 +637,17 @@ export async function persistMessage(message: QuickMessage) {
   } catch (err) {
     console.warn('[BedLink] Failed to save message:', err);
   }
+}
+
+/** Tells the hospital's Telegram chats about a new hold (the server skips it if no bot is set up). */
+function notifyTelegram(reservationId: string) {
+  void fetch('/api/telegram/notify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reservationId })
+  }).catch(() => {
+    // Telegram is extra: the hospital screen still shows the request
+  });
 }
 
 /** The database function is not installed yet (spec_features SQL not run). */

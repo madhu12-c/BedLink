@@ -12,6 +12,7 @@ import { QuickMessages } from '@/components/shared/QuickMessages';
 import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArrivalCountdown';
 import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
+import { TelegramConnectButton } from '@/components/hospital/TelegramConnectButton';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -722,6 +723,7 @@ Bed Type: ${bed}
           </div>
 
           <div className="flex flex-wrap items-end gap-2.5 sm:justify-end">
+            <TelegramConnectButton key={`${currentHospital.id}-${view}`} hospitalId={currentHospital.id} role={view} />
             <button
               type="button"
               onClick={() => setShowVoiceSettings((open) => !open)}
