@@ -183,8 +183,14 @@ export function Header({
                     : currentRole === 'admin'
                     ? 'admin'
                     : selectedHospitalId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
-                    ? 'nurse-metro'
-                    : 'nurse-citycare'
+                    ? 'nurse-lifeline'
+                    : selectedHospitalId === 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+                    ? 'nurse-dna'
+                    : selectedHospitalId === 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+                    ? 'nurse-apex'
+                    : selectedHospitalId === 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+                    ? 'nurse-shatabdi'
+                    : 'nurse-aditi'
                 }
                 onChange={(e) => {
                   const val = e.target.value;
@@ -192,8 +198,14 @@ export function Header({
                     onRoleChange('dispatcher');
                   } else if (val === 'admin') {
                     onRoleChange('admin');
-                  } else if (val === 'nurse-metro') {
+                  } else if (val === 'nurse-lifeline') {
                     onRoleChange('nurse', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+                  } else if (val === 'nurse-dna') {
+                    onRoleChange('nurse', 'cccccccc-cccc-cccc-cccc-cccccccccccc');
+                  } else if (val === 'nurse-apex') {
+                    onRoleChange('nurse', 'dddddddd-dddd-dddd-dddd-dddddddddddd');
+                  } else if (val === 'nurse-shatabdi') {
+                    onRoleChange('nurse', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee');
                   } else {
                     onRoleChange('nurse', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
                   }
@@ -201,9 +213,12 @@ export function Header({
                 className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer min-h-[44px]"
               >
                 <option value="dispatcher">🚑 Paramedic / Dispatcher</option>
-                <option value="nurse-citycare">🏥 Nurse (CityCare Hospital)</option>
-                <option value="nurse-metro">🏥 Nurse (Metro General Hospital)</option>
-                <option value="admin">🛡️ Regional EMS Admin</option>
+                <option value="nurse-aditi">🏥 Nurse (Aditi Hospital - Thakur Complex)</option>
+                <option value="nurse-lifeline">🏥 Nurse (Lifeline Medicare - Thakur Complex)</option>
+                <option value="nurse-dna">🏥 Nurse (DNA Hospital - Kandivali E)</option>
+                <option value="nurse-apex">🏥 Nurse (Apex Superspeciality - Kandivali E)</option>
+                <option value="nurse-shatabdi">🏥 Nurse (Shatabdi Hospital - Kandivali W)</option>
+                <option value="admin">🛡️ Mumbai 108 EMS Admin</option>
               </select>
             </div>
           </div>

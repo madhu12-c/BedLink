@@ -32,14 +32,14 @@ export default function DispatcherPage() {
 
   // Form State
   const [formData, setFormData] = useState<DispatchFormParams>({
-    latitude: 37.7749,
-    longitude: -122.4194,
-    address: '750 Market St, Financial District',
+    latitude: 19.2148,
+    longitude: 72.8635,
+    address: 'Thakur College (TCET), 90 Feet Rd, Thakur Complex, Kandivali East, Mumbai 400101',
     urgency: 'critical',
     bedType: 'icu',
     requiresVentilator: true,
     specialty: 'cardiac',
-    notes: '58yo male acute STEMI, shock index 1.2, en route ambulance #EMS-41'
+    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route from Thakur College, 90 Feet Rd'
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
@@ -134,9 +134,9 @@ export default function DispatcherPage() {
         () => {
           setFormData((prev) => ({
             ...prev,
-            latitude: 37.7749,
-            longitude: -122.4194,
-            address: 'Market St & 4th, San Francisco'
+            latitude: 19.2148,
+            longitude: 72.8635,
+            address: 'Thakur College, 90 Feet Rd, Thakur Complex, Kandivali East, Mumbai 400101'
           }));
         }
       );
@@ -145,16 +145,16 @@ export default function DispatcherPage() {
 
   const handleQuickLoadCriticalScenario = () => {
     setFormData({
-      latitude: 37.7800,
-      longitude: -122.4150,
-      address: 'Central Plaza, Downtown Core',
+      latitude: 19.2148,
+      longitude: 72.8635,
+      address: 'Thakur College (TCET), 90 Feet Rd, Kandivali East, Mumbai 400101',
       urgency: 'critical',
       bedType: 'icu',
       requiresVentilator: true,
       specialty: 'cardiac',
-      notes: 'CODE RED: STEMI with cardiogenic shock. Immediate ICU + Vent + Cath Lab required.'
+      notes: 'CODE RED: STEMI patient at Thakur College campus gate. Immediate ICU + Vent + Cath Lab required.'
     });
-    setActionNotice('Loaded demo: Critical STEMI patient — ICU + Ventilator + Cardiac.');
+    setActionNotice('Loaded demo: Critical STEMI patient at Thakur College — ICU + Ventilator + Cardiac.');
   };
 
   const handleResetDemo = () => {

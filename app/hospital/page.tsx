@@ -14,7 +14,7 @@ import {
 export default function HospitalNursePage() {
   const [role, setRole] = useState<UserRole>('nurse');
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>(
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' // CityCare Hospital
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' // Aditi Hospital (Thakur Complex, 90 Feet Rd)
   );
 
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(null);
