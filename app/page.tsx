@@ -45,16 +45,16 @@ const DISPATCH_VOICE_EVENTS: Partial<Record<string, DispatchVoiceEvent['kind']>>
   reservation_expired: 'expired'
 };
 
-// The demo patient: critical cardiac case near Thakur College, needs ICU + ventilator
+// The demo patient: critical cardiac case near Aditi Hospital, needs ICU + ventilator
 const DEMO_SCENARIO: DispatchFormParams = {
-  latitude: 19.2158,
-  longitude: 72.8623,
-  address: '90 Feet Rd (near Thakur College Gate), Kandivali East, Mumbai 400101',
+  latitude: 19.2050,
+  longitude: 72.8630,
+  address: 'Near Aditi Hospital, 90 Feet Road, Thakur Complex, Kandivali East, Mumbai 400101',
   urgency: 'critical',
   bedType: 'icu',
   requiresVentilator: true,
   specialty: 'cardiac',
-  notes: 'CODE RED: suspected STEMI. Immediate ICU + ventilator + cath lab required.'
+  notes: 'CODE RED: suspected STEMI near Aditi Hospital. Immediate ICU + ventilator + cath lab required.'
 };
 
 // One emergency request per tab, kept across visits to this page (like the in-memory store),
@@ -82,14 +82,14 @@ export default function DispatcherPage() {
 
   // Form State
   const [formData, setFormData] = useState<DispatchFormParams>({
-    latitude: 19.2158,
-    longitude: 72.8623,
-    address: '90 Feet Rd (near Thakur College Gate), Kandivali East, Mumbai 400101',
+    latitude: 19.2050,
+    longitude: 72.8630,
+    address: 'Near Aditi Hospital, 90 Feet Road, Thakur Complex, Kandivali East, Mumbai 400101',
     urgency: 'critical',
     bedType: 'icu',
     requiresVentilator: true,
     specialty: 'cardiac',
-    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route on 90 Feet Rd near Thakur College'
+    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route near Aditi Hospital, 90 Feet Rd, Kandivali East'
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
@@ -355,9 +355,9 @@ export default function DispatcherPage() {
         () => {
           setFormData((prev) => ({
             ...prev,
-            latitude: 19.2158,
-            longitude: 72.8623,
-            address: '90 Feet Rd, Kandivali East, Mumbai 400101'
+            latitude: 19.2050,
+            longitude: 72.8630,
+            address: 'Near Aditi Hospital, 90 Feet Road, Kandivali East, Mumbai 400101'
           }));
         }
       );
@@ -366,7 +366,7 @@ export default function DispatcherPage() {
 
   const handleQuickLoadCriticalScenario = () => {
     setFormData(DEMO_SCENARIO);
-    setActionNotice('Loaded demo: Critical STEMI patient on 90 Feet Rd — ICU + Ventilator + Cardiac.');
+    setActionNotice('Loaded demo: Critical STEMI patient near Aditi Hospital, Kandivali East — ICU + Ventilator + Cardiac.');
   };
 
   // ── One-click demo (admin): plays the whole story on this screen ─────────────────────────

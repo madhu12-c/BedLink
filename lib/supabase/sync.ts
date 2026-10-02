@@ -396,8 +396,8 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
     const request = bedLinkStore.getActiveEmergencyRequests().find((r) => r.id === reservation.request_id);
     const { error: reqErr } = await supabase.from('emergency_requests').upsert({
       id: safeRequestId,
-      patient_latitude: request?.patient_latitude ?? 19.2158,
-      patient_longitude: request?.patient_longitude ?? 72.8623,
+      patient_latitude: request?.patient_latitude ?? 19.2050,
+      patient_longitude: request?.patient_longitude ?? 72.8630,
       urgency: request?.urgency ?? 'critical',
       required_bed_type: request?.required_bed_type ?? reservation.bed_type,
       required_specialty: request?.required_specialty ?? null,
