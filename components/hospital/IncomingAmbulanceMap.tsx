@@ -40,12 +40,15 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
   const layerRef = useRef<LeafletType.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, LeafletType.Marker>>(new Map());
   const fittedRef = useRef<string>('');
-  const [mapReady, setMapReady] = useState(false);
+  // Goes up each time the map is (re)created, so the drawing effects run again
+  const [mapVersion, setMapVersion] = useState(0);
   const [trips, setTrips] = useState<Record<string, TripRoute | null>>({});
   const [now, setNow] = useState(() => Date.now());
 
-  // 1. Map, once
+  // 1. Map: created when the first ambulance shows up (the section isn't on screen before)
+  const hasIncoming = incoming.length > 0;
   useEffect(() => {
+    if (!hasIncoming) return;
     let alive = true;
     const markers = markersRef.current;
     (async () => {
@@ -64,15 +67,16 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
       L.control.zoom({ position: 'topright' }).addTo(map);
       layerRef.current = L.layerGroup().addTo(map);
       mapRef.current = map;
-      setMapReady(true);
+      setMapVersion((v) => v + 1);
     })().catch((err) => console.error('[map] could not start:', err));
     return () => {
       alive = false;
       mapRef.current?.remove();
       mapRef.current = null;
       markers.clear();
+      fittedRef.current = '';
     };
-  }, [hospital.latitude, hospital.longitude]);
+  }, [hospital.latitude, hospital.longitude, hasIncoming]);
 
   // 2. Road route for each new ambulance (pickup point -> this hospital)
   const tripIds = incoming.map((i) => `${i.reservation.id}|${i.reservation.request_id}`).join(',');
@@ -115,7 +119,7 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
     const L = leafletRef.current;
     const map = mapRef.current;
     const layer = layerRef.current;
-    if (!L || !map || !layer || !mapReady) return;
+    if (!L || !map || !layer || mapVersion === 0) return;
 
     layer.clearLayers();
     L.marker([hospital.latitude, hospital.longitude], {
@@ -146,13 +150,13 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
       map.fitBounds(L.latLngBounds(bounds), { padding: [36, 36], maxZoom: 15 });
     }
     // Only when the routes or the set of ambulances change, not every second
-  }, [mapReady, trips, hospital, tripIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapVersion, trips, hospital, tripIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 5. Ambulances at their simulated position, every second
   useEffect(() => {
     const L = leafletRef.current;
     const map = mapRef.current;
-    if (!L || !map || !mapReady) return;
+    if (!L || !map || mapVersion === 0) return;
 
     const markers = markersRef.current;
     const live = new Set<string>();
@@ -189,7 +193,7 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
         markers.delete(id);
       }
     }
-  }, [mapReady, trips, now, incoming]);
+  }, [mapVersion, trips, now, incoming]);
 
   if (incoming.length === 0) return null;
 
@@ -205,7 +209,10 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
           Simulated position along the real road
         </span>
       </div>
-      <div ref={containerRef} className="h-72 w-full bg-slate-100" />
+      {/* Fixed-height box: the global .leaflet-container rule sets height 100%, which beats h-72 */}
+      <div className="h-72 w-full bg-slate-100">
+        <div ref={containerRef} className="h-full w-full" />
+      </div>
       {located.length < incoming.length && (
         <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100">
           Finding the route for {incoming.length - located.length} ambulance{incoming.length - located.length === 1 ? '' : 's'}…
