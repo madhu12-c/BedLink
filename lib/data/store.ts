@@ -311,6 +311,51 @@ class BedLinkDataStore {
   }
 
   /**
+   * Hospital Coordinator / Nurse update total capacity of beds.
+   */
+  public updateTotalBeds(
+    hospitalId: string,
+    bedType: BedType,
+    delta: number,
+    actorId = 'nurse-1',
+    actorName = 'Staff Nurse'
+  ): BedInventory {
+    const inv = this.bedInventories.find(
+      (b) => b.hospital_id === hospitalId && b.bed_type === bedType
+    );
+
+    if (!inv) {
+      throw new Error(`Inventory record not found for hospital ${hospitalId} and bed ${bedType}`);
+    }
+
+    const newTotal = Math.max(1, inv.total_beds + delta);
+    inv.total_beds = newTotal;
+    if (delta > 0) {
+      inv.available_beds = Math.min(newTotal, inv.available_beds + delta);
+    } else {
+      inv.available_beds = Math.min(newTotal, inv.available_beds);
+    }
+    inv.updated_at = new Date().toISOString();
+    inv.updated_by = actorId;
+
+    // Recalculate hospital load
+    const hosp = this.hospitals.find((h) => h.id === hospitalId);
+    if (hosp) {
+      const hospBeds = this.bedInventories.filter((b) => b.hospital_id === hospitalId);
+      const total = hospBeds.reduce((acc, curr) => acc + curr.total_beds, 0);
+      const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
+      if (total > 0) {
+        hosp.current_load = Math.round(((total - avail) / total) * 100);
+        hosp.load_updated_at = new Date().toISOString();
+      }
+    }
+
+    this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, total_beds: newTotal, inv, actorName });
+    this.syncHandler?.onBedUpdate?.(hospitalId, bedType, inv.available_beds, actorId);
+    return { ...inv };
+  }
+
+  /**
    * Dispatcher creates emergency request
    */
   public createEmergencyRequest(requestData: Omit<EmergencyRequest, 'id' | 'created_at' | 'status'>): EmergencyRequest {

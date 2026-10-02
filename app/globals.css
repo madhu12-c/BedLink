@@ -37,6 +37,27 @@ body {
   background: #94a3b8;
 }
 
+/* Custom scroll container for bed numbers */
+.bed-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  overscroll-behavior: contain;
+}
+.bed-scroll-container::-webkit-scrollbar {
+  width: 5px;
+}
+.bed-scroll-container::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.7);
+  border-radius: 4px;
+}
+.bed-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.bed-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Custom Leaflet overrides for emergency map UI */
 .leaflet-container {
   font-family: inherit;
