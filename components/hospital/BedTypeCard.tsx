@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Minus, Plus, Check, AlertCircle } from 'lucide-react';
 import { BedInventory, BedType } from '@/lib/types';
 import { FreshnessIndicator } from '../dispatch/FreshnessIndicator';
@@ -11,12 +12,12 @@ interface BedTypeCardProps {
   disabled?: boolean;
 }
 
-const BED_METADATA: Record<BedType, { label: string; subtext: string; icon: string }> = {
-  icu: { label: 'ICU Beds', subtext: 'Intensive Critical Care Units', icon: '🏥' },
-  ventilator: { label: 'Ventilators', subtext: 'Invasive / Non-Invasive Mechanical', icon: '🫁' },
-  oxygen: { label: 'Oxygen Beds', subtext: 'High-Flow Wall & Tank O₂', icon: '💨' },
-  emergency: { label: 'Emergency Resus', subtext: 'Trauma & Resuscitation Bays', icon: '⚡' },
-  general: { label: 'General Ward', subtext: 'Standard Inpatient Admission', icon: '🛏️' }
+const BED_METADATA: Record<BedType, { label: string; subtext: string; icon: string; image: string }> = {
+  icu: { label: 'ICU Beds', subtext: 'Intensive Critical Care Units', icon: '🏥', image: '/icu_bed.jpg' },
+  ventilator: { label: 'Ventilators', subtext: 'Invasive / Non-Invasive Mechanical', icon: '🫁', image: '/ventilator_bed.jpg' },
+  oxygen: { label: 'Oxygen Beds', subtext: 'High-Flow Wall & Tank O₂', icon: '💨', image: '/oxygen_bed.jpg' },
+  emergency: { label: 'Emergency Resus', subtext: 'Trauma & Resuscitation Bays', icon: '⚡', image: '/emergency_resus_bed.jpg' },
+  general: { label: 'General Ward', subtext: 'Standard Inpatient Admission', icon: '🛏️', image: '/general_ward_bed.jpg' }
 };
 
 export function BedTypeCard({
@@ -31,7 +32,8 @@ export function BedTypeCard({
   const meta = BED_METADATA[inventory.bed_type] || {
     label: inventory.bed_type.toUpperCase(),
     subtext: 'Resource',
-    icon: '🛏️'
+    icon: '🛏️',
+    image: '/general_ward_bed.jpg'
   };
 
   const handleDelta = async (delta: number) => {
@@ -91,6 +93,18 @@ export function BedTypeCard({
             <FreshnessIndicator updatedAt={inventory.updated_at} />
           )}
         </div>
+      </div>
+
+      {/* Illustrated bed image */}
+      <div className="relative w-full h-40 my-2 flex items-center justify-center">
+        <Image
+          src={meta.image}
+          alt={`${meta.label} illustration`}
+          fill
+          className="object-contain"
+          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 30vw"
+          priority={false}
+        />
       </div>
 
       {/* Main Count & Large Touch Controls (DESIGN.md: 28-40px numbers, 44x44px touch targets) */}
