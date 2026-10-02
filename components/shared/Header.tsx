@@ -15,7 +15,8 @@ import {
   PhoneCall,
   UserCheck,
   ChevronDown,
-  ShieldCheck
+  ShieldCheck,
+  LogIn
 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
 import { initSupabaseSync, subscribeSupabaseStatus, signOut, getCurrentUserProfile } from '@/lib/supabase/sync';
@@ -294,8 +295,8 @@ export function Header({
               <span>108 HOTLINE</span>
             </div>
 
-            {/* User Profile + Sign Out */}
-            {userProfile && (
+            {/* User Profile + Sign Out OR Sign In Button */}
+            {userProfile ? (
               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs">
                 <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
                   {userProfile.name.charAt(0).toUpperCase()}
@@ -317,6 +318,14 @@ export function Header({
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </button>
               </div>
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </Link>
             )}
 
           </div>
