@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { BedInventory, Reservation } from '@/lib/types';
 import { ReservationTimer } from '../dispatch/ReservationTimer';
+import { ModalPortal } from '../shared/ModalPortal';
 
 interface IncomingReservationAlertProps {
   reservation: Reservation;
@@ -314,6 +315,7 @@ export function IncomingReservationAlert({
 
       {/* Reject Modal dialog */}
       {rejectionModalOpen && (
+        <ModalPortal>
         <div
           className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
           role="dialog"
@@ -380,6 +382,7 @@ export function IncomingReservationAlert({
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

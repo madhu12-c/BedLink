@@ -209,8 +209,9 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
           Simulated position along the real road
         </span>
       </div>
-      {/* Fixed-height box: the global .leaflet-container rule sets height 100%, which beats h-72 */}
-      <div className="h-72 w-full bg-slate-100">
+      {/* Fixed-height box: the global .leaflet-container rule sets height 100%, which beats h-72.
+          isolate keeps Leaflet's high z-index layers inside the map, under popups. */}
+      <div className="h-72 w-full bg-slate-100 isolate">
         <div ref={containerRef} className="h-full w-full" />
       </div>
       {located.length < incoming.length && (

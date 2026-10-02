@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { PatientHandoverRecord } from '@/lib/types';
 import { verifyHandoverIntegrity } from '@/lib/crypto/handoverSha';
+import { ModalPortal } from '@/components/shared/ModalPortal';
 import {
   ShieldCheck,
   Activity,
@@ -260,6 +261,7 @@ export function PatientHandoverModal({
   const { vitals } = handover || {};
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden my-6">
         {/* Header with SHA-256 Security Banner */}
@@ -558,5 +560,6 @@ export function PatientHandoverModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
