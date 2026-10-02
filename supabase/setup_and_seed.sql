@@ -4,10 +4,30 @@
 -- https://supabase.com/dashboard/project/_/sql
 -- ============================================================
 
--- 1. Enable Realtime on tables for live bed tracking
-ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory;
-ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
-ALTER PUBLICATION supabase_realtime ADD TABLE hospitals;
+-- 1. Enable Realtime on tables for live bed tracking (safe check)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'bed_inventory'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'reservations'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'hospitals'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE hospitals;
+  END IF;
+END $$;
 
 -- 2. Allow anon (public key) access for demo CAD system
 ALTER TABLE organizations DISABLE ROW LEVEL SECURITY;
