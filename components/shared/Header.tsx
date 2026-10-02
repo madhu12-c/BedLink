@@ -113,22 +113,22 @@ export function Header({
           {/* Left: Brand & Main Navigation */}
           <div className="flex items-center gap-4 lg:gap-7">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-3 group shrink-0">
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-all">
-                <Activity className="w-5 h-5 text-white animate-pulse" />
+            <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-all">
+                <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse" />
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
               </div>
               <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-lg tracking-tight text-slate-900 flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-base sm:text-lg tracking-tight text-slate-900">
                     Bed<span className="text-blue-600">Link</span>
                   </span>
                   <span className="hidden sm:inline-flex text-[9px] font-black tracking-widest uppercase bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">
                     108 CAD
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium tracking-wide flex items-center gap-1">
-                  <span>Mumbai Emergency Bed Coordination</span>
+                <span className="hidden sm:block text-[10px] text-slate-500 font-medium tracking-wide">
+                  Mumbai Emergency Bed Coordination
                 </span>
               </div>
             </Link>
@@ -160,18 +160,18 @@ export function Header({
           </div>
 
           {/* Right: Live Telemetry, Persona Switcher & Emergency Clock */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5">
+          <div className="flex items-center gap-2 sm:gap-2.5 sm:gap-3.5">
             
-            {/* Live Operational Clock (Desktop) */}
+            {/* Live Operational Clock (Desktop only) */}
             <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-700 text-xs font-mono font-bold" title="Operational Telemetry Time">
               <Clock className="w-3.5 h-3.5 text-blue-600" />
               <span suppressHydrationWarning>{currentTime ?? '--:--:--'}</span>
               <span className="text-[10px] text-slate-400 font-sans font-semibold">IST</span>
             </div>
 
-            {/* Supabase Realtime Telemetry Status Badge */}
+            {/* Supabase Status — compact dot on mobile, full badge on sm+ */}
             <div
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-all ${
+              className={`flex items-center gap-1.5 text-xs px-2 py-1.5 sm:px-2.5 rounded-lg border transition-all ${
                 supabaseState.connected
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : supabaseState.configured
@@ -180,14 +180,14 @@ export function Header({
               }`}
               title={
                 supabaseState.connected
-                  ? `Supabase Realtime Live Sync Active${supabaseState.lastSyncTime ? ` · Last Event: ${supabaseState.lastSyncTime}` : ''}`
+                  ? `Supabase Realtime Active`
                   : supabaseState.configured
-                  ? 'Connecting to Supabase Realtime Telemetry...'
-                  : 'Local Standalone Mode · Set .env to connect live Supabase'
+                  ? 'Connecting...'
+                  : 'Demo Mode'
               }
             >
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`w-2 h-2 rounded-full shrink-0 ${
                   supabaseState.connected
                     ? 'bg-emerald-500 animate-ping'
                     : supabaseState.configured
@@ -196,7 +196,7 @@ export function Header({
                 }`}
               />
               <Radio
-                className={`w-3.5 h-3.5 ${
+                className={`w-3.5 h-3.5 hidden sm:inline ${
                   supabaseState.connected
                     ? 'text-emerald-600'
                     : supabaseState.configured
@@ -204,19 +204,19 @@ export function Header({
                     : 'text-slate-400'
                 }`}
               />
-              <span className="font-mono text-[10px] sm:text-[11px] font-bold tracking-tight">
+              <span className="font-mono text-[10px] font-bold tracking-tight hidden sm:inline">
                 {supabaseState.connected
-                  ? 'REALTIME LIVE'
+                  ? 'LIVE'
                   : supabaseState.configured
-                  ? 'CONNECTING'
-                  : 'DEMO MODE'}
+                  ? 'SYNC'
+                  : 'DEMO'}
               </span>
             </div>
 
-            {/* Active Persona Command Selector */}
+            {/* Persona Selector — compact on mobile */}
             <div className="relative flex items-center">
-              <div className="flex items-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-2 py-1 transition-all focus-within:ring-2 focus-within:ring-blue-400/40 shadow-sm">
-                <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0 hidden sm:inline" />
+              <div className="flex items-center gap-1 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2 pr-1.5 py-1 transition-all focus-within:ring-2 focus-within:ring-blue-400/40 shadow-sm">
+                <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hidden xl:inline">
                   Persona:
                 </span>
@@ -256,21 +256,21 @@ export function Header({
                       onRoleChange('nurse', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
                     }
                   }}
-                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 py-1 max-w-[130px] sm:max-w-[210px] truncate"
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer py-1 max-w-[90px] sm:max-w-[150px] lg:max-w-[210px] truncate"
                 >
-                  <option value="dispatcher">🚑 Ambulance / Dispatcher</option>
-                  <option value="nurse-aditi">🏥 Nurse: Aditi Hospital</option>
-                  <option value="nurse-lifeline">🏥 Nurse: Lifeline Medicare</option>
-                  <option value="nurse-dna">🏥 Nurse: DNA Multispeciality</option>
-                  <option value="nurse-apex">🏥 Nurse: Apex Superspeciality</option>
-                  <option value="nurse-shatabdi">🏥 Nurse: Shatabdi Hospital</option>
-                  <option value="admin">🛡️ Mumbai 108 EMS Admin</option>
+                  <option value="dispatcher">🚑 Dispatcher</option>
+                  <option value="nurse-aditi">🏥 Aditi Hospital</option>
+                  <option value="nurse-lifeline">🏥 Lifeline Medicare</option>
+                  <option value="nurse-dna">🏥 DNA Multispeciality</option>
+                  <option value="nurse-apex">🏥 Apex Superspeciality</option>
+                  <option value="nurse-shatabdi">🏥 Shatabdi Hospital</option>
+                  <option value="admin">🛡️ EMS Admin</option>
                 </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                <ChevronDown className="w-3 h-3 text-slate-400 pointer-events-none shrink-0" />
               </div>
             </div>
 
-            {/* Quick 108 EMS Hotline Pill (Desktop) */}
+            {/* 108 Hotline — desktop only */}
             <div className="hidden 2xl:flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg text-red-600 text-xs font-bold">
               <PhoneCall className="w-3.5 h-3.5 text-red-500 animate-bounce" />
               <span>108 HOTLINE</span>
