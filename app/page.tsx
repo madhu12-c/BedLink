@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useEffectEvent, useState, useMemo } from 'react';
 import { Header } from '@/components/shared/Header';
 import { PatientNeedForm, DispatchFormParams } from '@/components/dispatch/PatientNeedForm';
 import { HospitalMap } from '@/components/dispatch/HospitalMap';
@@ -9,6 +9,12 @@ import { bedLinkStore } from '@/lib/data/store';
 import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
 import { ScoredHospital, UserRole, Reservation } from '@/lib/types';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
+import { VoiceBestMatch, VoiceIntakePanel } from '@/components/voice/VoiceIntakePanel';
+import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
+import { useVoiceAvailability, useVoicePlayer, useVoiceSettings } from '@/lib/voice/hooks';
+import { IntakeFormValues } from '@/lib/voice/intake';
+import { VoiceLanguageCode } from '@/lib/voice/languages';
+import { DispatchVoiceEvent, dispatchEventPhrase } from '@/lib/voice/phrases';
 import {
   ShieldAlert,
   Sparkles,
@@ -23,6 +29,27 @@ import {
 } from 'lucide-react';
 
 type MobileTab = 'intake' | 'hospitals' | 'map';
+
+// Store events that are read out to the ambulance crew.
+const DISPATCH_VOICE_EVENTS: Partial<Record<string, DispatchVoiceEvent['kind']>> = {
+  reservation_created: 'hold_sent',
+  reservation_accepted: 'accepted',
+  reservation_rejected: 'rejected',
+  reservation_expired: 'expired'
+};
+
+const DEMO_REQUEST_ID = 'req-demo-1';
+
+// Kept across visits to this page within the tab (the demo store lives in memory too), so a
+// confirmation that arrived while the crew was on another page is still announced, once.
+const crewVoiceMemory: { language: VoiceLanguageCode | null; announced: Set<string> } = {
+  language: null,
+  announced: new Set()
+};
+
+function latestReservationFor(requestId: string): Reservation | null {
+  return bedLinkStore.getReservations().find((r) => r.request_id === requestId) ?? null;
+}
 
 export default function DispatcherPage() {
   const [role, setRole] = useState<UserRole>('dispatcher');
@@ -44,14 +71,63 @@ export default function DispatcherPage() {
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
-  const [activeReservation, setActiveReservation] = useState<Reservation | null>(null);
-  const currentRequestId = 'req-demo-1';
+  // Restored when coming back from another page, so an accepted hold is still shown.
+  const [activeReservation, setActiveReservation] = useState<Reservation | null>(() =>
+    latestReservationFor(DEMO_REQUEST_ID)
+  );
+  const currentRequestId = DEMO_REQUEST_ID;
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
   // Real road-ranked results (updated async from OSRM)
   const [realRanked, setRealRanked] = useState<{ exactMatches: import('@/lib/types').ScoredHospital[]; partialMatches: import('@/lib/types').ScoredHospital[] } | null>(null);
+
+  // Voice assistant (Sarvam): spoken intake + spoken status updates for the crew
+  const voiceAvailability = useVoiceAvailability();
+  const voicePlayer = useVoicePlayer();
+  const [voiceSettings, updateVoiceSettings] = useVoiceSettings('bedlink.voice.dispatch', {
+    announce: true,
+    language: 'auto'
+  });
+  const [crewLanguage, setCrewLanguage] = useState<VoiceLanguageCode | null>(() => crewVoiceMemory.language);
+  const rememberCrewLanguage = (language: VoiceLanguageCode) => {
+    crewVoiceMemory.language = language;
+    setCrewLanguage(language);
+  };
+  const canSpeak = voiceAvailability === 'ready' && voiceSettings.announce;
+  const speakLanguageFor = (spoken: VoiceLanguageCode | null): VoiceLanguageCode =>
+    voiceSettings.language === 'auto' ? spoken ?? 'en-IN' : voiceSettings.language;
+
+  /** Speaks a request status once per reservation and status. */
+  const announceReservation = (kind: DispatchVoiceEvent['kind'], reservation: Reservation) => {
+    if (!canSpeak || kind === 'not_held') return;
+    const key = `${reservation.id}:${kind}`;
+    if (crewVoiceMemory.announced.has(key)) return;
+    crewVoiceMemory.announced.add(key);
+    const hospitalName =
+      reservation.hospital_name || bedLinkStore.getHospital(reservation.hospital_id)?.name || 'the hospital';
+    // Read the remembered language directly: a voice hold sets it in the same tick as this event.
+    voicePlayer.speak(dispatchEventPhrase({ kind, hospitalName }, speakLanguageFor(crewVoiceMemory.language)));
+  };
+
+  const announceStoreEvent = useEffectEvent((event: { type: string; payload: unknown }) => {
+    const kind = DISPATCH_VOICE_EVENTS[event.type];
+    const reservation = (event.payload as { reservation?: Reservation } | null)?.reservation;
+    if (kind && reservation?.request_id === currentRequestId) announceReservation(kind, reservation);
+  });
+
+  // The hospital may accept while the crew is on another page (e.g. the Nurse Portal in a
+  // one-tab demo). Announce that confirmation when they come back, if it is recent.
+  const announceMissedConfirmation = useEffectEvent(() => {
+    const reservation = latestReservationFor(currentRequestId);
+    if (reservation?.status !== 'accepted' || !reservation.responded_at) return;
+    if (Date.now() - Date.parse(reservation.responded_at) > 2 * 60_000) return;
+    announceReservation('accepted', reservation);
+  });
+  useEffect(() => {
+    if (voiceAvailability === 'ready') announceMissedConfirmation();
+  }, [voiceAvailability]);
 
   // Request notification permission early so push fires immediately on accept
   useEffect(() => {
@@ -64,6 +140,7 @@ export default function DispatcherPage() {
   useEffect(() => {
     const unsubscribe = bedLinkStore.subscribe((event) => {
       setLastUpdateTrigger((prev) => prev + 1);
+      announceStoreEvent(event);
 
       if (event.type === 'reservation_created') {
         const payload = event.payload as { reservation: Reservation };
@@ -199,6 +276,90 @@ export default function DispatcherPage() {
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
+  // Voice: best exact match for what the crew said, using the same ranking as the hospital list.
+  const findVoiceBestMatch = (values: IntakeFormValues): VoiceBestMatch | null => {
+    const next: DispatchFormParams = { ...formData, ...values };
+    const top = rankHospitals(candidates, {
+      patientLocation: { latitude: next.latitude, longitude: next.longitude },
+      requiredBedType: next.bedType,
+      requiresVentilator: next.requiresVentilator,
+      requiredSpecialty: next.specialty,
+      urgency: next.urgency
+    }).exactMatches[0];
+    if (!top) return null;
+    return {
+      hospitalId: top.hospital.id,
+      hospitalName: top.hospital.name,
+      etaMinutes: top.etaMinutes,
+      freeBeds: top.inventory[next.bedType]?.available_beds ?? 0
+    };
+  };
+
+  const applyVoiceDetails = (values: IntakeFormValues, spokenLanguage: VoiceLanguageCode): DispatchFormParams => {
+    const next: DispatchFormParams = { ...formData, ...values };
+    rememberCrewLanguage(spokenLanguage);
+    setFormData(next);
+    setMobileTab('hospitals');
+    return next;
+  };
+
+  // Voice: the crew chose "Fill form only".
+  const handleVoiceApply = (values: IntakeFormValues, spokenLanguage: VoiceLanguageCode) => {
+    applyVoiceDetails(values, spokenLanguage);
+    setSelectedHospitalId(null);
+    setActionNotice('Voice details applied to the form.');
+  };
+
+  // Voice: the crew said "haan" / "hoy" / "yes" (or tapped) to hold the bed that was read back.
+  const handleVoiceHold = (values: IntakeFormValues, spokenLanguage: VoiceLanguageCode, hospitalId: string) => {
+    const next = applyVoiceDetails(values, spokenLanguage);
+    setSelectedHospitalId(hospitalId);
+    try {
+      const res = bedLinkStore.holdBedAtomic(
+        currentRequestId,
+        hospitalId,
+        next.bedType,
+        'disp-dispatcher',
+        'EMS Dispatcher #41 (voice)'
+      );
+      setActiveReservation(res);
+      setActionNotice(`Bed hold sent to ${res.hospital_name ?? 'the hospital'} by voice. 2-minute timer started.`);
+    } catch (err: unknown) {
+      setActionNotice(err instanceof Error ? err.message : 'Failed to hold bed');
+      if (canSpeak) {
+        const hospitalName = bedLinkStore.getHospital(hospitalId)?.name ?? 'the hospital';
+        voicePlayer.speak(dispatchEventPhrase({ kind: 'unavailable', hospitalName }, speakLanguageFor(spokenLanguage)));
+      }
+    }
+  };
+
+  const voiceIntakePanel = (
+    <VoiceIntakePanel
+      availability={voiceAvailability}
+      currentForm={formData}
+      findBestMatch={findVoiceBestMatch}
+      onApply={handleVoiceApply}
+      onHold={handleVoiceHold}
+      canSpeak={canSpeak}
+      speakAndWait={voicePlayer.speakAndWait}
+      speakLanguageFor={speakLanguageFor}
+      onUnlockAudio={voicePlayer.unlock}
+      settingsSlot={
+        <VoiceSettingsBar
+          availability={voiceAvailability}
+          settings={voiceSettings}
+          onChange={updateVoiceSettings}
+          playerStatus={voicePlayer.status}
+          playerError={voicePlayer.error}
+          onUnlock={voicePlayer.unlock}
+          label="Voice updates"
+          allowAuto
+          autoLanguage={crewLanguage}
+        />
+      }
+    />
+  );
+
   // Mobile tab config
   const mobileTabs: { id: MobileTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
     { id: 'intake', label: 'Intake', icon: ClipboardList },
@@ -276,6 +437,7 @@ export default function DispatcherPage() {
       <main className="hidden lg:flex flex-1 min-h-0 max-w-[1650px] w-full mx-auto p-4 lg:p-5 gap-4 lg:gap-5 items-stretch overflow-hidden">
         {/* Column 1: Intake Form (Independent scroll) */}
         <div className="w-[340px] xl:w-[360px] shrink-0 h-full overflow-y-auto pr-1 flex flex-col gap-4">
+          {voiceIntakePanel}
           <PatientNeedForm
             formData={formData}
             onChange={setFormData}
@@ -395,6 +557,7 @@ export default function DispatcherPage() {
         {/* INTAKE TAB */}
         {mobileTab === 'intake' && (
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+            {voiceIntakePanel}
             <PatientNeedForm
               formData={formData}
               onChange={setFormData}

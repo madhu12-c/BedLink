@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useEffectEvent, useState, useMemo } from 'react';
 import { Header } from '@/components/shared/Header';
+import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
+import { useVoiceAvailability, useVoicePlayer, useVoiceSettings } from '@/lib/voice/hooks';
+import { hospitalAllottedPhrase, hospitalIncomingPhrase } from '@/lib/voice/phrases';
 import { BedUpdateGrid } from '@/components/hospital/BedUpdateGrid';
 import { IncomingReservationAlert } from '@/components/hospital/IncomingReservationAlert';
 import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArrivalCountdown';
@@ -33,10 +36,35 @@ export default function HospitalNursePage() {
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showAddBedModal, setShowAddBedModal] = useState(false);
 
+  // Voice assistant (Sarvam): read new ambulance requests aloud for busy ER staff
+  const voiceAvailability = useVoiceAvailability();
+  const voicePlayer = useVoicePlayer();
+  const [voiceSettings, updateVoiceSettings] = useVoiceSettings('bedlink.voice.hospital', {
+    announce: true,
+    language: 'hi-IN'
+  });
+
+  // New request for this hospital → read it aloud; accepted → confirm the bed is allotted.
+  const announceIncomingRequest = useEffectEvent((event: { type: string; payload: unknown }) => {
+    if (event.type !== 'reservation_created' && event.type !== 'reservation_accepted') return;
+    if (voiceAvailability !== 'ready' || !voiceSettings.announce) return;
+    const reservation = (event.payload as { reservation?: Reservation } | null)?.reservation;
+    if (!reservation || reservation.hospital_id !== selectedHospitalId) return;
+    const language = voiceSettings.language === 'auto' ? 'en-IN' : voiceSettings.language;
+    if (event.type === 'reservation_accepted') {
+      voicePlayer.speak(hospitalAllottedPhrase({ bedType: reservation.bed_type }, language));
+    } else if (reservation.status === 'pending') {
+      voicePlayer.speak(
+        hospitalIncomingPhrase({ bedType: reservation.bed_type, urgency: reservation.patient_urgency ?? null }, language)
+      );
+    }
+  });
+
   // Subscribe to realtime store events
   useEffect(() => {
     const unsubscribe = bedLinkStore.subscribe((event) => {
       setLastUpdateTrigger((prev) => prev + 1);
+      announceIncomingRequest(event);
 
       if (event.type === 'reservation_created') {
         const payload = event.payload as { reservation: Reservation };
@@ -291,6 +319,20 @@ export default function HospitalNursePage() {
               {role === 'nurse' ? '👩‍⚕️ Clinical Ward Nurse' : '🏢 Bed Operations Operator'}
             </span>
           </div>
+        </div>
+
+        {/* Voice alerts: new ambulance requests are read aloud in the chosen language */}
+        <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-bold text-slate-700">Voice alerts for new requests and allotted beds</span>
+          <VoiceSettingsBar
+            availability={voiceAvailability}
+            settings={voiceSettings}
+            onChange={updateVoiceSettings}
+            playerStatus={voicePlayer.status}
+            playerError={voicePlayer.error}
+            onUnlock={voicePlayer.unlock}
+            label="Voice alerts"
+          />
         </div>
 
         {/* Hospital Selector & Header */}
