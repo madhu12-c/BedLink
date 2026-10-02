@@ -1,16 +1,52 @@
 {
   "name": "BedLink — Emergency Bed Coordination",
   "short_name": "BedLink",
-  "description": "Real-time emergency hospital bed and resource coordination platform for paramedics and dispatchers",
+  "description": "Real-time emergency hospital bed coordination for ambulance crews and dispatchers",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#F8FAFC",
-  "theme_color": "#0F172A",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#2563EB",
+  "categories": ["medical", "health", "utilities"],
+  "lang": "en-IN",
+  "dir": "ltr",
   "icons": [
+    {
+      "src": "/icon-512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    },
     {
       "src": "/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Dispatch CAD",
+      "short_name": "Dispatch",
+      "description": "Open ambulance dispatch console",
+      "url": "/",
+      "icons": [{ "src": "/icon-512.jpg", "sizes": "512x512" }]
+    },
+    {
+      "name": "Nurse Portal",
+      "short_name": "Nurse",
+      "description": "Hospital nurse bed management",
+      "url": "/hospital",
+      "icons": [{ "src": "/icon-512.jpg", "sizes": "512x512" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }

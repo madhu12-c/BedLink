@@ -105,3 +105,64 @@ body {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
+
+/* ── PWA / Mobile Optimizations ── */
+
+/* Remove tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe area support for iPhone notch / Dynamic Island / home bar */
+.safe-area-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Prevent overscroll bounce on mobile tabs */
+.mobile-scroll-panel {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Map fills full height on mobile */
+.mobile-map-full {
+  height: calc(100dvh - 140px);
+  min-height: 300px;
+}
+
+/* Smooth momentum scrolling on iOS */
+.scroll-smooth-ios {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Prevent text size adjustment on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Touch-friendly tap targets */
+button, a, select, input {
+  touch-action: manipulation;
+}
+
+/* Installed PWA: remove browser chrome related spacing */
+@media (display-mode: standalone) {
+  body {
+    /* Extra padding for status bar on standalone */
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Large phone / small tablet breakpoint helpers */
+@media (max-width: 430px) {
+  .leaflet-control-zoom {
+    display: none;
+  }
+}
+

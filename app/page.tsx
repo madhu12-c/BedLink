@@ -172,7 +172,7 @@ export default function DispatcherPage() {
   ];
 
   return (
-    <div className="min-h-screen lg:h-screen flex flex-col bg-slate-50 lg:overflow-hidden">
+    <div className="min-h-[100dvh] lg:h-screen flex flex-col bg-slate-50 lg:overflow-hidden">
       <Header
         currentRole={role}
         selectedHospitalId={selectedHospitalForNurse}
@@ -347,11 +347,11 @@ export default function DispatcherPage() {
       </main>
 
       {/* ── MOBILE: Tab Panel Layout ── */}
-      <div className="lg:hidden flex flex-col flex-1 pb-[68px]">
+      <div className="lg:hidden flex flex-col flex-1" style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px))' }}>
 
         {/* INTAKE TAB */}
         {mobileTab === 'intake' && (
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 mobile-scroll-panel">
             <PatientNeedForm
               formData={formData}
               onChange={setFormData}
@@ -391,7 +391,7 @@ export default function DispatcherPage() {
 
         {/* HOSPITALS TAB */}
         {mobileTab === 'hospitals' && (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto mobile-scroll-panel">
             {/* Sticky header with match count */}
             <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
               <div>
@@ -500,7 +500,7 @@ export default function DispatcherPage() {
               onSelectHospital={(h) => {
                 setSelectedHospitalId(h.hospital.id);
               }}
-              className="h-full w-full"
+              className="mobile-map-full w-full"
             />
           </div>
         )}
@@ -508,6 +508,7 @@ export default function DispatcherPage() {
         {/* ── Mobile Bottom Tab Bar ── */}
         <nav
           className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-2xl grid grid-cols-3 safe-area-bottom"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}
           aria-label="Navigation tabs"
         >
           {mobileTabs.map(({ id, label, icon: Icon, badge }) => {
@@ -517,7 +518,7 @@ export default function DispatcherPage() {
                 key={id}
                 type="button"
                 onClick={() => setMobileTab(id)}
-                className={`flex flex-col items-center justify-center py-2 px-2 min-h-[60px] relative transition-colors ${
+                className={`flex flex-col items-center justify-center py-2.5 px-2 min-h-[64px] relative transition-colors ${
                   isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
