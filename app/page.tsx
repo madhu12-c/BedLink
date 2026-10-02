@@ -16,6 +16,7 @@ import { ActiveHoldBar } from '@/components/dispatch/ActiveHoldBar';
 import { HoldTimeline } from '@/components/dispatch/HoldTimeline';
 import { QuickMessages } from '@/components/shared/QuickMessages';
 import { StabiliseSuggestion } from '@/components/dispatch/StabiliseSuggestion';
+import { VitalsForm } from '@/components/dispatch/VitalsForm';
 import { CasualtyHoldResult, MassCasualtyPanel } from '@/components/dispatch/MassCasualtyPanel';
 import { CasualtyPlanRow } from '@/lib/dispatch/massCasualty';
 import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
@@ -676,6 +677,13 @@ export default function DispatcherPage() {
             from="crew"
             author={dispatcherName}
             className="max-w-[1700px] mx-auto"
+          />
+          {/* Vitals for the hospital, sealed so they can check nothing changed */}
+          <VitalsForm
+            key={`vitals-${activeReservation.id}`}
+            reservation={activeReservation}
+            crewName={dispatcherName}
+            className="max-w-[1700px] mx-auto mt-2"
           />
         </div>
       )}
