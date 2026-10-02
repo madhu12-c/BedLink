@@ -6,7 +6,8 @@
 -- Only the service role can change app_metadata (scripts/create-demo-users.mjs does it),
 -- so nobody can promote themselves from the browser.
 --
--- Run this once in the Supabase SQL editor after the schema migration and seed.
+-- Run this in the Supabase SQL editor after the schema migration and setup_and_seed.sql.
+-- setup_and_seed.sql turns RLS off again, so re-run this file every time that one is run.
 -- It is safe to run again. After it runs, the anon (signed-out) key can read nothing.
 -- Note: a role or hospital change reaches a user's token on their next sign-in
 -- (or token refresh, up to 1 hour).
@@ -83,7 +84,8 @@ BEGIN
     WHERE schemaname = 'public'
       AND tablename IN (
         'organizations', 'profiles', 'hospitals', 'hospital_capabilities', 'bed_inventory',
-        'emergency_requests', 'hospital_matches', 'reservations', 'reservation_events'
+        'emergency_requests', 'hospital_matches', 'reservations', 'reservation_events',
+        'bed_history_logs', 'patient_handovers'
       )
   LOOP
     EXECUTE format('DROP POLICY %I ON public.%I', p.policyname, p.tablename);
@@ -232,6 +234,44 @@ CREATE POLICY "coordinator_insert_own_hospital" ON public.reservation_events FOR
         AND r.hospital_id = public.current_hospital_id()
     )
   );
+
+-- Bed history and patient handovers (tables from setup_and_seed.sql; skipped if it has not
+-- created them yet). They hold patient details, so only the coordinator of that hospital
+-- (and admins) can see or write them.
+DO $$
+BEGIN
+  IF to_regclass('public.bed_history_logs') IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE public.bed_history_logs ENABLE ROW LEVEL SECURITY';
+    EXECUTE $p$
+      CREATE POLICY "admin_all" ON public.bed_history_logs FOR ALL TO authenticated
+        USING (public.current_app_role() = 'admin') WITH CHECK (public.current_app_role() = 'admin')
+    $p$;
+    EXECUTE $p$
+      CREATE POLICY "coordinator_own_hospital" ON public.bed_history_logs FOR ALL TO authenticated
+        USING (public.current_app_role() = 'coordinator' AND hospital_id = public.current_hospital_id())
+        WITH CHECK (public.current_app_role() = 'coordinator' AND hospital_id = public.current_hospital_id())
+    $p$;
+  END IF;
+
+  IF to_regclass('public.patient_handovers') IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE public.patient_handovers ENABLE ROW LEVEL SECURITY';
+    EXECUTE $p$
+      CREATE POLICY "admin_all" ON public.patient_handovers FOR ALL TO authenticated
+        USING (public.current_app_role() = 'admin') WITH CHECK (public.current_app_role() = 'admin')
+    $p$;
+    EXECUTE $p$
+      CREATE POLICY "coordinator_own_hospital" ON public.patient_handovers FOR ALL TO authenticated
+        USING (
+          public.current_app_role() = 'coordinator'
+          AND destination_hospital_id = public.current_hospital_id()
+        )
+        WITH CHECK (
+          public.current_app_role() = 'coordinator'
+          AND destination_hospital_id = public.current_hospital_id()
+        )
+    $p$;
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 4. Atomic RPCs: these run as SECURITY DEFINER (they skip RLS), so they check the
