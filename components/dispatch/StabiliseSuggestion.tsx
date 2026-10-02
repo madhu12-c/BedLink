@@ -37,7 +37,7 @@ export function StabiliseSuggestion({ hospitals, onHoldEmergencyBed, isLoading =
       {nearest && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
           <div className="min-w-0">
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-amber-800">Nearest to stabilise</span>
+            <span className="block text-xs font-bold uppercase tracking-wider text-amber-800">Nearest to stabilise</span>
             <span className="block text-sm font-extrabold text-slate-900 truncate">{nearest.hospital.name}</span>
             <span className="block text-xs text-slate-600">
               {nearest.etaMinutes} min drive · {nearest.inventory.emergency?.available_beds} emergency beds free

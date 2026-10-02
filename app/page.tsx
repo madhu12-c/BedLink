@@ -674,7 +674,7 @@ export default function DispatcherPage() {
           {showDemoControls && (
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider block">Demo Controls</span>
-            <p className="text-slate-500 text-[11px]">Race for the last bed, reject, 2-min timeout and auto-fallback.</p>
+            <p className="text-slate-500 text-xs">Race for the last bed, reject, 2-min timeout and auto-fallback.</p>
             <button
               type="button"
               onClick={() => void runDemo()}
@@ -993,12 +993,12 @@ export default function DispatcherPage() {
                 <div className="relative">
                   <Icon className={`w-6 h-6 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
                   {badge !== undefined && badge > 0 && (
-                    <span className="absolute -top-1 -right-2 w-4 h-4 bg-emerald-500 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center">
+                    <span className="absolute -top-1 -right-2 w-4 h-4 bg-emerald-500 text-white text-xs font-extrabold rounded-full flex items-center justify-center">
                       {badge}
                     </span>
                   )}
                 </div>
-                <span className={`text-[10px] font-bold mt-0.5 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}>
+                <span className={`text-xs font-bold mt-0.5 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}>
                   {label}
                 </span>
                 {isActive && (

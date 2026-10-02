@@ -271,7 +271,7 @@ export function PatientHandoverModal({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
+                  <span className="text-xs uppercase font-bold tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
                     SHA-256 SEALED
                   </span>
                   <span className="text-xs text-slate-400 font-mono">
@@ -297,10 +297,10 @@ export function PatientHandoverModal({
             <div className="flex items-center gap-2 overflow-hidden">
               <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
               <div className="flex flex-col truncate">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                <span className="text-xs uppercase font-bold tracking-wider text-slate-400">
                   Cryptographic Integrity Checksum (SHA-256)
                 </span>
-                <span className="font-mono text-[11px] text-emerald-300 break-all select-all truncate">
+                <span className="font-mono text-xs text-emerald-300 break-all select-all truncate">
                   {handover?.sha256_hash}
                 </span>
               </div>
@@ -360,24 +360,24 @@ export function PatientHandoverModal({
           {/* Patient Overview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Case ID</span>
+              <span className="text-xs uppercase font-bold text-slate-400 block">Case ID</span>
               <span className="text-sm font-black text-slate-900">{handover?.patient_name || 'Case'}</span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Age / Sex</span>
+              <span className="text-xs uppercase font-bold text-slate-400 block">Age / Sex</span>
               <span className="text-sm font-bold text-slate-800">
                 {handover?.patient_age ? `${handover.patient_age} yrs` : 'Not recorded'}
                 {handover?.patient_gender ? ` / ${handover.patient_gender}` : ''}
               </span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Paramedic Badge</span>
+              <span className="text-xs uppercase font-bold text-slate-400 block">Paramedic Badge</span>
               <span className="text-sm font-mono font-bold text-blue-700">{handover?.paramedic_badge_id}</span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Triage Classification</span>
+              <span className="text-xs uppercase font-bold text-slate-400 block">Triage Classification</span>
               <span
-                className={`inline-block text-[11px] font-black uppercase px-2 py-0.5 rounded mt-0.5 ${
+                className={`inline-block text-xs font-black uppercase px-2 py-0.5 rounded mt-0.5 ${
                   handover?.triage_level === 'red'
                     ? 'bg-red-100 text-red-700'
                     : handover?.triage_level === 'yellow'
@@ -411,7 +411,7 @@ export function PatientHandoverModal({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-400 block">GCS (Coma Score)</span>
+                  <span className="text-xs font-bold text-slate-400 block">GCS (Coma Score)</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className="text-2xl font-mono font-black text-slate-900">{vitals.gcs}</span>
                     <span className="text-xs text-slate-400 font-semibold">/ 15</span>
@@ -419,14 +419,14 @@ export function PatientHandoverModal({
                 </div>
 
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-400 block">Blood Pressure</span>
+                  <span className="text-xs font-bold text-slate-400 block">Blood Pressure</span>
                   <span className="text-xl font-mono font-black text-slate-900 mt-0.5 block">
                     {vitals.bp} <span className="text-xs font-normal text-slate-400">mmHg</span>
                   </span>
                 </div>
 
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-400 block">Oxygen Saturation</span>
+                  <span className="text-xs font-bold text-slate-400 block">Oxygen Saturation</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span
                       className={`text-2xl font-mono font-black ${
@@ -439,7 +439,7 @@ export function PatientHandoverModal({
                 </div>
 
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-[10px] font-bold text-slate-400 block">Heart Rate</span>
+                  <span className="text-xs font-bold text-slate-400 block">Heart Rate</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className="text-2xl font-mono font-black text-slate-900">{vitals.heart_rate}</span>
                     <span className="text-xs text-slate-400 font-semibold">bpm</span>
@@ -478,7 +478,7 @@ export function PatientHandoverModal({
                   <span>Procedures Done En-Route</span>
                 </div>
                 {handover?.procedures_performed && handover.procedures_performed.length > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-200/80 text-purple-900">
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-purple-200/80 text-purple-900">
                     {handover.procedures_performed.length}
                   </span>
                 )}
@@ -504,7 +504,7 @@ export function PatientHandoverModal({
                   <span>Medicines Given On The Way</span>
                 </div>
                 {handover?.medications_administered && handover.medications_administered.length > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-200/80 text-blue-900">
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-blue-200/80 text-blue-900">
                     {handover.medications_administered.length}
                   </span>
                 )}
@@ -524,7 +524,7 @@ export function PatientHandoverModal({
           </div>
 
           {/* Footer Metadata */}
-          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-200">
+          <div className="text-xs text-slate-400 flex items-center justify-between pt-2 border-t border-slate-200">
             <div>
               <span>Recorded by Paramedic: </span>
               <strong className="text-slate-800 font-mono">{handover?.paramedic_badge_id}</strong>

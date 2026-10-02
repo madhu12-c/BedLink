@@ -35,7 +35,7 @@ export function HoldTimeline({ reservations }: HoldTimelineProps) {
   return (
     <nav aria-label="Hospitals tried for this patient" className="bg-white border-b border-slate-200 px-4 py-2 overflow-x-auto">
       <ol className="flex items-center gap-1.5 text-xs whitespace-nowrap max-w-[1700px] mx-auto">
-        <li className="font-bold text-slate-500 uppercase tracking-wider text-[10px] mr-1">Tried</li>
+        <li className="font-bold text-slate-500 uppercase tracking-wider text-xs mr-1">Tried</li>
         {steps.map((r, i) => {
           const status = STATUS_TEXT[r.status]!;
           const name = r.hospital_name || bedLinkStore.getHospital(r.hospital_id)?.name || 'Hospital';

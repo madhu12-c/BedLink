@@ -37,7 +37,7 @@ export function VoiceSettingsBar({
 
   if (availability !== 'ready') {
     return (
-      <div className={`flex items-center gap-2 text-[11px] text-slate-500 ${className}`} role="status">
+      <div className={`flex items-center gap-2 text-xs text-slate-500 ${className}`} role="status">
         <VolumeX className="w-3.5 h-3.5 shrink-0" />
         <span>
           {availability === 'not_configured'
@@ -94,7 +94,7 @@ export function VoiceSettingsBar({
       </select>
 
       {settings.announce && (playerStatus === 'loading' || playerStatus === 'playing') && (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700" role="status">
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700" role="status">
           <Loader2 className="w-3 h-3 animate-spin" />
           {playerStatus === 'loading' ? 'Preparing voice…' : 'Speaking…'}
         </span>
@@ -104,14 +104,14 @@ export function VoiceSettingsBar({
         <button
           type="button"
           onClick={onUnlock}
-          className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1.5 min-h-[36px]"
+          className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1.5 min-h-[36px]"
         >
           Tap to enable sound
         </button>
       )}
 
       {settings.announce && playerStatus === 'error' && playerError && (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700" role="alert">
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700" role="alert">
           <AlertTriangle className="w-3 h-3 shrink-0" />
           {playerError}
         </span>

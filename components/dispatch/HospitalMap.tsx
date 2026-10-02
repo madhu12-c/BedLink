@@ -141,9 +141,9 @@ export function HospitalMap({
 
     patientMarker.bindPopup(`
       <div style="font-family: inherit;">
-        <span style="display: block; font-size: 10px; font-weight: 800; color: #dc2626; text-transform: uppercase; letter-spacing: 0.05em;">Emergency Ambulance</span>
-        <strong style="font-size: 13px; color: #0f172a; display: block; margin-top: 2px;">Patient / Ambulance Origin</strong>
-        <span style="font-size: 11px; color: #64748b; font-family: monospace;">${patientLocation.latitude.toFixed(4)}, ${patientLocation.longitude.toFixed(4)}</span>
+        <span style="display: block; font-size: 12px; font-weight: 800; color: #dc2626; text-transform: uppercase; letter-spacing: 0.05em;">Ambulance</span>
+        <strong style="font-size: 14px; color: #0f172a; display: block; margin-top: 2px;">Patient pickup point</strong>
+        <span style="font-size: 12px; color: #64748b; font-family: monospace;">${patientLocation.latitude.toFixed(4)}, ${patientLocation.longitude.toFixed(4)}</span>
       </div>
     `);
 
@@ -228,7 +228,7 @@ export function HospitalMap({
         <div style="font-family: inherit;">
           <strong style="color: #0f172a;">${h.hospital.name}</strong><br/>
           <span style="color: #2563eb; font-weight: bold;">${h.etaMinutes} min ETA</span> · <span>${h.distanceKm} km</span><br/>
-          <span style="color: #64748b; font-size: 10px;">Load: ${h.hospital.current_load}%</span>
+          <span style="color: #64748b; font-size: 12px;">${h.hospital.current_load}% full</span>
         </div>
       `, {
         direction: 'top',
@@ -367,7 +367,7 @@ export function HospitalMap({
       <div ref={mapContainerRef} className="w-full h-full min-h-[320px] z-0" />
 
       {/* Map Footer Bar */}
-      <div className="bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between z-10">
+      <div className="bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between z-10">
         <span className="flex items-center gap-1">
           <Navigation className="w-3 h-3 text-blue-600" />
           Leaflet + OpenStreetMap

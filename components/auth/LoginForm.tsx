@@ -75,7 +75,7 @@ export function LoginForm({ next, initialError, demoMode }: LoginFormProps) {
           <span className="font-black text-xl tracking-tight text-slate-900">
             Bed<span className="text-blue-600">Link</span>
           </span>
-          <span className="block text-[11px] text-slate-500 font-medium">Mumbai Emergency Bed Coordination</span>
+          <span className="block text-xs text-slate-500 font-medium">Mumbai Emergency Bed Coordination</span>
         </div>
       </div>
 
@@ -165,13 +165,13 @@ export function LoginForm({ next, initialError, demoMode }: LoginFormProps) {
           </button>
           {showDemoAccounts && (
             <div className="px-5 pb-4 flex flex-col gap-3">
-              <p className="text-[11px] text-slate-500">
+              <p className="text-xs text-slate-500">
                 Tap an account to fill in its email. The password is the one your team set when creating the demo
                 accounts.
               </p>
               {USER_ROLES.map((role) => (
                 <div key={role} className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{ROLE_LABELS[role]}</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{ROLE_LABELS[role]}</span>
                   <div className="flex flex-wrap gap-1.5">
                     {demoUsers
                       .filter((u) => u.role === role)
@@ -183,7 +183,7 @@ export function LoginForm({ next, initialError, demoMode }: LoginFormProps) {
                             setEmail(u.email);
                             setError(null);
                           }}
-                          className="text-[11px] font-semibold px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-800 min-h-[32px]"
+                          className="text-xs font-semibold px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-800 min-h-[32px]"
                           title={u.name}
                         >
                           {u.email}

@@ -124,11 +124,11 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                   <span className="font-black text-base sm:text-lg tracking-tight text-slate-900">
                     Bed<span className="text-blue-600">Link</span>
                   </span>
-                  <span className="hidden sm:inline-flex text-[9px] font-black tracking-widest uppercase bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">
+                  <span className="hidden sm:inline-flex text-xs font-black tracking-widest uppercase bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">
                     108 CAD
                   </span>
                 </div>
-                <span className="hidden sm:block text-[10px] text-slate-500 font-medium tracking-wide">
+                <span className="hidden sm:block text-xs text-slate-500 font-medium tracking-wide">
                   Mumbai Emergency Bed Coordination
                 </span>
               </div>
@@ -167,7 +167,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
             <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-700 text-xs font-mono font-bold" title="Operational Telemetry Time">
               <Clock className="w-3.5 h-3.5 text-blue-600" />
               <span suppressHydrationWarning>{currentTime ?? '--:--:--'}</span>
-              <span className="text-[10px] text-slate-400 font-sans font-semibold">IST</span>
+              <span className="text-xs text-slate-400 font-sans font-semibold">IST</span>
             </div>
 
             {/* Supabase Status — compact dot on mobile, full badge on sm+ */}
@@ -205,7 +205,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                     : 'text-slate-400'
                 }`}
               />
-              <span className="font-mono text-[10px] font-bold tracking-tight hidden sm:inline">
+              <span className="font-mono text-xs font-bold tracking-tight hidden sm:inline">
                 {supabaseState.connected
                   ? 'LIVE'
                   : supabaseState.configured
@@ -231,7 +231,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
             {/* Signed-in user + sign out */}
             {demoMode ? (
               <div
-                className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-amber-800"
+                className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-800"
                 title="Supabase is not configured, so there is no login and every screen is open."
               >
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
@@ -249,7 +249,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                     <span className="text-xs font-bold text-slate-800 truncate max-w-[90px] sm:max-w-[160px]">
                       {user.name}
                     </span>
-                    <span className="text-[10px] font-semibold text-slate-500 truncate max-w-[90px] sm:max-w-[200px]">
+                    <span className="text-xs font-semibold text-slate-500 truncate max-w-[90px] sm:max-w-[200px]">
                       {role ? ROLE_LABELS[role] : 'No role'}
                       {userHospitalName && <span className="hidden lg:inline"> · {userHospitalName}</span>}
                     </span>
@@ -291,7 +291,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-[10px] font-semibold min-h-[48px] transition-colors ${
+                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-xs font-semibold min-h-[48px] transition-colors ${
                   isActive
                     ? 'text-blue-600 font-bold bg-blue-50'
                     : 'text-slate-500 hover:text-slate-800'

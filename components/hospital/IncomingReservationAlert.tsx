@@ -136,7 +136,7 @@ export function IncomingReservationAlert({
             )}
           </div>
           <div>
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-red-700 block">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-red-700 block">
               {isAccepted
                 ? 'BED HOLD SECURED & VERIFIED'
                 : isRejected

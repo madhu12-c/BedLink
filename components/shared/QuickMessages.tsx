@@ -69,7 +69,7 @@ export function QuickMessages({ reservationId, from, author, className = '' }: Q
                 }`}
               >
                 <span className="block font-semibold">{m.text}</span>
-                <span className="block text-[10px] opacity-75" suppressHydrationWarning>
+                <span className="block text-xs opacity-75" suppressHydrationWarning>
                   {m.from === from ? 'You' : m.author || otherSide} ·{' '}
                   {new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                 </span>

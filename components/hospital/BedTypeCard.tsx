@@ -203,7 +203,7 @@ export function BedTypeCard({
           </div>
           <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">{meta.subtext}</p>
           {inventory.updated_by_name && (
-            <p className="text-[11px] text-slate-500 mt-0.5 truncate" title="Who last changed or confirmed this count">
+            <p className="text-xs text-slate-500 mt-0.5 truncate" title="Who last changed or confirmed this count">
               Last update by <span className="font-semibold text-slate-700">{inventory.updated_by_name}</span>
             </p>
           )}
@@ -240,10 +240,10 @@ export function BedTypeCard({
           {/* Numbered bed status area with scrollable grid */}
           <div className="flex-1 min-w-0 flex flex-col">
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Bed Status
               </span>
-              <span className="text-[10px] sm:text-[11px] font-mono text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.5 rounded">
+              <span className="text-xs font-mono text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.5 rounded">
                 {currentAvailable}/{inventory.total_beds} avail
               </span>
             </div>
@@ -277,7 +277,7 @@ export function BedTypeCard({
                         disabled={disabled || isUpdating}
                         title={`Bed ${bedNum}: ${isAvailable ? 'Available (Click to Mark Occupied)' : 'Occupied (Click to Mark Available)'}`}
                         aria-label={`Bed ${bedNum}: ${isAvailable ? 'Available' : 'Occupied'}. Click to toggle.`}
-                        className={`flex items-center justify-center rounded-md text-[11px] font-mono font-bold h-6 min-w-[26px] select-none transition-all duration-150 cursor-pointer transform active:scale-90 hover:scale-105 shadow-2xs ${isAvailable
+                        className={`flex items-center justify-center rounded-md text-xs font-mono font-bold h-6 min-w-[26px] select-none transition-all duration-150 cursor-pointer transform active:scale-90 hover:scale-105 shadow-2xs ${isAvailable
                             ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:ring-1 hover:ring-emerald-400'
                             : 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 hover:ring-1 hover:ring-rose-400'
                           } disabled:cursor-not-allowed disabled:opacity-60`}
@@ -291,7 +291,7 @@ export function BedTypeCard({
             </div>
 
             {/* Instruction & overflow indicator */}
-            <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between font-medium">
+            <div className="text-xs text-slate-400 mt-1 flex items-center justify-between font-medium">
 
               {inventory.total_beds > 12 && (
                 <span className="shrink-0 ml-1">↕ Scroll ({inventory.total_beds})</span>
@@ -302,11 +302,11 @@ export function BedTypeCard({
 
         {/* Status Legend */}
         <div className="flex items-center gap-3 mt-3 pt-2 border-t border-slate-100">
-          <span className="flex items-center gap-1 text-[10px] sm:text-[11px] text-slate-600 font-medium">
+          <span className="flex items-center gap-1 text-xs text-slate-600 font-medium">
             <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-400 inline-block shrink-0" />
             Available
           </span>
-          <span className="flex items-center gap-1 text-[10px] sm:text-[11px] text-slate-600 font-medium">
+          <span className="flex items-center gap-1 text-xs text-slate-600 font-medium">
             <span className="w-2.5 h-2.5 rounded-sm bg-rose-200 border border-rose-400 inline-block shrink-0" />
             Occupied
           </span>

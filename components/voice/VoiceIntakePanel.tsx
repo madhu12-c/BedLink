@@ -413,7 +413,7 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
           <Mic className="w-4 h-4 text-blue-600" />
           Speak patient needs
         </h2>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-xs text-slate-500">
           Any Indian language or English. Say the bed, ventilator, condition and how serious it is. No names.
         </p>
       </div>
@@ -442,7 +442,7 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
                 : 'Voice input is not set up'}
           </button>
           {ready && phase === 'idle' && (
-            <p className="text-[11px] text-slate-400 italic">
+            <p className="text-xs text-slate-400 italic">
               e.g. &ldquo;ICU chahiye, ventilator bhi, heart attack, patient critical hai&rdquo;. Then say
               &ldquo;haan&rdquo; to hold the best bed.
             </p>
@@ -474,7 +474,7 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
           </button>
           <MicLevel level={level} heard={heardSomething} />
           {!heardSomething && seconds >= 2 && (
-            <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
               Not hearing anything yet. Speak up, or check that the right microphone is selected and not muted.
             </p>
           )}
@@ -495,14 +495,14 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
       {inReview && review && (
         <div className="flex flex-col gap-2.5" aria-live="polite">
           <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
               Heard ({getLanguageLabel(review.result.languageCode)})
             </span>
             <p className="text-sm text-slate-900 mt-0.5">&ldquo;{review.result.transcript}&rdquo;</p>
           </div>
 
           {review.result.parser === 'keywords' && (
-            <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
               The AI step was unavailable, so only clear keywords were matched. Please check before using.
             </p>
           )}
@@ -568,7 +568,7 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
                 <button
                   type="button"
                   onClick={() => void finishAnswer(flowRef.current, review)}
-                  className="text-[11px] font-bold text-red-800 underline min-h-[32px] px-1"
+                  className="text-xs font-bold text-red-800 underline min-h-[32px] px-1"
                 >
                   Done
                 </button>
@@ -579,7 +579,7 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
           {phase === 'answer_processing' && <BusyStrip text="Checking your answer…" />}
 
           {note && (
-            <p className="text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2" role="status">
+            <p className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2" role="status">
               {note}
             </p>
           )}
@@ -653,7 +653,7 @@ function ReviewRow({ label, value, heard }: { label: string; value: string; hear
       <dt className="font-bold text-slate-500">{label}</dt>
       <dd className="text-slate-900 font-semibold">
         {value}
-        {!heard && <span className="ml-1.5 text-[10px] font-normal text-slate-400">(not mentioned)</span>}
+        {!heard && <span className="ml-1.5 text-xs font-normal text-slate-400">(not mentioned)</span>}
       </dd>
     </>
   );
@@ -662,7 +662,7 @@ function ReviewRow({ label, value, heard }: { label: string; value: string; hear
 function MicLevel({ level, heard }: { level: number; heard: boolean }) {
   return (
     <div className="flex items-center gap-2" aria-hidden="true">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">Mic</span>
+      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0">Mic</span>
       <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
         <div
           className={`h-full rounded-full transition-[width] duration-100 ${heard ? 'bg-emerald-500' : 'bg-slate-400'}`}
@@ -689,7 +689,7 @@ function BusyStrip({ text }: { text: string }) {
 function RecordingPlayback({ url }: { url: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-semibold text-slate-600">Play what the mic recorded:</span>
+      <span className="text-xs font-semibold text-slate-600">Play what the mic recorded:</span>
       <audio controls src={url} className="w-full h-9" aria-label="Your last recording" />
     </div>
   );

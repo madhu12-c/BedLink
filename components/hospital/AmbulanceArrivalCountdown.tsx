@@ -74,7 +74,7 @@ export function AmbulanceArrivalCountdown({
             </p>
           </div>
         </div>
-        <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">
+        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">
           STANDBY
         </span>
       </div>
@@ -141,7 +141,7 @@ export function AmbulanceArrivalCountdown({
                           {item.ambulanceId}
                         </span>
                         <span
-                          className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                          className={`text-xs font-black uppercase px-2 py-0.5 rounded ${
                             item.patientUrgency === 'critical'
                               ? 'bg-red-100 text-red-700'
                               : 'bg-amber-100 text-amber-700'
@@ -178,7 +178,7 @@ export function AmbulanceArrivalCountdown({
                   <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
                     {/* Countdown Clock */}
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {remainingMs === 0 ? 'ARRIVED AT BAY' : 'ARRIVAL COUNTDOWN'}
                       </span>
                       <div

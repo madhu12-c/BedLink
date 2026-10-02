@@ -56,7 +56,7 @@ export function ActiveHoldBar({ reservation, onCancel }: ActiveHoldBarProps) {
             <CheckCircle2 className="w-6 h-6 shrink-0" />
           )}
           <div className="min-w-0">
-            <span className="block text-[11px] font-bold uppercase tracking-wider opacity-80">
+            <span className="block text-xs font-bold uppercase tracking-wider opacity-80">
               {isPending ? 'Waiting for hospital to accept' : 'Bed confirmed'}
             </span>
             <span className="block text-base font-extrabold truncate">{hospitalName}</span>

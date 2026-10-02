@@ -47,7 +47,7 @@ export function AddBedModal({
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 bg-indigo-950/80 border border-indigo-800 px-2 py-0.5 rounded">
+              <span className="text-xs uppercase font-bold tracking-widest text-indigo-400 bg-indigo-950/80 border border-indigo-800 px-2 py-0.5 rounded">
                 Hospital Operations Operator
               </span>
               <h2 className="text-lg font-black text-white mt-1">Authorize & Add Hospital Beds</h2>
@@ -93,7 +93,7 @@ export function AddBedModal({
                       <span className="text-xs font-black text-slate-900 block">
                         {opt.label}
                       </span>
-                      <span className="text-[11px] text-slate-500 block">
+                      <span className="text-xs text-slate-500 block">
                         {opt.desc}
                       </span>
                     </div>

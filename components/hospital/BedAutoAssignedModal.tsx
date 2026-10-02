@@ -67,7 +67,7 @@ export function BedAutoAssignedModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-black tracking-widest bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full">
+                <span className="text-xs uppercase font-black tracking-widest bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full">
                   AUTO BED ALLOCATED
                 </span>
                 <span className="text-xs text-emerald-200 font-mono">
@@ -151,7 +151,7 @@ export function BedAutoAssignedModal({
                 <span>Need Matched: {needReason}</span>
               </p>
               {handover?.chief_complaint && (
-                <p className="text-slate-600 text-[11px] pl-5">
+                <p className="text-slate-600 text-xs pl-5">
                   Chief Complaint: {handover.chief_complaint}
                 </p>
               )}
@@ -164,10 +164,10 @@ export function BedAutoAssignedModal({
               <div className="flex items-center gap-2.5 overflow-hidden">
                 <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
                 <div className="truncate">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">
+                  <span className="text-xs text-slate-400 uppercase font-bold block">
                     SHA-256 Legal Handover Seal
                   </span>
-                  <span className="font-mono text-[11px] text-emerald-300 truncate block">
+                  <span className="font-mono text-xs text-emerald-300 truncate block">
                     {handover.sha256_hash}
                   </span>
                 </div>

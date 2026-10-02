@@ -190,7 +190,7 @@ export function BedHistoryLogTable({
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-slate-100/80 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+            <tr className="bg-slate-100/80 text-slate-500 font-bold uppercase text-xs tracking-wider border-b border-slate-200">
               <th className="py-3 px-4">Bed Unit</th>
               <th className="py-3 px-4">Prior / Current Patient</th>
               <th className="py-3 px-4">Clinical Diagnosis</th>
@@ -229,14 +229,14 @@ export function BedHistoryLogTable({
                       {/* Bed Unit */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 font-black flex items-center justify-center text-[10px]">
+                          <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 font-black flex items-center justify-center text-xs">
                             <Bed className="w-3.5 h-3.5" />
                           </span>
                           <div>
                             <strong className="text-slate-900 block font-bold whitespace-nowrap">
                               {log.bed_identifier}
                             </strong>
-                            <span className="text-[10px] uppercase font-mono text-slate-400">
+                            <span className="text-xs uppercase font-mono text-slate-400">
                               {log.bed_type}
                             </span>
                           </div>
@@ -264,7 +264,7 @@ export function BedHistoryLogTable({
                                 />
                               )}
                             </div>
-                            <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                            <div className="flex items-center gap-1 text-xs font-mono text-slate-500">
                               <span>{log.patient_id}</span>
                               {log.patient_age && (
                                 <>
@@ -281,7 +281,7 @@ export function BedHistoryLogTable({
 
                       {/* Diagnosis */}
                       <td className="py-3 px-4 max-w-xs">
-                        <span className="text-slate-700 line-clamp-2 text-[11px] leading-tight">
+                        <span className="text-slate-700 line-clamp-2 text-xs leading-tight">
                           {log.diagnosis || 'Emergency Admission'}
                         </span>
                       </td>
@@ -290,7 +290,7 @@ export function BedHistoryLogTable({
                       <td className="py-3 px-4 max-w-[200px]">
                         {hasProcs ? (
                           <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1 text-purple-700 font-bold text-[10px]">
+                            <div className="flex items-center gap-1 text-purple-700 font-bold text-xs">
                               <Syringe className="w-3 h-3 shrink-0" />
                               <span>{log.procedures_performed!.length} Done En-Route</span>
                             </div>
@@ -298,21 +298,21 @@ export function BedHistoryLogTable({
                               {log.procedures_performed!.slice(0, 2).map((proc, i) => (
                                 <span
                                   key={i}
-                                  className="text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/80 px-1.5 py-0.5 rounded truncate max-w-[170px]"
+                                  className="text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200/80 px-1.5 py-0.5 rounded truncate max-w-[170px]"
                                   title={proc}
                                 >
                                   {proc}
                                 </span>
                               ))}
                               {log.procedures_performed!.length > 2 && (
-                                <span className="text-[9px] font-bold bg-purple-100 text-purple-900 px-1 py-0.5 rounded">
+                                <span className="text-xs font-bold bg-purple-100 text-purple-900 px-1 py-0.5 rounded">
                                   +{log.procedures_performed!.length - 2} more
                                 </span>
                               )}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-[11px] italic">None recorded</span>
+                          <span className="text-slate-400 text-xs italic">None recorded</span>
                         )}
                       </td>
 
@@ -320,7 +320,7 @@ export function BedHistoryLogTable({
                       <td className="py-3 px-4 max-w-[200px]">
                         {hasMeds ? (
                           <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1 text-blue-700 font-bold text-[10px]">
+                            <div className="flex items-center gap-1 text-blue-700 font-bold text-xs">
                               <Pill className="w-3 h-3 shrink-0" />
                               <span>{log.medications_administered!.length} Given On Way</span>
                             </div>
@@ -328,31 +328,31 @@ export function BedHistoryLogTable({
                               {log.medications_administered!.slice(0, 2).map((med, i) => (
                                 <span
                                   key={i}
-                                  className="text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/80 px-1.5 py-0.5 rounded truncate max-w-[170px]"
+                                  className="text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200/80 px-1.5 py-0.5 rounded truncate max-w-[170px]"
                                   title={med}
                                 >
                                   {med}
                                 </span>
                               ))}
                               {log.medications_administered!.length > 2 && (
-                                <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-1 py-0.5 rounded">
+                                <span className="text-xs font-bold bg-blue-100 text-blue-900 px-1 py-0.5 rounded">
                                   +{log.medications_administered!.length - 2} more
                                 </span>
                               )}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-[11px] italic">None administered</span>
+                          <span className="text-slate-400 text-xs italic">None administered</span>
                         )}
                       </td>
 
                       {/* Timeline */}
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="flex flex-col text-[11px]">
+                        <div className="flex flex-col text-xs">
                           <span className="text-slate-700 font-mono" suppressHydrationWarning>
                             In: {new Date(log.admitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
-                          <span className="text-slate-400 font-mono text-[10px]" suppressHydrationWarning>
+                          <span className="text-slate-400 font-mono text-xs" suppressHydrationWarning>
                             {log.discharged_at
                               ? `Out: ${new Date(log.discharged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                               : 'Currently In Bed'}
@@ -365,7 +365,7 @@ export function BedHistoryLogTable({
                         {log.handover_sha256 ? (
                           <div className="flex items-center gap-1.5">
                             <span
-                              className="font-mono text-[10px] text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2 py-0.5 rounded cursor-pointer select-all"
+                              className="font-mono text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2 py-0.5 rounded cursor-pointer select-all"
                               title={log.handover_sha256}
                               onClick={(e) => handleCopyHash(log.handover_sha256!, e)}
                             >
@@ -385,7 +385,7 @@ export function BedHistoryLogTable({
                             </button>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-[10px]">No signature</span>
+                          <span className="text-slate-400 text-xs">No signature</span>
                         )}
                       </td>
 
@@ -402,7 +402,7 @@ export function BedHistoryLogTable({
                           <button
                             type="button"
                             onClick={(e) => handleOpenDossier(log, e)}
-                            className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] rounded-md border border-blue-200 transition-colors flex items-center gap-1 shadow-2xs"
+                            className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-md border border-blue-200 transition-colors flex items-center gap-1 shadow-2xs"
                             title="Open full clinical handover dossier"
                           >
                             <FileText className="w-3 h-3" />
@@ -429,7 +429,7 @@ export function BedHistoryLogTable({
                       {/* Status */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
                             isOccupied
                               ? 'bg-blue-100 text-blue-800'
                               : isCleaning
@@ -457,7 +457,7 @@ export function BedHistoryLogTable({
                                   <h4 className="font-black text-sm text-slate-900">
                                     Total Clinical Telemetry & Pre-Hospital Interventions
                                   </h4>
-                                  <p className="text-[11px] text-slate-500">
+                                  <p className="text-xs text-slate-500">
                                     Patient: <strong>{log.patient_name || 'Emergency Patient'}</strong> ({log.patient_id}) • Bed: <strong>{log.bed_identifier}</strong> ({log.bed_type.toUpperCase()})
                                   </p>
                                 </div>
@@ -484,7 +484,7 @@ export function BedHistoryLogTable({
                                     <Syringe className="w-3.5 h-3.5 text-purple-600" />
                                     Procedures Done En-Route
                                   </span>
-                                  <span className="text-[10px] bg-purple-200/80 px-1.5 py-0.5 rounded-full">
+                                  <span className="text-xs bg-purple-200/80 px-1.5 py-0.5 rounded-full">
                                     {log.procedures_performed?.length || 0}
                                   </span>
                                 </div>
@@ -511,7 +511,7 @@ export function BedHistoryLogTable({
                                     <Pill className="w-3.5 h-3.5 text-blue-600" />
                                     Medicines Given On The Way
                                   </span>
-                                  <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded-full">
+                                  <span className="text-xs bg-blue-200/80 px-1.5 py-0.5 rounded-full">
                                     {log.medications_administered?.length || 0}
                                   </span>
                                 </div>
@@ -540,19 +540,19 @@ export function BedHistoryLogTable({
                                 {log.vitals ? (
                                   <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
                                     <div className="bg-white p-2 rounded-lg border border-slate-200">
-                                      <span className="text-[10px] text-slate-400 block font-bold">GCS</span>
+                                      <span className="text-xs text-slate-400 block font-bold">GCS</span>
                                       <span className="text-slate-900 font-mono font-bold text-sm">
                                         {log.vitals.gcs} / 15
                                       </span>
                                     </div>
                                     <div className="bg-white p-2 rounded-lg border border-slate-200">
-                                      <span className="text-[10px] text-slate-400 block font-bold">BLOOD PRESSURE</span>
+                                      <span className="text-xs text-slate-400 block font-bold">BLOOD PRESSURE</span>
                                       <span className="text-slate-900 font-mono font-bold text-sm">
                                         {log.vitals.bp}
                                       </span>
                                     </div>
                                     <div className="bg-white p-2 rounded-lg border border-slate-200">
-                                      <span className="text-[10px] text-slate-400 block font-bold">SpO2 PULSE OX</span>
+                                      <span className="text-xs text-slate-400 block font-bold">SpO2 PULSE OX</span>
                                       <span
                                         className={`font-mono font-bold text-sm ${
                                           log.vitals.spo2 < 92 ? 'text-red-600' : 'text-emerald-700'
@@ -562,14 +562,14 @@ export function BedHistoryLogTable({
                                       </span>
                                     </div>
                                     <div className="bg-white p-2 rounded-lg border border-slate-200">
-                                      <span className="text-[10px] text-slate-400 block font-bold">HEART RATE</span>
+                                      <span className="text-xs text-slate-400 block font-bold">HEART RATE</span>
                                       <span className="text-slate-900 font-mono font-bold text-sm">
                                         {log.vitals.heart_rate} bpm
                                       </span>
                                     </div>
                                     {log.vitals.blood_glucose && (
                                       <div className="bg-white p-2 rounded-lg border border-slate-200">
-                                        <span className="text-[10px] text-slate-400 block font-bold">GLUCOSE</span>
+                                        <span className="text-xs text-slate-400 block font-bold">GLUCOSE</span>
                                         <span className="text-slate-900 font-mono font-bold text-sm">
                                           {log.vitals.blood_glucose} mg/dL
                                         </span>
@@ -577,7 +577,7 @@ export function BedHistoryLogTable({
                                     )}
                                     {log.vitals.temperature && (
                                       <div className="bg-white p-2 rounded-lg border border-slate-200">
-                                        <span className="text-[10px] text-slate-400 block font-bold">TEMP</span>
+                                        <span className="text-xs text-slate-400 block font-bold">TEMP</span>
                                         <span className="text-slate-900 font-mono font-bold text-sm">
                                           {log.vitals.temperature}°F
                                         </span>
@@ -600,24 +600,24 @@ export function BedHistoryLogTable({
                                   </span>
                                   <div className="space-y-1.5 text-xs text-slate-700 font-medium">
                                     <div>
-                                      <span className="text-slate-400 text-[10px] block font-bold uppercase">Paramedic Officer:</span>
+                                      <span className="text-slate-400 text-xs block font-bold uppercase">Paramedic Officer:</span>
                                       <strong className="font-mono text-slate-900">{log.paramedic_badge_id || 'EMS Officer'}</strong>
                                     </div>
                                     <div>
-                                      <span className="text-slate-400 text-[10px] block font-bold uppercase">Ambulance Unit:</span>
+                                      <span className="text-slate-400 text-xs block font-bold uppercase">Ambulance Unit:</span>
                                       <strong className="font-mono text-slate-900">{log.ambulance_vehicle_id || '108 Ambulance'}</strong>
                                     </div>
                                     <div>
-                                      <span className="text-slate-400 text-[10px] block font-bold uppercase">Known Allergies:</span>
+                                      <span className="text-slate-400 text-xs block font-bold uppercase">Known Allergies:</span>
                                       <div className="flex flex-wrap gap-1 mt-0.5">
                                         {log.allergies && log.allergies.length > 0 ? (
                                           log.allergies.map((a, i) => (
-                                            <span key={i} className="text-[10px] font-bold bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
+                                            <span key={i} className="text-xs font-bold bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
                                               {a}
                                             </span>
                                           ))
                                         ) : (
-                                          <span className="text-[11px] text-slate-500">NKDA</span>
+                                          <span className="text-xs text-slate-500">NKDA</span>
                                         )}
                                       </div>
                                     </div>
@@ -626,11 +626,11 @@ export function BedHistoryLogTable({
 
                                 {log.handover_sha256 && (
                                   <div className="mt-3 pt-2 border-t border-slate-200/80">
-                                    <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold">
+                                    <div className="flex items-center gap-1 text-xs text-emerald-700 font-bold">
                                       <ShieldCheck className="w-3.5 h-3.5" />
                                       <span>SHA-256 Tamper Sealed</span>
                                     </div>
-                                    <span className="text-[9px] font-mono text-slate-400 block truncate mt-0.5">
+                                    <span className="text-xs font-mono text-slate-400 block truncate mt-0.5">
                                       {log.handover_sha256}
                                     </span>
                                   </div>

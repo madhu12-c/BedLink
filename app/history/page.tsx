@@ -176,19 +176,19 @@ export default function HistoryAuditPage() {
                           <span className="font-bold text-slate-900 uppercase">
                             {evt.event_type.replace(/_/g, ' ')}
                           </span>
-                          <span className="text-[11px] text-slate-400 font-normal">
+                          <span className="text-xs text-slate-400 font-normal">
                             by {evt.actor_name || 'System Engine'}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-600 mt-1 font-sans">
+                        <div className="text-xs text-slate-600 mt-1 font-sans">
                           {JSON.stringify(evt.metadata)}
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-400 sm:text-right shrink-0">
+                    <div className="text-xs text-slate-400 sm:text-right shrink-0">
                       {new Date(evt.created_at).toLocaleTimeString()}
-                      <span className="block text-[10px] text-slate-400">
+                      <span className="block text-xs text-slate-400">
                         {new Date(evt.created_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -304,7 +304,7 @@ export default function HistoryAuditPage() {
                         <tr key={log.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-semibold text-slate-900">
                             <div>{log.patient_name || 'Emergency Patient'}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{log.patient_id || 'ID Pending'}</div>
+                            <div className="text-xs text-slate-400 font-mono">{log.patient_id || 'ID Pending'}</div>
                           </td>
                           <td className="px-4 py-3 text-slate-700 font-medium max-w-xs truncate" title={log.diagnosis || ''}>
                             {log.diagnosis || 'Clinical evaluation pending'}
@@ -313,18 +313,18 @@ export default function HistoryAuditPage() {
                             {log.bed_identifier}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="uppercase text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="uppercase text-xs font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                               {log.bed_type}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-slate-700 font-medium">
                             {hosp?.name || log.hospital_id}
                           </td>
-                          <td className="px-4 py-3 text-slate-600 font-mono text-[11px]">
+                          <td className="px-4 py-3 text-slate-600 font-mono text-xs">
                             {new Date(log.admitted_at).toLocaleString()}
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
                               log.status === 'occupied'
                                 ? 'bg-amber-50 text-amber-800 border border-amber-200'
                                 : 'bg-slate-100 text-slate-700'
@@ -332,10 +332,10 @@ export default function HistoryAuditPage() {
                               {log.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-600 text-[11px]">
+                          <td className="px-4 py-3 text-slate-600 text-xs">
                             {log.actor_name}
                           </td>
-                          <td className="px-4 py-3 font-mono text-[10px] text-emerald-700">
+                          <td className="px-4 py-3 font-mono text-xs text-emerald-700">
                             {log.handover_sha256 ? (
                               <span title={`SHA-256 Verified: ${log.handover_sha256}`} className="inline-flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                 <ShieldCheck className="w-3 h-3 text-emerald-600" />

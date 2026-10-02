@@ -533,7 +533,7 @@ Bed Type: ${bed}
             </div>
 
             <div className="text-right px-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Admin preview
               </span>
               <span className="text-xs font-black text-slate-800">
@@ -594,7 +594,7 @@ Bed Type: ${bed}
 
             {/* Emergency department status: coordinator switches it, everyone sees it */}
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">ED status</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">ED status</span>
               {view === 'coordinator' ? (
                 <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden" role="group" aria-label="Emergency department status">
                   {(['open', 'busy', 'diversion'] as const).map((status) => {
@@ -633,7 +633,7 @@ Bed Type: ${bed}
                   {currentHospital.ed_status ?? 'open'}
                 </span>
               )}
-              <span className="text-[11px] text-slate-500">
+              <span className="text-xs text-slate-500">
                 Reliability <strong className="text-slate-700">{currentHospital.reliability ?? 100}/100</strong>
               </span>
             </div>
@@ -795,50 +795,50 @@ Bed Type: ${bed}
             {/* Coordinator KPI Summary Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                   Total Hospital Capacity
                 </span>
                 <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
                   {currentHospital?.emergency_capacity || 0} Beds
                 </span>
-                <span className="text-[11px] text-indigo-600 font-semibold mt-1 block">
+                <span className="text-xs text-indigo-600 font-semibold mt-1 block">
                   Admin Authorized
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                   Currently Free Beds
                 </span>
                 <span className="text-2xl font-black font-mono text-emerald-600 mt-1 block">
                   {bedInventories.reduce((sum, b) => sum + b.available_beds, 0)}
                 </span>
-                <span className="text-[11px] text-slate-400 mt-1 block">
+                <span className="text-xs text-slate-400 mt-1 block">
                   Across all units
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                   Critical Care Reserve
                 </span>
                 <span className="text-2xl font-black font-mono text-blue-600 mt-1 block">
                   {(bedInventories.find((b) => b.bed_type === 'icu')?.available_beds || 0) +
                     (bedInventories.find((b) => b.bed_type === 'ventilator')?.available_beds || 0)}
                 </span>
-                <span className="text-[11px] text-slate-400 mt-1 block">
+                <span className="text-xs text-slate-400 mt-1 block">
                   ICU + Ventilator Free
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                   Facility Load Factor
                 </span>
                 <span className="text-2xl font-black font-mono text-amber-600 mt-1 block">
                   {currentHospital?.current_load}%
                 </span>
-                <span className="text-[11px] text-slate-400 mt-1 block">
+                <span className="text-xs text-slate-400 mt-1 block">
                   Active Emergency Load
                 </span>
               </div>

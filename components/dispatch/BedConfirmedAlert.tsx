@@ -128,7 +128,7 @@ export function BedConfirmedAlert({ reservation, onDismiss }: BedConfirmedAlertP
               <Bed className="w-5 h-5 text-white" />
             </div>
             <div className="text-left">
-              <p className="text-white/70 text-[11px] font-semibold uppercase tracking-wider">Hospital</p>
+              <p className="text-white/70 text-xs font-semibold uppercase tracking-wider">Hospital</p>
               <p className="text-white font-extrabold text-base leading-tight">
                 {reservation.hospital_name || 'Confirmed Hospital'}
               </p>
@@ -141,7 +141,7 @@ export function BedConfirmedAlert({ reservation, onDismiss }: BedConfirmedAlertP
               <span className="text-white font-extrabold text-sm uppercase">
                 {reservation.bed_type}
               </span>
-              <span className="ml-auto text-[10px] font-black text-emerald-200 bg-emerald-900/40 px-2 py-0.5 rounded-full uppercase">
+              <span className="ml-auto text-xs font-black text-emerald-200 bg-emerald-900/40 px-2 py-0.5 rounded-full uppercase">
                 HELD FOR YOU
               </span>
             </div>
