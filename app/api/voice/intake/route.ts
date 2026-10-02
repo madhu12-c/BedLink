@@ -8,6 +8,7 @@ import {
 import { toSpeakableLanguage } from '@/lib/voice/languages';
 import { extractIntakeFields, INTAKE_KEYTERMS, transcribeAudio, VoiceServiceError } from '@/lib/voice/sarvam';
 import { voiceError, voiceErrorFromException } from '@/lib/voice/http';
+import { requireApiUser } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +21,8 @@ const MAX_AUDIO_BYTES = 2 * 1024 * 1024;
  * Audio and transcripts are not stored.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireApiUser(['dispatcher', 'admin']);
+  if (auth.response) return auth.response;
   let form: FormData;
   try {
     form = await req.formData();

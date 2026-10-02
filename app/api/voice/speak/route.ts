@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { VOICE_LANGUAGE_CODES, VoiceLanguageCode } from '@/lib/voice/languages';
 import { isVoiceConfigured, synthesizeSpeech, translateForSpeech } from '@/lib/voice/sarvam';
 import { voiceError, voiceErrorFromException } from '@/lib/voice/http';
+import { requireApiUser } from '@/lib/auth/session';
+import { USER_ROLES } from '@/lib/auth/roles';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +37,8 @@ function remember(key: string, value: CachedAudio) {
  * translated first; if translation fails, the original language is spoken instead.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireApiUser(USER_ROLES);
+  if (auth.response) return auth.response;
   let body: unknown;
   try {
     body = await req.json();

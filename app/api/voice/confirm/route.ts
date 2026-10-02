@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { classifyConfirmation, VoiceConfirmResult } from '@/lib/voice/confirm';
 import { ANSWER_KEYTERMS, transcribeAudio } from '@/lib/voice/sarvam';
 import { voiceError, voiceErrorFromException } from '@/lib/voice/http';
+import { requireApiUser } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +14,8 @@ const MAX_AUDIO_BYTES = 512 * 1024; // the browser listens for an answer for at 
  * asks whether to hold a bed. Returns yes / no / unclear; the browser only holds on "yes".
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireApiUser(['dispatcher', 'admin']);
+  if (auth.response) return auth.response;
   let form: FormData;
   try {
     form = await req.formData();

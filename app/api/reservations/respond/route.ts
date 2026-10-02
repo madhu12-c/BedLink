@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { bedLinkStore } from '@/lib/data/store';
+import { requireApiUser, staffHospitalDenied } from '@/lib/auth/session';
 
 const RespondSchema = z.object({
   reservationId: z.string().min(1),
@@ -11,6 +12,9 @@ const RespondSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const auth = await requireApiUser(['coordinator', 'admin']);
+  if (auth.response) return auth.response;
+
   try {
     const body = await req.json();
     const parsed = RespondSchema.safeParse(body);
@@ -22,7 +26,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { reservationId, action, actorId, actorName, rejectionReason } = parsed.data;
+    const { reservationId, action, rejectionReason } = parsed.data;
+    const target = bedLinkStore.getReservations().find((r) => r.id === reservationId);
+    if (target) {
+      const denied = staffHospitalDenied(auth.user, target.hospital_id);
+      if (denied) return denied;
+    }
+    const actorId = auth.user.id === 'demo' ? parsed.data.actorId : auth.user.id;
+    const actorName = auth.user.id === 'demo' ? parsed.data.actorName : auth.user.name;
 
     const result = bedLinkStore.respondReservationAtomic(
       reservationId,

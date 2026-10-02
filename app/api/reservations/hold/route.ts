@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { bedLinkStore } from '@/lib/data/store';
+import { requireApiUser } from '@/lib/auth/session';
 
 const HoldSchema = z.object({
   requestId: z.string().min(1),
@@ -11,6 +12,9 @@ const HoldSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const auth = await requireApiUser(['dispatcher', 'admin']);
+  if (auth.response) return auth.response;
+
   try {
     const body = await req.json();
     const parsed = HoldSchema.safeParse(body);
@@ -22,7 +26,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { requestId, hospitalId, bedType, actorId, actorName } = parsed.data;
+    const { requestId, hospitalId, bedType } = parsed.data;
+    const actorId = auth.user.id === 'demo' ? parsed.data.actorId : auth.user.id;
+    const actorName = auth.user.id === 'demo' ? parsed.data.actorName : auth.user.name;
 
     const reservation = bedLinkStore.holdBedAtomic(
       requestId,
