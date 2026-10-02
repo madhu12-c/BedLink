@@ -14,6 +14,8 @@ import { bedLinkStore } from '@/lib/data/store';
 import { BedType, Reservation } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/roles';
+import { persistBedHistoryLog, persistPatientHandover } from '@/lib/supabase/sync';
+import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import {
   Sparkles,
   Bell,
@@ -69,6 +71,13 @@ export default function HospitalNursePage() {
     }
   });
 
+  // Request notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
   // Subscribe to realtime store events
   useEffect(() => {
     const unsubscribe = bedLinkStore.subscribe((event) => {
@@ -77,11 +86,30 @@ export default function HospitalNursePage() {
 
       if (event.type === 'reservation_created') {
         const payload = event.payload as { reservation: Reservation };
-        if (payload.reservation.hospital_id === selectedHospitalId) {
-          setActiveReservation(payload.reservation);
-          if (view === 'coordinator') {
-            setToastMessage(`🚨 INCOMING EMERGENCY HOLD REQUEST! 2-minute decision timer started.`);
-          }
+        // Staff only hear about their own hospital; admins jump to whichever hospital got the request.
+        if (isHospitalStaff && payload.reservation.hospital_id !== selectedHospitalId) return;
+        if (!isHospitalStaff) setAdminHospitalId(payload.reservation.hospital_id);
+        const hospName =
+          bedLinkStore.getHospital(payload.reservation.hospital_id)?.name ||
+          payload.reservation.hospital_name ||
+          'Hospital';
+        const bed = payload.reservation.bed_type.toUpperCase();
+
+        setActiveReservation(payload.reservation);
+        playEmergencyAlertSound();
+        if (view === 'coordinator') {
+          triggerEmergencyNotification('🚨 INCOMING EMERGENCY BED HOLD!', {
+            body: `Hospital: ${hospName}
+Bed Type: ${bed}
+2-minute decision timer started.`
+          });
+          setToastMessage(`🚨 INCOMING EMERGENCY HOLD at ${hospName}! 2-minute decision timer started.`);
+        } else {
+          // Ward nurse: heads-up only; the coordinator accepts or rejects.
+          triggerEmergencyNotification('🚑 Incoming ambulance request', {
+            body: `${bed} bed requested at ${hospName}. The coordinator is deciding.`
+          });
+          setToastMessage(`🚑 Incoming ambulance request: ${bed} bed. The coordinator is deciding; get the bed ready.`);
         }
       } else if (event.type === 'reservation_accepted') {
         const payload = event.payload as { reservation: Reservation };
@@ -102,17 +130,22 @@ export default function HospitalNursePage() {
         }
       } else if (event.type === 'fallback_triggered') {
         const payload = event.payload as { newReservation: Reservation };
-        if (payload.newReservation?.hospital_id === selectedHospitalId) {
-          setActiveReservation(payload.newReservation);
-          if (view === 'coordinator') {
-            setToastMessage(`🚨 INCOMING FALLBACK EMERGENCY: Patient re-routed to your facility!`);
-          }
-        }
+        const fallbackHospitalId = payload.newReservation?.hospital_id;
+        if (!fallbackHospitalId) return;
+        if (isHospitalStaff && fallbackHospitalId !== selectedHospitalId) return;
+        if (!isHospitalStaff) setAdminHospitalId(fallbackHospitalId);
+        playEmergencyAlertSound();
+        setActiveReservation(payload.newReservation);
+        setToastMessage(
+          view === 'coordinator'
+            ? `🚨 INCOMING FALLBACK EMERGENCY: Patient re-routed to your facility!`
+            : `🚑 Patient re-routed to your hospital. The coordinator is deciding; get the bed ready.`
+        );
       }
     });
 
     return () => unsubscribe();
-  }, [selectedHospitalId, view]);
+  }, [selectedHospitalId, view, isHospitalStaff]);
 
   // Read current hospital data
   const hospitals = useMemo(() => {
@@ -173,29 +206,70 @@ export default function HospitalNursePage() {
   };
 
   const handleAdmitPatient = (reservationId: string, bedType: string, patientName: string) => {
-    // 1. Mark reservation accepted/completed
-    bedLinkStore.respondReservationAtomic(reservationId, 'accept', actorId, actorName('Bed Coordinator'));
+    const admittedBy = actorName('Bed Coordinator');
+    // 1. Mark reservation accepted, unless the coordinator already accepted it
+    const reservation = bedLinkStore.getReservations().find((r) => r.id === reservationId);
+    if (reservation?.status === 'pending') {
+      bedLinkStore.respondReservationAtomic(reservationId, 'accept', actorId, admittedBy);
+    }
 
     // 2. Fetch signed handover vitals record
     const handover = bedLinkStore.getPatientHandover(reservationId, selectedHospitalId);
 
-    // 3. Log to Bed History with legal SHA-256 seal
+    const bedId = `${bedType.toUpperCase()}-Bay-${Math.floor(Math.random() * 8) + 1}`;
+    const logId = `bhl-${Date.now()}`;
+    const admittedAt = new Date().toISOString();
+
+    // 3. Log to Bed History with legal SHA-256 seal (local)
     bedLinkStore.addBedHistoryLog({
-      id: `bhl-${Date.now()}`,
+      id: logId,
       hospital_id: selectedHospitalId,
       bed_type: bedType as BedType,
-      bed_identifier: `${bedType.toUpperCase()}-Bay-${Math.floor(Math.random() * 8) + 1}`,
+      bed_identifier: bedId,
       patient_id: handover.patient_id,
       patient_name: patientName,
       diagnosis: handover.chief_complaint,
-      admitted_at: new Date().toISOString(),
+      admitted_at: admittedAt,
       discharged_at: undefined,
       status: 'occupied',
       handover_sha256: handover.sha256_hash,
-      actor_name: actorName('Bed Coordinator')
+      actor_name: admittedBy
     });
 
-    setToastMessage(`✓ Patient ${patientName} admitted to ${bedType.toUpperCase()}! SHA-256 clinical seal archived.`);
+    // 4. Persist to Supabase → cross-device visibility
+    persistBedHistoryLog({
+      id: logId,
+      hospital_id: selectedHospitalId,
+      bed_type: bedType,
+      bed_identifier: bedId,
+      patient_id: handover.patient_id,
+      patient_name: patientName,
+      diagnosis: handover.chief_complaint,
+      admitted_at: admittedAt,
+      status: 'occupied',
+      handover_sha256: handover.sha256_hash,
+      actor_name: admittedBy,
+    });
+
+    // 5. Persist SHA-256 sealed handover to Supabase
+    persistPatientHandover({
+      reservation_id: reservationId,
+      patient_id: handover.patient_id,
+      patient_name: handover.patient_name,
+      patient_age: handover.patient_age,
+      patient_gender: handover.patient_gender,
+      chief_complaint: handover.chief_complaint,
+      triage_level: handover.triage_level,
+      vitals: handover.vitals as unknown as Record<string, unknown>,
+      allergies: handover.allergies,
+      medications_administered: handover.medications_administered,
+      paramedic_badge_id: handover.paramedic_badge_id,
+      ambulance_vehicle_id: handover.ambulance_vehicle_id,
+      destination_hospital_id: selectedHospitalId,
+      sha256_hash: handover.sha256_hash,
+    });
+
+    setToastMessage(`✓ Patient ${patientName} admitted to ${bedType.toUpperCase()}! SHA-256 clinical seal saved to Supabase.`);
     setLastUpdateTrigger((prev) => prev + 1);
   };
 

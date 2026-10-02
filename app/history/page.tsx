@@ -11,11 +11,13 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
-  Activity
+  Activity,
+  BedDouble,
+  UserCheck
 } from 'lucide-react';
 
 export default function HistoryAuditPage() {
-  const [activeTab, setActiveTab] = useState<'audit' | 'reservations'>('audit');
+  const [activeTab, setActiveTab] = useState<'audit' | 'reservations' | 'admissions'>('audit');
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
 
   useEffect(() => {
@@ -33,6 +35,11 @@ export default function HistoryAuditPage() {
   const auditEvents = useMemo(() => {
     void lastUpdateTrigger;
     return bedLinkStore.getReservationEvents();
+  }, [lastUpdateTrigger]);
+
+  const bedHistoryLogs = useMemo(() => {
+    void lastUpdateTrigger;
+    return bedLinkStore.getBedHistoryLogs();
   }, [lastUpdateTrigger]);
 
   const getStatusBadge = (status: Reservation['status']) => {
@@ -112,7 +119,18 @@ export default function HistoryAuditPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Past Reservations ({reservations.length})
+              Reservations ({reservations.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('admissions')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] ${
+                activeTab === 'admissions'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Patient Admissions ({bedHistoryLogs.length})
             </button>
           </div>
         </div>
@@ -232,6 +250,104 @@ export default function HistoryAuditPage() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: Patient Admissions & Diagnosis (Supabase Synchronized) */}
+        {activeTab === 'admissions' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <BedDouble className="w-4 h-4 text-purple-600" />
+                  <span>Bed History & Patient Diagnosis Audit</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cross-device clinical admission records with diagnosis and cryptographic SHA-256 handover seals
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live Supabase Feed
+              </span>
+            </div>
+
+            {bedHistoryLogs.length === 0 ? (
+              <div className="p-10 text-center text-xs text-slate-500">
+                <BedDouble className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <span>No patient admissions recorded yet. Admit a patient from the Hospital Nurse portal.</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3">Patient Name / ID</th>
+                      <th className="px-4 py-3">Diagnosis / Complaint</th>
+                      <th className="px-4 py-3">Assigned Bed</th>
+                      <th className="px-4 py-3">Bed Type</th>
+                      <th className="px-4 py-3">Hospital</th>
+                      <th className="px-4 py-3">Admitted At</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Attending Staff</th>
+                      <th className="px-4 py-3">Handover SHA-256</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 font-sans">
+                    {bedHistoryLogs.map((log) => {
+                      const hosp = bedLinkStore.getHospital(log.hospital_id);
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-semibold text-slate-900">
+                            <div>{log.patient_name || 'Emergency Patient'}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{log.patient_id || 'ID Pending'}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 font-medium max-w-xs truncate" title={log.diagnosis || ''}>
+                            {log.diagnosis || 'Clinical evaluation pending'}
+                          </td>
+                          <td className="px-4 py-3 font-mono font-bold text-indigo-700">
+                            {log.bed_identifier}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="uppercase text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              {log.bed_type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 font-medium">
+                            {hosp?.name || log.hospital_id}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 font-mono text-[11px]">
+                            {new Date(log.admitted_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                              log.status === 'occupied'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 text-[11px]">
+                            {log.actor_name}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-[10px] text-emerald-700">
+                            {log.handover_sha256 ? (
+                              <span title={`SHA-256 Verified: ${log.handover_sha256}`} className="inline-flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                {log.handover_sha256.slice(0, 10)}...
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

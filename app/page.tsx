@@ -8,6 +8,8 @@ import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
 import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
 import { ScoredHospital, Reservation } from '@/lib/types';
+import { generateUUID } from '@/lib/crypto/uuid';
+import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
 import { VoiceBestMatch, VoiceIntakePanel } from '@/components/voice/VoiceIntakePanel';
 import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
@@ -38,7 +40,14 @@ const DISPATCH_VOICE_EVENTS: Partial<Record<string, DispatchVoiceEvent['kind']>>
   reservation_expired: 'expired'
 };
 
-const DEMO_REQUEST_ID = 'req-demo-1';
+// One emergency request per tab, kept across visits to this page (like the in-memory store),
+// so a hold made before going to another page is still shown on return. It must be a UUID:
+// Supabase rejects anything else, and then other devices never hear about the hold.
+let tabRequestId: string | null = null;
+function getTabRequestId(): string {
+  tabRequestId ??= generateUUID();
+  return tabRequestId;
+}
 
 // Kept across visits to this page within the tab (the demo store lives in memory too), so a
 // confirmation that arrived while the crew was on another page is still announced, once.
@@ -67,11 +76,11 @@ export default function DispatcherPage() {
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
+  const [currentRequestId] = useState(getTabRequestId);
   // Restored when coming back from another page, so an accepted hold is still shown.
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(() =>
-    latestReservationFor(DEMO_REQUEST_ID)
+    latestReservationFor(getTabRequestId())
   );
-  const currentRequestId = DEMO_REQUEST_ID;
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
@@ -140,6 +149,10 @@ export default function DispatcherPage() {
 
       if (event.type === 'reservation_created') {
         const payload = event.payload as { reservation: Reservation };
+        playEmergencyAlertSound();
+        triggerEmergencyNotification('🛏️ EMERGENCY BED HOLD ACTIVE', {
+          body: `Facility: ${payload.reservation.hospital_name || 'Hospital'}\nBed: ${payload.reservation.bed_type.toUpperCase()}\n2-minute confirmation timer started.`
+        });
         setActiveReservation(payload.reservation);
         setActionNotice(`Hold initiated for ${payload.reservation.hospital_name || 'Hospital'}. 2-minute confirmation timer started.`);
         // Auto-switch to hospitals tab to see the hold
