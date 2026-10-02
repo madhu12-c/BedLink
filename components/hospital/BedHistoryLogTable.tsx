@@ -171,10 +171,11 @@ export function BedHistoryLogTable({
                     {/* Timeline */}
                     <td className="py-3 px-4 whitespace-nowrap">
                       <div className="flex flex-col text-[11px]">
-                        <span className="text-slate-700 font-mono">
+                        {/* Times differ between server and browser (clock, locale), so skip the hydration check */}
+                        <span className="text-slate-700 font-mono" suppressHydrationWarning>
                           In: {new Date(log.admitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        <span className="text-slate-400 font-mono text-[10px]">
+                        <span className="text-slate-400 font-mono text-[10px]" suppressHydrationWarning>
                           {log.discharged_at
                             ? `Out: ${new Date(log.discharged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                             : 'Currently In Bed'}
