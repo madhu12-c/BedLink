@@ -122,16 +122,15 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Prevent overscroll bounce on mobile tabs */
+/* Smooth momentum scrolling on iOS scroll panels */
 .mobile-scroll-panel {
-  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Map fills full height on mobile */
+/* Map fills full height on mobile (header ~64px + bottom nav ~72px + status bars) */
 .mobile-map-full {
-  height: calc(100dvh - 140px);
-  min-height: 300px;
+  height: calc(100dvh - 160px);
+  min-height: 280px;
 }
 
 /* Smooth momentum scrolling on iOS */
@@ -146,8 +145,8 @@ html {
   text-size-adjust: 100%;
 }
 
-/* Touch-friendly tap targets */
-button, a, select, input {
+/* Touch-friendly: only disable double-tap zoom on interactive elements, never block scroll */
+button {
   touch-action: manipulation;
 }
 

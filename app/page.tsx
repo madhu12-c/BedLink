@@ -172,7 +172,7 @@ export default function DispatcherPage() {
   ];
 
   return (
-    <div className="min-h-[100dvh] lg:h-screen flex flex-col bg-slate-50 lg:overflow-hidden">
+    <div className="min-h-screen lg:h-screen flex flex-col bg-slate-50 lg:overflow-hidden">
       <Header
         currentRole={role}
         selectedHospitalId={selectedHospitalForNurse}
@@ -351,7 +351,7 @@ export default function DispatcherPage() {
 
         {/* INTAKE TAB */}
         {mobileTab === 'intake' && (
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 mobile-scroll-panel">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
             <PatientNeedForm
               formData={formData}
               onChange={setFormData}
@@ -391,7 +391,7 @@ export default function DispatcherPage() {
 
         {/* HOSPITALS TAB */}
         {mobileTab === 'hospitals' && (
-          <div className="flex-1 overflow-y-auto mobile-scroll-panel">
+          <div className="flex-1 overflow-y-auto">
             {/* Sticky header with match count */}
             <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
               <div>
