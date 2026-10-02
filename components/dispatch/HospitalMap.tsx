@@ -27,6 +27,8 @@ export function HospitalMap({
   const markersLayerGroupRef = useRef<LeafletType.LayerGroup | null>(null);
   const routeLineRef = useRef<LeafletType.Layer | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const [routeFailed, setRouteFailed] = useState(false);
 
   const selectedHospital = hospitals.find((h) => h.hospital.id === selectedHospitalId) || hospitals[0];
 
@@ -235,6 +237,8 @@ export function HospitalMap({
       const dest = { latitude: selectedHospital.hospital.latitude, longitude: selectedHospital.hospital.longitude };
 
       let isCurrent = true;
+      setIsRouteLoading(true);
+      setRouteFailed(false);
 
       fetchRoadPolyline(origin, dest)
         .then((roadCoords) => {
@@ -246,6 +250,15 @@ export function HospitalMap({
             currentMap.removeLayer(routeLineRef.current);
             routeLineRef.current = null;
           }
+
+          // Empty polyline = OSRM failed, show nothing (better than building-cutting line)
+          if (!roadCoords || roadCoords.length < 2) {
+            setIsRouteLoading(false);
+            setRouteFailed(true);
+            return;
+          }
+
+          setRouteFailed(false);
 
           // Outer high-contrast street outline (dark navy)
           const casing = currentL.polyline(roadCoords, {
@@ -267,28 +280,25 @@ export function HospitalMap({
 
           const group = currentL.layerGroup([casing, core]).addTo(currentMap);
           routeLineRef.current = group;
+          setIsRouteLoading(false);
 
           // Fit map bounds to show patient and target hospital
           const bounds = currentL.latLngBounds(roadCoords);
           currentMap.fitBounds(bounds, { padding: [55, 55], maxZoom: 16 });
         })
         .catch(() => {
-          if (!isCurrent || !mapInstanceRef.current || !leafletRef.current) return;
-          const currentMap = mapInstanceRef.current;
-          const currentL = leafletRef.current;
-
-          const polyline = currentL.polyline([
-            [origin.latitude, origin.longitude],
-            [dest.latitude, dest.longitude]
-          ], {
-            color: '#2563eb',
-            weight: 4.5,
-            opacity: 0.9,
-            lineCap: 'round',
-            lineJoin: 'round'
-          }).addTo(currentMap);
-
-          routeLineRef.current = polyline;
+          if (!isCurrent) return;
+          setIsRouteLoading(false);
+          setRouteFailed(true);
+          // Fit map to just show both points without a route line
+          if (mapInstanceRef.current && leafletRef.current) {
+            const currentL = leafletRef.current;
+            const bounds = currentL.latLngBounds([
+              [origin.latitude, origin.longitude],
+              [dest.latitude, dest.longitude]
+            ]);
+            mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
+          }
         });
 
       return () => {
@@ -315,22 +325,32 @@ export function HospitalMap({
       aria-label="Leaflet Emergency Location and Route Map"
     >
       {/* Top Map HUD overlay */}
-      <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-200/80 shadow-md text-xs flex items-center gap-3 pointer-events-auto">
-        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+      <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-200/80 shadow-md text-xs flex items-center gap-3 pointer-events-auto max-w-[90%]">
+        <div className="flex items-center gap-1.5 font-semibold text-slate-800 shrink-0">
           <Layers className="w-3.5 h-3.5 text-blue-600" />
-          <span>🛣️ Road Route (Turn-by-Turn)</span>
+          {isRouteLoading ? (
+            <span className="flex items-center gap-1.5 text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping inline-block" />
+              Loading Road Route...
+            </span>
+          ) : routeFailed ? (
+            <span className="text-amber-600">⚠️ Road route unavailable</span>
+          ) : (
+            <span>🛣️ Road Route (Turn-by-Turn)</span>
+          )}
         </div>
-        {selectedHospital && (
+        {selectedHospital && !isRouteLoading && (
           <div className="flex items-center gap-2 text-slate-600 border-l border-slate-200 pl-3">
-            <span className="font-medium text-slate-900 truncate max-w-[140px]">
+            <span className="font-medium text-slate-900 truncate max-w-[120px]">
               {selectedHospital.hospital.name}
             </span>
-            <span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+            <span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
               {selectedHospital.etaMinutes} min
             </span>
           </div>
         )}
       </div>
+
 
       {/* Recenter Button */}
       <button

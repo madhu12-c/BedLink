@@ -1,7 +1,7 @@
 /**
  * BedLink Road Routing Service
  * Real turn-by-turn road routing via Open Source Routing Machine (OSRM)
- * with robust in-memory caching and emergency response speed calibration.
+ * with in-memory caching and emergency response speed calibration.
  */
 
 export interface RouteCoordinate {
@@ -12,8 +12,8 @@ export interface RouteCoordinate {
 export interface RouteResult {
   distanceKm: number;
   etaMinutes: number;
-  provider: 'osrm' | 'demo-mode' | 'mapbox';
-  polyline: [number, number][]; // [lat, lng] array along actual streets
+  provider: 'osrm' | 'estimate' | 'mapbox';
+  polyline: [number, number][]; // [lat, lng] array — EMPTY if road fetch failed
 }
 
 export interface RoutingProvider {
@@ -30,7 +30,7 @@ export function calculateHaversineDistanceKm(
   lat2: number,
   lon2: number
 ): number {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -43,16 +43,52 @@ export function calculateHaversineDistanceKm(
   return R * c;
 }
 
-// In-memory cache for OSRM routes to eliminate redundant network roundtrips
+// In-memory cache — keyed by 3-decimal coord precision (~111m grid)
 const routeCache = new Map<string, RouteResult>();
 
 function getCacheKey(origin: RouteCoordinate, destination: RouteCoordinate): string {
-  return `${origin.latitude.toFixed(4)},${origin.longitude.toFixed(4)}->${destination.latitude.toFixed(4)},${destination.longitude.toFixed(4)}`;
+  return `${origin.latitude.toFixed(3)},${origin.longitude.toFixed(3)}->${destination.latitude.toFixed(3)},${destination.longitude.toFixed(3)}`;
 }
 
 /**
- * OSRM Real Road Routing Provider:
- * Queries real road network to generate exact turn-by-turn street polylines.
+ * Try one OSRM endpoint URL, return parsed RouteResult or null if failed.
+ */
+async function tryOSRM(url: string): Promise<RouteResult | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    if (data.code !== 'Ok' || !data.routes?.length) return null;
+
+    const route = data.routes[0];
+    const distanceKm = Number((route.distance / 1000).toFixed(1));
+    const standardMinutes = Math.round(route.duration / 60);
+    // Ambulance with siren clears traffic ~25% faster than regular car
+    const emergencyMinutes = Math.max(1, Math.round(standardMinutes * 0.75));
+
+    // GeoJSON coords are [lon, lat] — Leaflet needs [lat, lng]
+    const polyline: [number, number][] = route.geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng]
+    );
+
+    if (polyline.length < 2) return null;
+
+    return { distanceKm, etaMinutes: emergencyMinutes, provider: 'osrm', polyline };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * OSRM Real Road Routing Provider.
+ * Tries multiple OSRM public mirrors before giving up.
+ * If ALL fail: returns distance estimate with EMPTY polyline
+ * (no line = better than a line cutting through buildings).
  */
 export class OSRMRoutingProvider implements RoutingProvider {
   name = 'osrm' as const;
@@ -60,90 +96,50 @@ export class OSRMRoutingProvider implements RoutingProvider {
   async calculateRoute(origin: RouteCoordinate, destination: RouteCoordinate): Promise<RouteResult> {
     const cacheKey = getCacheKey(origin, destination);
     const cached = routeCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
+    if (cached) return cached;
 
-    // radiuses=50,50 snaps each waypoint to the nearest drivable road within 50m
-    // alternatives=false always picks the shortest road route (no long detours)
-    // overview=full returns complete turn-by-turn geometry
-    const url = `https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&alternatives=false&radiuses=50,50`;
+    const olng = origin.longitude;
+    const olat = origin.latitude;
+    const dlng = destination.longitude;
+    const dlat = destination.latitude;
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+    // Try multiple OSRM endpoints in sequence — no radiuses param so OSRM
+    // auto-snaps to nearest road (removes the NoSegment error from radiuses=50)
+    const urls = [
+      // Primary: project-osrm.org with full geometry
+      `https://router.project-osrm.org/route/v1/driving/${olng},${olat};${dlng},${dlat}?overview=full&geometries=geojson&alternatives=false`,
+      // Mirror: OSRM demo server (different backend)
+      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${olng},${olat};${dlng},${dlat}?overview=full&geometries=geojson&alternatives=false`,
+    ];
 
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-          // OSRM returns routes sorted by shortest duration — always take index 0
-          const route = data.routes[0];
-          const distanceKm = Number((route.distance / 1000).toFixed(1));
-
-          // Emergency vehicle ETA: ambulances with siren clear traffic ~25% faster
-          const standardMinutes = Math.round(route.duration / 60);
-          const emergencyMinutes = Math.max(1, Math.round(standardMinutes * 0.75));
-
-          // Convert GeoJSON [lon, lat] → Leaflet [lat, lng]
-          const polyline: [number, number][] = route.geometry.coordinates.map(
-            ([lng, lat]: [number, number]) => [lat, lng]
-          );
-
-          const result: RouteResult = {
-            distanceKm,
-            etaMinutes: emergencyMinutes,
-            provider: 'osrm',
-            polyline
-          };
-
-          routeCache.set(cacheKey, result);
-          return result;
-        }
+    for (const url of urls) {
+      const result = await tryOSRM(url);
+      if (result) {
+        routeCache.set(cacheKey, result);
+        return result;
       }
-    } catch {
-      // Network timeout or offline — use street-grid fallback
     }
 
-    return fallbackStreetRoute(origin, destination);
+    // All OSRM attempts failed — return distance estimate with NO polyline
+    // An empty polyline means HospitalMap will draw nothing, which is better
+    // than a straight line cutting through buildings.
+    const directDistance = calculateHaversineDistanceKm(olat, olng, dlat, dlng);
+    const roadDistanceKm = Number((directDistance * 1.32).toFixed(1));
+    const etaMinutes = Math.max(2, Math.round((roadDistanceKm / 40) * 60 + 1.5));
+
+    const fallback: RouteResult = {
+      distanceKm: roadDistanceKm,
+      etaMinutes,
+      provider: 'estimate',
+      polyline: [], // intentionally empty — no building-cutting line
+    };
+
+    routeCache.set(cacheKey, fallback);
+    return fallback;
   }
 }
 
-/**
- * Fallback route if OSRM is unreachable:
- * Produces street-aligned right-angle turns along city grid instead of diagonal cuts across buildings.
- */
-function fallbackStreetRoute(origin: RouteCoordinate, destination: RouteCoordinate): RouteResult {
-  const directDistance = calculateHaversineDistanceKm(
-    origin.latitude,
-    origin.longitude,
-    destination.latitude,
-    destination.longitude
-  );
-
-  const roadDistanceKm = Number((directDistance * 1.35).toFixed(1));
-  const etaMinutes = Math.max(2, Math.round((roadDistanceKm / 38) * 60 + 1));
-
-  // 90-degree street corners following city roads
-  const midLat = origin.latitude + (destination.latitude - origin.latitude) * 0.55;
-  const polyline: [number, number][] = [
-    [origin.latitude, origin.longitude],
-    [midLat, origin.longitude],
-    [midLat, destination.longitude],
-    [destination.latitude, destination.longitude]
-  ];
-
-  return {
-    distanceKm: roadDistanceKm,
-    etaMinutes,
-    provider: 'demo-mode',
-    polyline
-  };
-}
-
-// Active singleton instance
+// Singleton
 const activeProvider: RoutingProvider = new OSRMRoutingProvider();
 
 export async function calculateEmergencyETA(
@@ -158,5 +154,5 @@ export async function fetchRoadPolyline(
   destination: RouteCoordinate
 ): Promise<[number, number][]> {
   const result = await activeProvider.calculateRoute(origin, destination);
-  return result.polyline;
+  return result.polyline; // empty array if OSRM unavailable
 }
