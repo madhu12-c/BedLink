@@ -204,13 +204,13 @@ export function BedTypeCard({
       {/* 2. Middle Body: Illustration + Scrollable Numbered Bed Grid + Legend */}
       <div className="flex-1 my-2 flex flex-col justify-between">
         <div className="flex items-start gap-3">
-          {/* Illustration with fixed, responsive aspect ratio */}
-          <div className="relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-xl overflow-hidden bg-slate-50 border border-slate-200/80 p-1 flex items-center justify-center">
+          {/* Illustration without container box */}
+          <div className="relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32">
             <Image
               src={meta.image}
               alt={`${meta.label} illustration`}
               fill
-              className="object-contain p-1"
+              className="object-contain"
               sizes="(max-width: 640px) 96px, (max-width: 768px) 112px, 128px"
               priority={false}
             />
@@ -312,32 +312,34 @@ export function BedTypeCard({
             </span>
           </div>
 
-          {/* Stepper Buttons (Directly Add / Remove Seats to this ward) */}
-          <div className="flex items-center gap-2">
-            {/* Decrement Seat Button */}
-            <button
-              type="button"
-              disabled={disabled || isUpdating || inventory.total_beds <= 1 || !onUpdateTotalBeds}
-              onClick={() => handleTotalDelta(-1)}
-              aria-label={`Remove a seat from ${meta.label}`}
-              title="Remove 1 seat from this ward (-1 total)"
-              className="w-11 h-11 sm:w-12 sm:h-12 min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xs border border-slate-200 cursor-pointer"
-            >
-              <Minus className="w-5 h-5 sm:w-6 sm:h-6" />
-            </button>
+          {/* Stepper Buttons (Only rendered when onUpdateTotalBeds is provided, e.g. for Coordinator) */}
+          {onUpdateTotalBeds && (
+            <div className="flex items-center gap-2">
+              {/* Decrement Seat Button */}
+              <button
+                type="button"
+                disabled={disabled || isUpdating || inventory.total_beds <= 1}
+                onClick={() => handleTotalDelta(-1)}
+                aria-label={`Remove a seat from ${meta.label}`}
+                title="Remove 1 seat from this ward (-1 total)"
+                className="w-11 h-11 sm:w-12 sm:h-12 min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xs border border-slate-200 cursor-pointer"
+              >
+                <Minus className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
 
-            {/* Increment Seat Button */}
-            <button
-              type="button"
-              disabled={disabled || isUpdating || !onUpdateTotalBeds}
-              onClick={() => handleTotalDelta(1)}
-              aria-label={`Add a seat to ${meta.label}`}
-              title="Add 1 seat to this ward (+1 total)"
-              className="w-11 h-11 sm:w-12 sm:h-12 min-w-[44px] min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xs hover:shadow-sm cursor-pointer"
-            >
-              <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
-            </button>
-          </div>
+              {/* Increment Seat Button */}
+              <button
+                type="button"
+                disabled={disabled || isUpdating}
+                onClick={() => handleTotalDelta(1)}
+                aria-label={`Add a seat to ${meta.label}`}
+                title="Add 1 seat to this ward (+1 total)"
+                className="w-11 h-11 sm:w-12 sm:h-12 min-w-[44px] min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xs hover:shadow-sm cursor-pointer"
+              >
+                <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Error state if server sync failed */}
