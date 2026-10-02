@@ -49,7 +49,7 @@ When Supabase is configured, everyone signs in at `/login` and only sees the scr
 | Role | Lands on | Can open | Can do |
 | --- | --- | --- | --- |
 | Dispatcher | `/` | Dispatch, EMS Analytics | Find hospitals, hold beds (incl. by voice) |
-| Ward Nurse | `/hospital` | Their own hospital only | Update free bed counts. No accept/reject |
+| Ward Nurse | `/hospital` | Their own hospital only | Update free bed counts; sees incoming requests (read-only). No accept/reject |
 | Hospital Coordinator | `/hospital` | Their own hospital only | Accept/reject requests, mark arrivals, add beds, see bed history |
 | Admin | `/` | Everything, incl. Audit Trail | Everything; can switch hospital and preview the nurse or coordinator screen |
 
@@ -57,7 +57,7 @@ The same rules are enforced in three places: `proxy.ts` (pages and API redirects
 
 Setup (once per Supabase project):
 
-1. In the Supabase SQL editor, run `supabase/migrations/20261002130000_role_based_access.sql` (after the schema and seed). It turns row-level security on and removes the old open demo policies.
+1. In the Supabase SQL editor, run `supabase/migrations/20261002130000_role_based_access.sql` (after the schema and `setup_and_seed.sql`). It turns row-level security on and removes the old open demo policies. `setup_and_seed.sql` turns it off again, so re-run this file whenever that one is run.
 2. Add to `.env.local`: `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API keys) and `DEMO_USER_PASSWORD` (8+ characters). Never commit these and never prefix them with `NEXT_PUBLIC_`.
 3. Run `npm run seed:users`. It creates the accounts in `lib/auth/demo-users.json`: `admin@bedlink.test`, `dispatcher@bedlink.test`, and a `nurse.<hospital>@bedlink.test` and `coordinator.<hospital>@bedlink.test` for each of the 5 hospitals (aditi, lifeline, dna, apex, shatabdi). All use `DEMO_USER_PASSWORD`. Run it again any time to reset them.
 4. In Supabase → Authentication → Sign In / Providers, turn off "Allow new users to sign up", so only accounts you create can sign in.
