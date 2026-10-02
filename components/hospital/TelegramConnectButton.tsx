@@ -34,11 +34,11 @@ export function TelegramConnectButton({ hospitalId, role }: TelegramConnectButto
         href={state.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm flex items-center gap-1.5 min-h-[44px]"
+        className="px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm flex items-center justify-center gap-1.5 min-h-[44px]"
         title="Opens the BedLink bot in Telegram. Tap Start there to connect this phone."
       >
         <ExternalLink className="w-4 h-4" />
-        Open in Telegram, then tap Start
+        Open Telegram, tap Start
       </a>
     );
   }
@@ -49,7 +49,7 @@ export function TelegramConnectButton({ hospitalId, role }: TelegramConnectButto
         type="button"
         onClick={() => void getLink()}
         disabled={state.loading}
-        className="px-3 py-2 rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-sm flex items-center gap-1.5 min-h-[44px] disabled:opacity-60"
+        className="w-full px-3 py-2 rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-sm flex items-center justify-center gap-1.5 min-h-[44px] disabled:opacity-60"
         title={
           role === 'coordinator'
             ? 'Get ambulance requests on Telegram with Accept / Reject buttons'

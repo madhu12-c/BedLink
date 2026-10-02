@@ -89,8 +89,8 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
 
   // Only the screens this role may open (the proxy enforces the same rules on the server).
   const navLinks = [
-    { href: '/', label: 'Dispatch CAD', icon: Ambulance, badge: 'LIVE' },
-    { href: '/hospital', label: role === 'nurse' ? 'Nurse Portal' : 'Hospital Desk', icon: Building2 },
+    { href: '/', label: 'Dispatch', icon: Ambulance, badge: 'LIVE' },
+    { href: '/hospital', label: 'Hospital', icon: Building2 },
     { href: '/history', label: 'Audit Trail', icon: History }
   ].filter((link) => role !== null && canAccess(role, link.href));
 
@@ -187,15 +187,21 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                   : 'Demo: data stays on this device'
               }
             >
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  supabaseState.connected
-                    ? 'bg-emerald-500 animate-ping'
-                    : supabaseState.configured
-                    ? 'bg-amber-400 animate-pulse'
-                    : 'bg-slate-400'
-                }`}
-              />
+              {/* Solid dot (a ping alone fades to nothing and looked like an empty pill on phones) */}
+              <span className="relative flex w-2.5 h-2.5 shrink-0">
+                {supabaseState.connected && (
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                )}
+                <span
+                  className={`relative inline-flex w-2.5 h-2.5 rounded-full ${
+                    supabaseState.connected
+                      ? 'bg-emerald-500'
+                      : supabaseState.configured
+                      ? 'bg-amber-400 animate-pulse'
+                      : 'bg-slate-400'
+                  }`}
+                />
+              </span>
               <Radio
                 className={`w-3.5 h-3.5 hidden sm:inline ${
                   supabaseState.connected
