@@ -1209,7 +1209,8 @@ class BedLinkDataStore {
       requiredBedType: request.required_bed_type,
       requiresVentilator: request.requires_ventilator,
       requiredSpecialty: request.required_specialty,
-      urgency: request.urgency
+      urgency: request.urgency,
+      needsFreeCare: request.needs_free_care
     });
 
     const ranked = [...ranking.exactMatches, ...ranking.partialMatches];

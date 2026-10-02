@@ -142,6 +142,26 @@ export function HospitalResultCard({
         </div>
       </div>
 
+      {/* Free care for patients who can't pay */}
+      {hospital.free_care && (
+        <div className="mb-2">
+          <span
+            className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${
+              hospital.free_care === 'govt'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-teal-50 text-teal-800 border-teal-200'
+            }`}
+            title={
+              hospital.free_care === 'govt'
+                ? 'Government / municipal hospital: treatment is free'
+                : 'Charitable trust hospital: by Maharashtra law 10% of beds are free for poor patients (income up to Rs 1.8 lakh)'
+            }
+          >
+            {hospital.free_care === 'govt' ? 'Govt hospital: free' : 'Charity hospital: free beds for poor'}
+          </span>
+        </div>
+      )}
+
       {/* Hospital says it can't take patients */}
       {(onDiversion || hospital.ed_status === 'busy') && (
         <div className="mb-3">

@@ -28,6 +28,8 @@ export interface RankingOptions {
   requiresVentilator?: boolean;
   requiredSpecialty?: string | null;
   urgency?: Urgency;
+  /** Patient can't pay: only government and charity hospitals are full matches */
+  needsFreeCare?: boolean;
 }
 
 /**
@@ -131,11 +133,15 @@ function scoreCandidate(
     if (!hasSpecialty) missing.push(`${options.requiredSpecialty} Capability`);
   }
 
+  // Patient can't pay: a hospital with no known free care is only a partial match
+  const hasFreeCare = !options.needsFreeCare || Boolean(hospital.free_care);
+  if (!hasFreeCare) missing.push('Free care (govt or charity hospital)');
+
   // On diversion the ED is closed to ambulances: never an exact match
   const onDiversion = hospital.ed_status === 'diversion';
   if (onDiversion) missing.push('On diversion (not taking ambulances)');
 
-  const isExactMatch = hasRequestedBed && hasVentilator && hasSpecialty && !onDiversion;
+  const isExactMatch = hasRequestedBed && hasVentilator && hasSpecialty && hasFreeCare && !onDiversion;
 
   let bedMatchScore: number;
   if (isExactMatch) {
@@ -148,6 +154,7 @@ function scoreCandidate(
     if (options.requiredSpecialty && options.requiredSpecialty !== 'none') {
       criteriaCount++; if (hasSpecialty) satisfiedCount++;
     }
+    if (options.needsFreeCare) { criteriaCount++; if (hasFreeCare) satisfiedCount++; }
     bedMatchScore = Number(((satisfiedCount / criteriaCount) * 0.5).toFixed(3));
   }
 

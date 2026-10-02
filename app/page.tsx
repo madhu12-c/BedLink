@@ -244,7 +244,8 @@ export default function DispatcherPage() {
     requiredBedType: formData.bedType,
     requiresVentilator: formData.requiresVentilator,
     requiredSpecialty: formData.specialty,
-    urgency: formData.urgency
+    urgency: formData.urgency,
+    needsFreeCare: formData.needsFreeCare
   }), [formData]);
 
   // Road routes only depend on where the ambulance is and which hospitals exist
@@ -334,6 +335,7 @@ export default function DispatcherPage() {
       required_bed_type: form.bedType,
       required_specialty: form.specialty || null,
       requires_ventilator: form.requiresVentilator,
+      needs_free_care: form.needsFreeCare,
       notes: null
     });
   };

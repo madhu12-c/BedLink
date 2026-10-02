@@ -23,6 +23,8 @@ export interface DispatchFormParams {
   requiresVentilator: boolean;
   specialty: string;
   notes: string;
+  /** Patient can't pay: prefer government (free) and charity hospitals */
+  needsFreeCare?: boolean;
 }
 
 interface PatientNeedFormProps {
@@ -216,6 +218,26 @@ export function PatientNeedForm({
           className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
         />
       </div>
+
+      {/* Patient can't pay: govt hospitals are free, charity hospitals keep 10% of beds free */}
+      <label
+        htmlFor="needsFreeCare"
+        className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-3 cursor-pointer"
+      >
+        <span>
+          <span className="text-sm font-bold text-slate-900 block">Patient can&apos;t pay</span>
+          <span className="text-xs text-slate-500">
+            Govt hospitals (free) and charity hospitals (10% of beds free for poor patients) come first
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          id="needsFreeCare"
+          checked={Boolean(formData.needsFreeCare)}
+          onChange={(e) => updateField('needsFreeCare', e.target.checked)}
+          className="w-5 h-5 shrink-0 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+        />
+      </label>
 
       {/* Specialty Requirement */}
       <div className="flex flex-col gap-1.5">
