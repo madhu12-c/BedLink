@@ -66,14 +66,14 @@ export default function DispatcherPage() {
 
   // Form State
   const [formData, setFormData] = useState<DispatchFormParams>({
-    latitude: 19.2158,
-    longitude: 72.8623,
-    address: '90 Feet Rd (near Thakur College Gate), Kandivali East, Mumbai 400101',
+    latitude: 19.2172,
+    longitude: 72.8667,
+    address: 'Magathane Metro Station Rd, near Navkar Nursing Home, Borivali East, Mumbai 400066',
     urgency: 'critical',
     bedType: 'icu',
     requiresVentilator: true,
     specialty: 'cardiac',
-    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route on 90 Feet Rd near Thakur College'
+    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route on Magathane Rd near Borivali East'
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
@@ -291,9 +291,9 @@ export default function DispatcherPage() {
         () => {
           setFormData((prev) => ({
             ...prev,
-            latitude: 19.2158,
-            longitude: 72.8623,
-            address: '90 Feet Rd, Kandivali East, Mumbai 400101'
+            latitude: 19.2172,
+            longitude: 72.8667,
+            address: 'Magathane Metro Station Rd, Borivali East, Mumbai 400066'
           }));
         }
       );
@@ -302,16 +302,16 @@ export default function DispatcherPage() {
 
   const handleQuickLoadCriticalScenario = () => {
     setFormData({
-      latitude: 19.2158,
-      longitude: 72.8623,
-      address: '90 Feet Rd (near Thakur College Gate), Kandivali East, Mumbai 400101',
+      latitude: 19.2172,
+      longitude: 72.8667,
+      address: 'Magathane Metro Station Rd, near Navkar Nursing Home, Borivali East, Mumbai 400066',
       urgency: 'critical',
       bedType: 'icu',
       requiresVentilator: true,
       specialty: 'cardiac',
-      notes: 'CODE RED: STEMI patient on 90 Feet Rd near Thakur College. Immediate ICU + Vent + Cath Lab required.'
+      notes: 'CODE RED: STEMI patient near Magathane, Borivali East. Immediate ICU + Vent + Cath Lab required.'
     });
-    setActionNotice('Loaded demo: Critical STEMI patient on 90 Feet Rd — ICU + Ventilator + Cardiac.');
+    setActionNotice('Loaded demo: Critical STEMI patient at Magathane, Borivali East — ICU + Ventilator + Cardiac.');
   };
 
   const handleResetDemo = () => {
