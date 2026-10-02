@@ -172,7 +172,7 @@ export default function DispatcherPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen lg:h-screen flex flex-col bg-slate-50 lg:overflow-hidden">
       <Header
         currentRole={role}
         selectedHospitalId={selectedHospitalForNurse}
@@ -229,10 +229,10 @@ export default function DispatcherPage() {
         </div>
       )}
 
-      {/* ── DESKTOP: 3-column layout ── */}
-      <main className="hidden lg:flex flex-1 max-w-[1600px] w-full mx-auto p-5 lg:p-6 gap-5 items-start">
-        {/* Column 1: Intake Form */}
-        <div className="w-[340px] shrink-0 flex flex-col gap-4">
+      {/* ── DESKTOP: 3-column independent scrolling console ── */}
+      <main className="hidden lg:flex flex-1 min-h-0 max-w-[1650px] w-full mx-auto p-4 lg:p-5 gap-4 lg:gap-5 items-stretch overflow-hidden">
+        {/* Column 1: Intake Form (Independent scroll) */}
+        <div className="w-[340px] xl:w-[360px] shrink-0 h-full overflow-y-auto pr-1 flex flex-col gap-4">
           <PatientNeedForm
             formData={formData}
             onChange={setFormData}
@@ -253,8 +253,8 @@ export default function DispatcherPage() {
           </div>
         </div>
 
-        {/* Column 2: Map */}
-        <div className="flex-1 h-[calc(100vh-140px)] sticky top-20">
+        {/* Column 2: Map (Fixed viewport pane) */}
+        <div className="flex-1 h-full min-w-0 rounded-xl overflow-hidden shadow-sm">
           <HospitalMap
             patientLocation={{ latitude: formData.latitude, longitude: formData.longitude }}
             hospitals={allRanked}
@@ -264,8 +264,8 @@ export default function DispatcherPage() {
           />
         </div>
 
-        {/* Column 3: Results */}
-        <div className="w-[380px] shrink-0 flex flex-col gap-4 pb-6">
+        {/* Column 3: Results (Independent scroll) */}
+        <div className="w-[380px] xl:w-[410px] shrink-0 h-full overflow-y-auto pr-1 flex flex-col gap-4 pb-8">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
