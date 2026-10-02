@@ -10,7 +10,9 @@ export type ReservationStatus =
   | 'rejected' 
   | 'expired' 
   | 'cancelled' 
-  | 'completed';
+  | 'completed'
+  | 'shadow'       // Edge Case 1: shadow fallback slot (pre-held, waiting to activate)
+  | 'auto_released'; // Edge Case 3: auto-released because a closer hospital was confirmed
 
 export type UserRole = 'dispatcher' | 'nurse' | 'coordinator' | 'admin';
 
@@ -109,7 +111,12 @@ export interface ReservationEvent {
     | 'reservation_rejected'
     | 'reservation_expired'
     | 'fallback_triggered'
-    | 'bed_updated';
+    | 'bed_updated'
+    | 'shadow_hold_created'    // Edge Case 1: pre-emptive hold at fallback hospital
+    | 'shadow_hold_activated'  // Edge Case 1: shadow promoted to primary
+    | 'shadow_hold_released'   // Edge Case 1: shadow released (primary was accepted)
+    | 'race_condition_blocked'  // Edge Case 2: second carrier lost the race
+    | 'auto_released_distant';  // Edge Case 3: farthest hold auto-released
   actor_id?: string | null;
   actor_name?: string | null;
   metadata: Record<string, unknown>;
@@ -201,3 +208,30 @@ export interface BedHistoryLog {
   actor_name: string;
 }
 
+/**
+ * Edge Case 2 — In-flight concurrency lock guard.
+ * Tracks which bed slot is currently being decremented so a
+ * simultaneous second holdBedAtomic call blocks instead of
+ * double-decrementing the same last bed.
+ */
+export interface BedHoldLock {
+  hospitalId: string;
+  bedType: BedType;
+  lockedAt: number; // Date.now() ms timestamp
+  lockedByRequestId: string;
+}
+
+/**
+ * Edge Case 3 — Tracks all active holds per carrier/ambulance unit.
+ * Key: carrier ambulance unit ID. Value: list of active reservation IDs + hospital distances.
+ */
+export interface CarrierActiveHolds {
+  carrierId: string;   // ambulance / dispatcher unit ID
+  requestId: string;   // the underlying emergency request
+  holds: Array<{
+    reservationId: string;
+    hospitalId: string;
+    distanceKm: number;
+    heldAt: number; // ms timestamp
+  }>;
+}

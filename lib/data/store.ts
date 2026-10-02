@@ -1,8 +1,10 @@
 import {
   AuditLogItem,
+  BedHoldLock,
   BedHistoryLog,
   BedInventory,
   BedType,
+  CarrierActiveHolds,
   EmergencyRequest,
   Hospital,
   HospitalCapability,
@@ -49,6 +51,20 @@ class BedLinkDataStore {
   private listeners: Set<(event: { type: string; payload: unknown }) => void> = new Set();
   private expirationInterval: NodeJS.Timeout | null = null;
   private syncHandler: SyncHandler | null = null;
+
+  // ─── EDGE CASE STATE ────────────────────────────────────────────────────────
+  /**
+   * EC-2: In-flight bed-hold concurrency locks.
+   * Key: `${hospitalId}::${bedType}` → lock entry.
+   * Cleared after holdBedAtomic completes or after 500 ms safety TTL.
+   */
+  private bedHoldLocks: Map<string, BedHoldLock> = new Map();
+
+  /**
+   * EC-3: Per-carrier active hold registry.
+   * Key: `${carrierId}::${requestId}` → CarrierActiveHolds.
+   */
+  private carrierHolds: Map<string, CarrierActiveHolds> = new Map();
 
   constructor() {
     this.resetToDefaults();
@@ -380,71 +396,167 @@ class BedLinkDataStore {
     hospitalId: string,
     bedType: BedType,
     actorId = 'disp-1',
-    actorName = 'Dispatcher Control'
+    actorName = 'Dispatcher Control',
+    options?: {
+      isShadow?: boolean;        // EC-1: pre-emptive shadow slot
+      carrierId?: string;        // EC-3: ambulance/carrier unit ID
+      distanceKm?: number;       // EC-3: distance used for auto-release ranking
+    }
   ): Reservation {
-    // 1. Concurrency Check / Lock
-    const inv = this.bedInventories.find(
-      (b) => b.hospital_id === hospitalId && b.bed_type === bedType
-    );
+    const lockKey = `${hospitalId}::${bedType}`;
 
-    if (!inv) {
-      throw new Error(`Bed inventory record not found for hospital ${hospitalId}`);
+    // ── EC-2: Race-condition guard ──────────────────────────────────────────
+    // JS is single-threaded so synchronous code can't truly race, but two
+    // async callers (paramedic app + dispatcher) firing within the same tick
+    // via BroadcastChannel can.  We set a hard lock that survives the tick.
+    const existingLock = this.bedHoldLocks.get(lockKey);
+    if (existingLock && existingLock.lockedByRequestId !== requestId) {
+      // Another request is currently holding the lock for this bed slot.
+      // Log a blocked event and throw so the caller can re-route.
+      const blockedEvent: ReservationEvent = {
+        id: `evt-${Date.now()}-race`,
+        reservation_id: 'race-block',
+        event_type: 'race_condition_blocked',
+        actor_id: actorId,
+        actor_name: actorName,
+        metadata: {
+          blocked_request_id: requestId,
+          lock_held_by: existingLock.lockedByRequestId,
+          hospital_id: hospitalId,
+          bed_type: bedType
+        },
+        created_at: new Date().toISOString()
+      };
+      this.reservationEvents.unshift(blockedEvent);
+      this.broadcast('race_condition_blocked', {
+        requestId,
+        hospitalId,
+        bedType,
+        blockedByRequestId: existingLock.lockedByRequestId
+      });
+      throw new Error(
+        `[EC-2 Race Blocked] Bed ${bedType} at ${hospitalId} is being locked by another carrier. Patient will be re-routed.`
+      );
     }
 
-    if (inv.available_beds <= 0) {
-      throw new Error('This bed is no longer available. Another emergency unit may have reserved it.');
+    // Acquire lock
+    this.bedHoldLocks.set(lockKey, {
+      hospitalId,
+      bedType,
+      lockedAt: Date.now(),
+      lockedByRequestId: requestId
+    });
+
+    // ── EC-3: Auto-release farthest hold if same carrier ───────────────────
+    if (options?.carrierId && options?.distanceKm !== undefined) {
+      this.enforceCarrierSingleHold(
+        options.carrierId,
+        requestId,
+        hospitalId,
+        options.distanceKm
+      );
     }
 
-    // 2. Atomically hold / decrement resource
-    inv.available_beds -= 1;
-    inv.updated_at = new Date().toISOString();
-    inv.updated_by = actorId;
+    try {
+      // 1. Inventory check
+      const inv = this.bedInventories.find(
+        (b) => b.hospital_id === hospitalId && b.bed_type === bedType
+      );
 
-    // 3. Create 2-minute reservation
-    const reservationId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `res-${Date.now()}`;
-    const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      if (!inv) {
+        throw new Error(`Bed inventory record not found for hospital ${hospitalId}`);
+      }
 
-    const reservation: Reservation = {
-      id: reservationId,
-      request_id: requestId,
-      hospital_id: hospitalId,
-      bed_type: bedType,
-      status: 'pending',
-      requested_at: new Date().toISOString(),
-      expires_at: expiresAt,
-      hospital_name: this.getHospital(hospitalId)?.name
-    };
+      if (inv.available_beds <= 0) {
+        throw new Error(
+          '[EC-2] This bed is no longer available. Another emergency unit has already reserved it.'
+        );
+      }
 
-    this.reservations.unshift(reservation);
+      // 2. Atomically decrement
+      inv.available_beds -= 1;
+      inv.updated_at = new Date().toISOString();
+      inv.updated_by = actorId;
 
-    // 4. Create Audit Event
-    const event: ReservationEvent = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
-      reservation_id: reservationId,
-      event_type: 'reservation_created',
-      actor_id: actorId,
-      actor_name: actorName,
-      metadata: {
+      // 3. Create reservation (shadow or primary)
+      const reservationId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `res-${Date.now()}`;
+      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+
+      const reservation: Reservation = {
+        id: reservationId,
+        request_id: requestId,
         hospital_id: hospitalId,
         bed_type: bedType,
+        status: options?.isShadow ? 'shadow' : 'pending',
+        requested_at: new Date().toISOString(),
         expires_at: expiresAt,
-        requestId
-      },
-      created_at: new Date().toISOString()
-    };
-    this.reservationEvents.unshift(event);
+        hospital_name: this.getHospital(hospitalId)?.name
+      };
+      this.reservations.unshift(reservation);
 
-    // 5. Update request status
-    const req = this.emergencyRequests.find((r) => r.id === requestId);
-    if (req) {
-      req.status = 'holding';
+      // 4. Audit event
+      const eventType = options?.isShadow ? 'shadow_hold_created' : 'reservation_created';
+      const event: ReservationEvent = {
+        id:
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `evt-${Date.now()}`,
+        reservation_id: reservationId,
+        event_type: eventType,
+        actor_id: actorId,
+        actor_name: actorName,
+        metadata: {
+          hospital_id: hospitalId,
+          bed_type: bedType,
+          expires_at: expiresAt,
+          requestId,
+          is_shadow: options?.isShadow ?? false
+        },
+        created_at: new Date().toISOString()
+      };
+      this.reservationEvents.unshift(event);
+
+      // 5. Update request status
+      const req = this.emergencyRequests.find((r) => r.id === requestId);
+      if (req) {
+        req.status = 'holding';
+      }
+
+      // 6. Register in carrier hold map (EC-3)
+      if (options?.carrierId && options?.distanceKm !== undefined) {
+        const carrierKey = `${options.carrierId}::${requestId}`;
+        const existing = this.carrierHolds.get(carrierKey);
+        if (existing) {
+          existing.holds.push({
+            reservationId,
+            hospitalId,
+            distanceKm: options.distanceKm,
+            heldAt: Date.now()
+          });
+        } else {
+          this.carrierHolds.set(carrierKey, {
+            carrierId: options.carrierId,
+            requestId,
+            holds: [{ reservationId, hospitalId, distanceKm: options.distanceKm, heldAt: Date.now() }]
+          });
+        }
+      }
+
+      this.broadcast(options?.isShadow ? 'shadow_hold_created' : 'reservation_created', {
+        reservation,
+        event
+      });
+      this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, inv });
+      this.syncHandler?.onReservationHold?.(reservation, actorId);
+
+      return reservation;
+    } finally {
+      // Release lock immediately after decrement completes
+      this.bedHoldLocks.delete(lockKey);
     }
-
-    this.broadcast('reservation_created', { reservation, event });
-    this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, inv });
-    this.syncHandler?.onReservationHold?.(reservation, actorId);
-
-    return reservation;
   }
 
   /**
@@ -495,6 +607,9 @@ class BedLinkDataStore {
         created_at: new Date().toISOString()
       };
       this.reservationEvents.unshift(event);
+
+      // EC-1: Release all shadow holds for the same request at OTHER hospitals
+      this.releaseShadowHoldsForRequest(reservation.request_id, reservation.hospital_id);
 
       this.broadcast('reservation_accepted', { reservation, event });
       this.syncHandler?.onReservationResponse?.(reservationId, reservation.hospital_id, reservation.bed_type, 'accept', actorId);
@@ -604,21 +719,41 @@ class BedLinkDataStore {
 
     this.syncHandler?.onReservationExpired?.(reservation.id, reservation.hospital_id, reservation.bed_type);
 
-    // Trigger automatic fallback to next eligible hospital
-    this.triggerAutomaticFallback(reservation.request_id, reservation.hospital_id);
+    // EC-1: Try to activate a shadow hold first before doing a full fallback
+    const shadowActivated = this.activateShadowHold(reservation.request_id, reservation.hospital_id);
+    if (!shadowActivated) {
+      // No shadow hold available — do full fallback + create top-2 shadow slots
+      this.triggerAutomaticFallbackWithShadows(reservation.request_id, reservation.hospital_id);
+    }
   }
 
   /**
-   * Automatic Fallback: Contacts next best hospital in ranking (Step 20)
+   * Original single-target fallback (kept for external callers)
    */
   public triggerAutomaticFallback(
+    requestId: string,
+    excludeHospitalId: string
+  ): ScoredHospital | null {
+    return this.triggerAutomaticFallbackWithShadows(requestId, excludeHospitalId);
+  }
+
+  /**
+   * EC-1: Fallback that simultaneously pre-holds the TOP 2 next eligible hospitals.
+   * Hospital #1 becomes 'pending' (the active fallback).
+   * Hospital #2 becomes 'shadow' (a pre-emptive hold — no nurse action needed).
+   *
+   * This eliminates the 2-min dead wait if hospital #1 also ignores.
+   * When #1 is accepted → all shadow slots for the same request are auto-released.
+   * When #1 expires → shadow #2 is instantly promoted to 'pending'.
+   */
+  public triggerAutomaticFallbackWithShadows(
     requestId: string,
     excludeHospitalId: string
   ): ScoredHospital | null {
     const request = this.emergencyRequests.find((r) => r.id === requestId);
     if (!request) return null;
 
-    // Get all previously contacted hospital IDs for this request
+    // Collect all hospitals already contacted for this request (any status)
     const contactedHospitalIds = new Set(
       this.reservations
         .filter((r) => r.request_id === requestId)
@@ -626,7 +761,6 @@ class BedLinkDataStore {
     );
     contactedHospitalIds.add(excludeHospitalId);
 
-    // Filter candidate hospitals
     const candidates = this.getHospitalCandidates().filter(
       (c) => !contactedHospitalIds.has(c.hospital.id)
     );
@@ -642,19 +776,19 @@ class BedLinkDataStore {
       urgency: request.urgency
     });
 
-    const nextTarget = ranking.exactMatches[0] || ranking.partialMatches[0] || null;
+    const ranked = [...ranking.exactMatches, ...ranking.partialMatches];
+    const [primary, shadow] = ranked;
 
-    if (nextTarget) {
-      // Automatically initiate hold for next candidate
+    // Hold primary as normal 'pending'
+    if (primary) {
       try {
         const nextRes = this.holdBedAtomic(
           requestId,
-          nextTarget.hospital.id,
+          primary.hospital.id,
           request.required_bed_type,
           'system-fallback',
           'Automated Fallback Router'
         );
-
         const fallbackEvent: ReservationEvent = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
           reservation_id: nextRes.id,
@@ -663,8 +797,8 @@ class BedLinkDataStore {
           actor_name: 'Automatic Fallback Subsystem',
           metadata: {
             previous_hospital_id: excludeHospitalId,
-            new_hospital_id: nextTarget.hospital.id,
-            hospital_name: nextTarget.hospital.name,
+            new_hospital_id: primary.hospital.id,
+            hospital_name: primary.hospital.name,
             reason: 'Previous hospital rejected or timed out'
           },
           created_at: new Date().toISOString()
@@ -674,14 +808,234 @@ class BedLinkDataStore {
           requestId,
           previousHospitalId: excludeHospitalId,
           newReservation: nextRes,
-          hospital: nextTarget
+          hospital: primary
         });
       } catch (err) {
-        console.error('Fallback hold attempt error:', err);
+        console.error('[EC-1] Primary fallback hold attempt failed:', err);
       }
     }
 
-    return nextTarget;
+    // EC-1: Pre-emptively hold shadow slot at hospital #2
+    if (shadow) {
+      try {
+        this.holdBedAtomic(
+          requestId,
+          shadow.hospital.id,
+          request.required_bed_type,
+          'system-shadow',
+          'Shadow Pre-Hold System',
+          { isShadow: true }
+        );
+        console.info(
+          `[EC-1] Shadow pre-hold created at ${shadow.hospital.name} for request ${requestId}`
+        );
+      } catch (err) {
+        // Shadow hold failure is non-fatal — primary fallback still works
+        console.warn('[EC-1] Shadow hold attempt failed (non-fatal):', err);
+      }
+    }
+
+    return primary;
+  }
+
+  /**
+   * EC-1: Activate a pending shadow hold when the primary hospital times out.
+   * Promotes the shadow reservation to 'pending' status — nurse sees it immediately.
+   * Returns true if a shadow was found and promoted.
+   */
+  private activateShadowHold(requestId: string, failedHospitalId: string): boolean {
+    const shadowRes = this.reservations.find(
+      (r) =>
+        r.request_id === requestId &&
+        r.status === 'shadow' &&
+        r.hospital_id !== failedHospitalId
+    );
+    if (!shadowRes) return false;
+
+    shadowRes.status = 'pending';
+    const event: ReservationEvent = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+      reservation_id: shadowRes.id,
+      event_type: 'shadow_hold_activated',
+      actor_id: 'system',
+      actor_name: 'Shadow Activation Engine',
+      metadata: {
+        activated_from_failed_hospital: failedHospitalId,
+        activated_hospital_id: shadowRes.hospital_id,
+        request_id: requestId
+      },
+      created_at: new Date().toISOString()
+    };
+    this.reservationEvents.unshift(event);
+    this.broadcast('reservation_created', { reservation: shadowRes, event });
+    console.info(
+      `[EC-1] Shadow hold ACTIVATED at ${shadowRes.hospital_name} — no wait needed.`
+    );
+    return true;
+  }
+
+  /**
+   * EC-1: When a primary hold is accepted, release all shadow holds
+   * for the same request at other hospitals (free the pre-held beds).
+   */
+  private releaseShadowHoldsForRequest(requestId: string, acceptedHospitalId: string): void {
+    const shadows = this.reservations.filter(
+      (r) =>
+        r.request_id === requestId &&
+        r.status === 'shadow' &&
+        r.hospital_id !== acceptedHospitalId
+    );
+
+    for (const shadow of shadows) {
+      shadow.status = 'auto_released';
+      shadow.responded_at = new Date().toISOString();
+
+      // Restore the pre-held bed back to available
+      const inv = this.bedInventories.find(
+        (b) => b.hospital_id === shadow.hospital_id && b.bed_type === shadow.bed_type
+      );
+      if (inv) {
+        inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
+        inv.updated_at = new Date().toISOString();
+      }
+
+      const event: ReservationEvent = {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+        reservation_id: shadow.id,
+        event_type: 'shadow_hold_released',
+        actor_id: 'system',
+        actor_name: 'Shadow Release Engine',
+        metadata: {
+          released_hospital_id: shadow.hospital_id,
+          because_accepted_hospital_id: acceptedHospitalId,
+          request_id: requestId
+        },
+        created_at: new Date().toISOString()
+      };
+      this.reservationEvents.unshift(event);
+
+      if (inv) {
+        this.broadcast('bed_updated', {
+          hospitalId: shadow.hospital_id,
+          bedType: shadow.bed_type,
+          available_beds: inv.available_beds,
+          inv
+        });
+      }
+      this.broadcast('shadow_hold_released', { shadow, event });
+      console.info(
+        `[EC-1] Shadow hold at ${shadow.hospital_name} released (primary accepted at ${acceptedHospitalId}).`
+      );
+    }
+  }
+
+  /**
+   * EC-3: If the same carrier (carrierId) has an existing active hold for the
+   * SAME request at a DIFFERENT hospital, auto-release the FARTHER one.
+   *
+   * Why: paramedic taps two hospitals in quick succession (fat-finger / delay).
+   * The system should keep only the NEAREST hold and release the other.
+   */
+  private enforceCarrierSingleHold(
+    carrierId: string,
+    requestId: string,
+    newHospitalId: string,
+    newDistanceKm: number
+  ): void {
+    const carrierKey = `${carrierId}::${requestId}`;
+    const existing = this.carrierHolds.get(carrierKey);
+    if (!existing || existing.holds.length === 0) return;
+
+    // Find the farthest among all existing + new
+    const allHolds = [
+      ...existing.holds,
+      { reservationId: '__incoming__', hospitalId: newHospitalId, distanceKm: newDistanceKm, heldAt: Date.now() }
+    ];
+    const farthest = allHolds.reduce((a, b) => (a.distanceKm >= b.distanceKm ? a : b));
+
+    // If the farthest is NOT the incoming new hold, release the existing farthest
+    if (farthest.reservationId !== '__incoming__') {
+      const resToRelease = this.reservations.find(
+        (r) => r.id === farthest.reservationId && (r.status === 'pending' || r.status === 'shadow')
+      );
+      if (resToRelease) {
+        resToRelease.status = 'auto_released';
+        resToRelease.responded_at = new Date().toISOString();
+        resToRelease.rejection_reason = `[EC-3] Auto-released: carrier selected closer hospital (${newHospitalId})`;
+
+        const inv = this.bedInventories.find(
+          (b) => b.hospital_id === farthest.hospitalId && b.bed_type === resToRelease.bed_type
+        );
+        if (inv) {
+          inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
+          inv.updated_at = new Date().toISOString();
+        }
+
+        const event: ReservationEvent = {
+          id: `evt-${Date.now()}-ec3`,
+          reservation_id: farthest.reservationId,
+          event_type: 'auto_released_distant',
+          actor_id: 'system',
+          actor_name: 'Carrier Conflict Resolver',
+          metadata: {
+            carrier_id: carrierId,
+            released_hospital_id: farthest.hospitalId,
+            kept_hospital_id: newHospitalId,
+            released_distance_km: farthest.distanceKm,
+            kept_distance_km: newDistanceKm,
+            request_id: requestId
+          },
+          created_at: new Date().toISOString()
+        };
+        this.reservationEvents.unshift(event);
+
+        if (inv) {
+          this.broadcast('bed_updated', {
+            hospitalId: farthest.hospitalId,
+            bedType: resToRelease.bed_type,
+            available_beds: inv.available_beds,
+            inv
+          });
+        }
+        this.broadcast('auto_released_distant', {
+          releasedReservation: resToRelease,
+          keptHospitalId: newHospitalId,
+          carrierId,
+          event
+        });
+
+        console.info(
+          `[EC-3] Carrier ${carrierId} had 2 holds — auto-released farthest (${farthest.distanceKm}km) at ${farthest.hospitalId}.`
+        );
+
+        // Remove the released hold from the carrier registry
+        existing.holds = existing.holds.filter((h) => h.reservationId !== farthest.reservationId);
+      }
+    } else {
+      // The new incoming hold is the farthest — veto it before decrement
+      throw new Error(
+        `[EC-3] Carrier ${carrierId} already has a closer hold (${existing.holds[0]?.distanceKm}km). ` +
+        `New hold at ${newHospitalId} (${newDistanceKm}km) auto-blocked.`
+      );
+    }
+  }
+
+  /**
+   * Query: get all active shadow reservations for a request (for UI display).
+   */
+  public getShadowHolds(requestId: string): Reservation[] {
+    return this.reservations.filter(
+      (r) => r.request_id === requestId && r.status === 'shadow'
+    );
+  }
+
+  /**
+   * Query: get carrier hold registry (for dispatcher UI).
+   */
+  public getCarrierHolds(carrierId: string): CarrierActiveHolds[] {
+    return Array.from(this.carrierHolds.values()).filter(
+      (c) => c.carrierId === carrierId
+    );
   }
 
   // --- BED HISTORY & CLINICAL HANDOVER METHODS ---
