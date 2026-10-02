@@ -83,6 +83,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     },
     onReservationStatus: (reservation) => {
       persistReservationStatus(reservation);
+    },
+    onCountsConfirmed: (hospitalId, confirmedAt, actorId) => {
+      persistCountsConfirmed(hospitalId, confirmedAt, actorId);
     }
   });
 
@@ -502,6 +505,26 @@ export async function persistReservationExpired(reservationId: string, hospitalI
     }
   } catch (err) {
     console.warn('[BedLink] Failed to persist expired reservation to Supabase:', err);
+  }
+}
+
+/**
+ * "All counts still correct": refreshes the update time of every bed type at this hospital.
+ * Only the times are written, so a count someone changed meanwhile is never overwritten.
+ */
+export async function persistCountsConfirmed(hospitalId: string, confirmedAt: string, actorId?: string) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase
+      .from('bed_inventory')
+      .update({ updated_at: confirmedAt, updated_by: isUUID(actorId) ? actorId : null })
+      .eq('hospital_id', ensureUUID(hospitalId));
+    if (error) console.warn('[BedLink] counts confirm warning:', error.message);
+  } catch (err) {
+    console.warn('[BedLink] Failed to save counts confirmation to Supabase:', err);
   }
 }
 

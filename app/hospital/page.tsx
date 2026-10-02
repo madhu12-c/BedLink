@@ -6,6 +6,7 @@ import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
 import { useVoiceAvailability, useVoicePlayer, useVoiceSettings } from '@/lib/voice/hooks';
 import { hospitalAllottedPhrase, hospitalIncomingPhrase } from '@/lib/voice/phrases';
 import { BedUpdateGrid } from '@/components/hospital/BedUpdateGrid';
+import { ConfirmCountsCard } from '@/components/hospital/ConfirmCountsCard';
 import { IncomingReservationAlert } from '@/components/hospital/IncomingReservationAlert';
 import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArrivalCountdown';
 import { AddBedModal } from '@/components/hospital/AddBedModal';
@@ -329,6 +330,27 @@ Bed Type: ${bed}
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
+  // Oldest bed count at this hospital: what "Confirm" brings back to "just now"
+  const oldestCountAt = bedInventories.reduce<string | null>(
+    (oldest, b) => (!oldest || Date.parse(b.updated_at) < Date.parse(oldest) ? b.updated_at : oldest),
+    null
+  );
+
+  const handleConfirmCounts = () => {
+    if (!currentHospital) return;
+    try {
+      bedLinkStore.confirmCountsUnchanged(
+        currentHospital.id,
+        actorId,
+        actorName(view === 'nurse' ? 'Nurse on duty' : 'Bed Coordinator')
+      );
+      setToastMessage('✓ Counts confirmed. Dispatch now sees them as up to date.');
+    } catch (err: unknown) {
+      setToastMessage(err instanceof Error ? err.message : 'Could not confirm the counts.');
+    }
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
   const handleUpdateTotalBeds = async (bedType: BedType, delta: number) => {
     if (!currentHospital) return;
     bedLinkStore.updateTotalBeds(
@@ -584,6 +606,9 @@ Bed Type: ${bed}
                   </div>
                 </div>
               )}
+
+            {/* Nothing changed? One tap keeps this hospital fresh for dispatch */}
+            <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
 
             {/* Bedside Rapid Bed Count Update Grid */}
             <BedUpdateGrid

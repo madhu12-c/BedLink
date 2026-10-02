@@ -38,6 +38,8 @@ export type SyncHandler = {
   onReservationExpired?: (reservationId: string, hospitalId: string, bedType: BedType) => void;
   /** Status / deadline change with no other side effects (shadow hold promoted or released). */
   onReservationStatus?: (reservation: Reservation) => void;
+  /** Staff confirmed every count is still right: refresh the times only, never the counts. */
+  onCountsConfirmed?: (hospitalId: string, confirmedAt: string, actorId?: string) => void;
 };
 
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
@@ -429,6 +431,34 @@ class BedLinkDataStore {
     this.broadcast('bed_updated', { hospitalId, bedType, available_beds: newCount, inv, actorName });
     this.syncHandler?.onBedUpdate?.(hospitalId, bedType, newCount, actorId);
     return { ...inv };
+  }
+
+  /**
+   * "All counts still correct": staff checked the ward and nothing changed. Marks every bed
+   * type of this hospital as updated now without touching the numbers, so the hospital no
+   * longer looks stale to dispatch (data age and ranking both use these times).
+   */
+  public confirmCountsUnchanged(hospitalId: string, actorId = 'nurse-1', actorName = 'Staff Nurse'): string {
+    const beds = this.bedInventories.filter((b) => b.hospital_id === hospitalId);
+    if (beds.length === 0) {
+      throw new Error('No bed counts found for this hospital.');
+    }
+    const confirmedAt = new Date().toISOString();
+    for (const inv of beds) {
+      inv.updated_at = confirmedAt;
+      inv.updated_by = actorId;
+      this.broadcast('bed_updated', {
+        hospitalId,
+        bedType: inv.bed_type,
+        available_beds: inv.available_beds,
+        inv,
+        actorName
+      });
+    }
+    const hosp = this.hospitals.find((h) => h.id === hospitalId);
+    if (hosp) hosp.load_updated_at = confirmedAt;
+    this.syncHandler?.onCountsConfirmed?.(hospitalId, confirmedAt, actorId);
+    return confirmedAt;
   }
 
   /**
