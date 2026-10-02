@@ -1,12 +1,13 @@
 import { getBrowserSupabaseClient, isSupabaseConfigured } from './client';
 import { bedLinkStore } from '../data/store';
-import { BedHistoryLog, BedInventory, BedType, Hospital, HospitalCapability, Reservation, ReservationEvent } from '../types';
+import { BedHistoryLog, BedInventory, BedType, EdStatus, Hospital, HospitalCapability, Reservation, ReservationEvent } from '../types';
 import { isUUID, ensureUUID, generateUUID } from '../crypto/uuid';
 
 let initPromise: Promise<boolean> | null = null;
 let syncInitialized = false;
 let isConnected = false;
 let lastSyncTime: string | null = null;
+let serverClockTimer: ReturnType<typeof setInterval> | null = null;
 const connectionListeners = new Set<(status: { configured: boolean; connected: boolean; lastSyncTime: string | null }) => void>();
 
 function notifyConnectionChange() {
@@ -84,8 +85,20 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     onReservationStatus: (reservation) => {
       persistReservationStatus(reservation);
     },
-    onCountsConfirmed: (hospitalId, confirmedAt, actorId) => {
-      persistCountsConfirmed(hospitalId, confirmedAt, actorId);
+    onCountsConfirmed: (hospitalId, confirmedAt, actorId, actorName) => {
+      persistCountsConfirmed(hospitalId, confirmedAt, actorId, actorName);
+    },
+    onBedDelta: (hospitalId, bedType, delta, actorName) => {
+      persistBedDelta(hospitalId, bedType, delta, actorName);
+    },
+    onHoldCancelled: (reservation) => {
+      persistHoldCancelled(reservation);
+    },
+    onReservationReleased: (reservation) => {
+      persistReservationReleased(reservation);
+    },
+    onEdStatus: (hospitalId, status) => {
+      persistEdStatus(hospitalId, status);
     }
   });
 
@@ -113,7 +126,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         load_updated_at: h.load_updated_at || new Date().toISOString(),
         is_active: h.is_active ?? true,
         phone: h.phone || undefined,
-        created_at: h.created_at
+        created_at: h.created_at,
+        ed_status: h.ed_status || 'open',
+        reliability: typeof h.reliability === 'number' ? h.reliability : 100
       }));
 
       const liveCaps: HospitalCapability[] = (capsRes.data || []).map((c) => ({
@@ -129,7 +144,8 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         total_beds: Number(b.total_beds),
         available_beds: Number(b.available_beds),
         updated_at: b.updated_at,
-        updated_by: b.updated_by
+        updated_by: b.updated_by,
+        updated_by_name: b.updated_by_name ?? null
       }));
 
       const liveReservations: Reservation[] = (reservationsRes.data || []).map((r) => ({
@@ -142,7 +158,10 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         expires_at: r.expires_at,
         responded_at: r.responded_at || undefined,
         accepted_by: r.accepted_by || undefined,
-        rejection_reason: r.rejection_reason || undefined
+        rejection_reason: r.rejection_reason || undefined,
+        patient_urgency: r.patient_urgency || undefined,
+        eta_minutes: typeof r.eta_minutes === 'number' ? r.eta_minutes : undefined,
+        arrived_at: r.arrived_at || undefined
       }));
 
       const liveEvents: ReservationEvent[] = (eventsRes.data || []).map((e) => ({
@@ -211,7 +230,8 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               total_beds: Number(row.total_beds || 0),
               available_beds: Number(row.available_beds || 0),
               updated_at: String(row.updated_at || new Date().toISOString()),
-              updated_by: row.updated_by ? String(row.updated_by) : undefined
+              updated_by: row.updated_by ? String(row.updated_by) : undefined,
+              updated_by_name: row.updated_by_name ? String(row.updated_by_name) : null
             });
             lastSyncTime = new Date().toLocaleTimeString();
             notifyConnectionChange();
@@ -234,7 +254,10 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               expires_at: String(row.expires_at || new Date().toISOString()),
               responded_at: row.responded_at ? String(row.responded_at) : undefined,
               accepted_by: row.accepted_by ? String(row.accepted_by) : undefined,
-              rejection_reason: row.rejection_reason ? String(row.rejection_reason) : undefined
+              rejection_reason: row.rejection_reason ? String(row.rejection_reason) : undefined,
+              patient_urgency: row.patient_urgency ? (String(row.patient_urgency) as Reservation['patient_urgency']) : undefined,
+              eta_minutes: typeof row.eta_minutes === 'number' ? row.eta_minutes : undefined,
+              arrived_at: row.arrived_at ? String(row.arrived_at) : undefined
             });
             lastSyncTime = new Date().toLocaleTimeString();
             notifyConnectionChange();
@@ -250,7 +273,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
             bedLinkStore.applyExternalHospitalUpdate({
               id: String(row.id),
               current_load: Number(row.current_load),
-              load_updated_at: String(row.load_updated_at || new Date().toISOString())
+              load_updated_at: String(row.load_updated_at || new Date().toISOString()),
+              ed_status: row.ed_status ? (String(row.ed_status) as EdStatus) : undefined,
+              reliability: typeof row.reliability === 'number' ? row.reliability : undefined
             });
             lastSyncTime = new Date().toLocaleTimeString();
             notifyConnectionChange();
@@ -291,6 +316,17 @@ async function runSupabaseSyncInit(): Promise<boolean> {
           notifyConnectionChange();
         }
       });
+
+    // Backup for the database's own 10-second timer (pg_cron): while any BedLink screen is open,
+    // ask the server to expire overdue holds. Harmless if the timer already ran.
+    if (!serverClockTimer) {
+      serverClockTimer = setInterval(() => {
+        void supabase.rpc('tick_holds').then(
+          () => undefined,
+          () => undefined
+        );
+      }, 15000);
+    }
 
     return true;
   } catch (err) {
@@ -356,7 +392,33 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
       console.warn('[BedLink] emergency_requests upsert warning:', reqErr.message);
     }
 
-    // 2. Insert reservation — upsert to handle duplicate holds gracefully
+    // 2. The race-safe hold on the server: takes the bed only while one is free
+    const { data: held, error: holdErr } = await supabase.rpc('hold_bed', {
+      p_reservation_id: safeReservationId,
+      p_request_id: safeRequestId,
+      p_hospital_id: safeHospitalId,
+      p_bed_type: reservation.bed_type,
+      p_urgency: reservation.patient_urgency ?? null,
+      p_eta_minutes: reservation.eta_minutes ?? null
+    });
+    if (!holdErr) {
+      const result = (held ?? {}) as { success?: boolean; error?: string };
+      if (result.success === false) {
+        bedLinkStore.rollbackHold(
+          reservation.id,
+          result.error === 'diversion'
+            ? 'Hospital is on diversion'
+            : 'Another ambulance got the last bed first'
+        );
+      }
+      return;
+    }
+    if (!isMissingFunction(holdErr)) {
+      console.error('[BedLink] hold_bed error:', holdErr.message);
+      return;
+    }
+
+    // Database not upgraded yet (spec_features SQL not run): old direct writes
     const allowedStatuses = ['pending', 'accepted', 'rejected', 'expired', 'cancelled', 'completed', 'shadow', 'auto_released'];
     const safeStatus = allowedStatuses.includes(reservation.status) ? reservation.status : 'pending';
 
@@ -374,7 +436,6 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
       console.error('[BedLink] Reservation upsert error:', resErr.message, resErr.details);
       return;
     }
-    console.info('[BedLink] Successfully saved reservation hold to Supabase:', safeReservationId);
 
     // 3. Update bed inventory count (triggers Realtime on other devices)
     const currentBeds = bedLinkStore.getBedInventories(reservation.hospital_id).find((b) => b.bed_type === reservation.bed_type);
@@ -440,18 +501,28 @@ export async function persistReservationResponse(
       })
       .eq('id', safeResId);
 
-    // Restore/update bed count in Supabase (fires Realtime on all devices)
-    const currentBeds = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
-    if (currentBeds) {
-      await supabase
-        .from('bed_inventory')
-        .update({
-          available_beds: currentBeds.available_beds,
-          updated_at: new Date().toISOString(),
-          updated_by: isUUID(actorId) ? actorId : null
-        })
-        .eq('hospital_id', safeHospId)
-        .eq('bed_type', bedType);
+    // Rejected: the held bed goes back (+1 on the server; accepting changes no counts)
+    if (action === 'reject') {
+      const { error: adjErr } = await supabase.rpc('adjust_bed_count', {
+        p_hospital_id: safeHospId,
+        p_bed_type: bedType,
+        p_delta: 1,
+        p_actor_name: null
+      });
+      if (adjErr && isMissingFunction(adjErr)) {
+        const currentBeds = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
+        if (currentBeds) {
+          await supabase
+            .from('bed_inventory')
+            .update({
+              available_beds: currentBeds.available_beds,
+              updated_at: new Date().toISOString(),
+              updated_by: isUUID(actorId) ? actorId : null
+            })
+            .eq('hospital_id', safeHospId)
+            .eq('bed_type', bedType);
+        }
+      }
     }
 
     // Log audit event
@@ -479,6 +550,10 @@ export async function persistReservationExpired(reservationId: string, hospitalI
   if (!supabase) return;
 
   try {
+    // The server clock expires holds and gives beds back; only fall back if it is not installed
+    const { error: tickErr } = await supabase.rpc('tick_holds');
+    if (!tickErr || !isMissingFunction(tickErr)) return;
+
     const safeResId = ensureUUID(reservationId);
     const safeHospId = ensureUUID(hospitalId);
 
@@ -505,6 +580,103 @@ export async function persistReservationExpired(reservationId: string, hospitalI
     }
   } catch (err) {
     console.warn('[BedLink] Failed to persist expired reservation to Supabase:', err);
+  }
+}
+
+/** The database function is not installed yet (spec_features SQL not run). */
+function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
+  return !!error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message ?? ''));
+}
+
+/** A column is not there yet (spec_features SQL not run). */
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  return (
+    !!error &&
+    (error.code === 'PGRST204' || error.code === '42703' || /could not find the .* column|column .* does not exist/i.test(error.message ?? ''))
+  );
+}
+
+/**
+ * +1 / -1 on a bed count, done by the database so two people changing the same count at once
+ * both count (no overwriting). Falls back to writing the whole number if not installed.
+ */
+export async function persistBedDelta(hospitalId: string, bedType: BedType, delta: number, actorName?: string) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase.rpc('adjust_bed_count', {
+      p_hospital_id: ensureUUID(hospitalId),
+      p_bed_type: bedType,
+      p_delta: delta,
+      p_actor_name: actorName ?? null
+    });
+    if (!error) return;
+    if (!isMissingFunction(error)) {
+      console.warn('[BedLink] adjust_bed_count warning:', error.message);
+      return;
+    }
+    const current = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
+    if (current) await persistBedUpdate(hospitalId, bedType, current.available_beds);
+  } catch (err) {
+    console.warn('[BedLink] Failed to save bed change:', err);
+  }
+}
+
+/** Dispatcher cancelled a pending hold: the server marks it and frees the bed in one step. */
+export async function persistHoldCancelled(reservation: Reservation) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase.rpc('cancel_hold', { p_reservation_id: ensureUUID(reservation.id) });
+    if (!error) return;
+    if (!isMissingFunction(error)) {
+      console.warn('[BedLink] cancel_hold warning:', error.message);
+      return;
+    }
+    await persistReservationStatus(reservation);
+    const current = bedLinkStore
+      .getBedInventories(reservation.hospital_id)
+      .find((b) => b.bed_type === reservation.bed_type);
+    if (current) await persistBedUpdate(reservation.hospital_id, reservation.bed_type, current.available_beds);
+  } catch (err) {
+    console.warn('[BedLink] Failed to save cancelled hold:', err);
+  }
+}
+
+/** No arrival by ETA + 15 min: the server clock releases it; fall back to direct writes. */
+export async function persistReservationReleased(reservation: Reservation) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase.rpc('tick_holds');
+    if (!error || !isMissingFunction(error)) return;
+    await persistReservationStatus(reservation);
+    const current = bedLinkStore
+      .getBedInventories(reservation.hospital_id)
+      .find((b) => b.bed_type === reservation.bed_type);
+    if (current) await persistBedUpdate(reservation.hospital_id, reservation.bed_type, current.available_beds);
+  } catch (err) {
+    console.warn('[BedLink] Failed to save released hold:', err);
+  }
+}
+
+/** Open / Busy / Diversion, saved through the coordinator-checked database function. */
+export async function persistEdStatus(hospitalId: string, status: EdStatus) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase.rpc('set_ed_status', { p_hospital_id: ensureUUID(hospitalId), p_status: status });
+    if (error) console.warn('[BedLink] set_ed_status warning (run the spec_features SQL?):', error.message);
+  } catch (err) {
+    console.warn('[BedLink] Failed to save hospital status:', err);
   }
 }
 
@@ -546,16 +718,25 @@ export async function resetDemoInDatabase(): Promise<string | null> {
  * "All counts still correct": refreshes the update time of every bed type at this hospital.
  * Only the times are written, so a count someone changed meanwhile is never overwritten.
  */
-export async function persistCountsConfirmed(hospitalId: string, confirmedAt: string, actorId?: string) {
+export async function persistCountsConfirmed(
+  hospitalId: string,
+  confirmedAt: string,
+  actorId?: string,
+  actorName?: string
+) {
   if (!isSupabaseConfigured()) return;
   const supabase = getBrowserSupabaseClient();
   if (!supabase) return;
 
   try {
-    const { error } = await supabase
+    const base = { updated_at: confirmedAt, updated_by: isUUID(actorId) ? actorId : null };
+    let { error } = await supabase
       .from('bed_inventory')
-      .update({ updated_at: confirmedAt, updated_by: isUUID(actorId) ? actorId : null })
+      .update({ ...base, updated_by_name: actorName ?? null })
       .eq('hospital_id', ensureUUID(hospitalId));
+    if (error && isMissingColumn(error)) {
+      ({ error } = await supabase.from('bed_inventory').update(base).eq('hospital_id', ensureUUID(hospitalId)));
+    }
     if (error) console.warn('[BedLink] counts confirm warning:', error.message);
   } catch (err) {
     console.warn('[BedLink] Failed to save counts confirmation to Supabase:', err);
@@ -581,6 +762,10 @@ export async function persistReservationStatus(reservation: Reservation) {
       })
       .eq('id', ensureUUID(reservation.id));
     if (error) console.warn('[BedLink] reservation status update warning:', error.message);
+    if (!error && reservation.arrived_at) {
+      // Optional column (spec_features SQL); ignore if it is not there yet
+      await supabase.from('reservations').update({ arrived_at: reservation.arrived_at }).eq('id', ensureUUID(reservation.id));
+    }
   } catch (err) {
     console.warn('[BedLink] Failed to persist reservation status to Supabase:', err);
   }

@@ -12,7 +12,9 @@ import {
   Reservation,
   ReservationEvent,
   ReservationStatus,
-  ScoredHospital
+  ScoredHospital,
+  EdStatus,
+  Urgency
 } from '../types';
 import {
   INITIAL_BED_INVENTORY,
@@ -40,7 +42,15 @@ export type SyncHandler = {
   /** Status / deadline change with no other side effects (shadow hold promoted or released). */
   onReservationStatus?: (reservation: Reservation) => void;
   /** Staff confirmed every count is still right: refresh the times only, never the counts. */
-  onCountsConfirmed?: (hospitalId: string, confirmedAt: string, actorId?: string) => void;
+  onCountsConfirmed?: (hospitalId: string, confirmedAt: string, actorId?: string, actorName?: string) => void;
+  /** +1 / -1 on a bed count, applied on the server so concurrent changes add up. */
+  onBedDelta?: (hospitalId: string, bedType: BedType, delta: number, actorName?: string) => void;
+  /** Dispatcher withdrew a pending hold. */
+  onHoldCancelled?: (reservation: Reservation) => void;
+  /** Accepted but no arrival by ETA + 15 min: the bed was given back. */
+  onReservationReleased?: (reservation: Reservation) => void;
+  /** Open / Busy / Diversion changed. */
+  onEdStatus?: (hospitalId: string, status: EdStatus) => void;
 };
 
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
@@ -175,6 +185,12 @@ class BedLinkDataStore {
       case 'shadow':
         // A pre-hold: not a request the hospital has to answer yet
         return 'shadow_hold_created';
+      case 'cancelled':
+        return 'reservation_cancelled';
+      case 'bed_lost':
+        return 'reservation_bed_lost';
+      case 'released':
+        return 'reservation_released';
       default:
         return 'reservation_updated';
     }
@@ -199,6 +215,9 @@ class BedLinkDataStore {
     const current = idx >= 0 ? this.reservations[idx] : item;
     if (!this.ownsRequest(current.request_id)) return { changed: true };
     if (knownStatus === 'pending' && (item.status === 'rejected' || item.status === 'expired')) {
+      return { changed: true, react: () => void this.runFallback(current) };
+    }
+    if (item.status === 'bed_lost' && (knownStatus === 'accepted' || knownStatus === 'pending')) {
       return { changed: true, react: () => void this.runFallback(current) };
     }
     if (item.status === 'accepted') {
@@ -269,13 +288,39 @@ class BedLinkDataStore {
     return this.triggerAutomaticFallbackWithShadows(failed.request_id, failed.hospital_id);
   }
 
-  public applyExternalHospitalUpdate(update: { id: string; current_load: number; load_updated_at: string }) {
+  public applyExternalHospitalUpdate(update: {
+    id: string;
+    current_load: number;
+    load_updated_at: string;
+    ed_status?: EdStatus;
+    reliability?: number;
+  }) {
     const hosp = this.hospitals.find((h) => h.id === update.id);
     if (hosp) {
       hosp.current_load = update.current_load;
       hosp.load_updated_at = update.load_updated_at;
+      if (update.ed_status) hosp.ed_status = update.ed_status;
+      if (typeof update.reliability === 'number') hosp.reliability = update.reliability;
       this.broadcast('hospital_updated', hosp);
     }
+  }
+
+  /** Reliability (0-100): reject -2, timeout -5, bed lost on arrival -15, arrival +1. */
+  private adjustReliability(hospitalId: string, delta: number) {
+    const hosp = this.hospitals.find((h) => h.id === hospitalId);
+    if (!hosp) return;
+    hosp.reliability = Math.max(0, Math.min(100, (hosp.reliability ?? 100) + delta));
+    this.broadcast('hospital_updated', hosp);
+  }
+
+  /** Coordinator sets Open / Busy / Diversion. On diversion, dispatch never picks this hospital. */
+  public setEdStatus(hospitalId: string, status: EdStatus): Hospital {
+    const hosp = this.hospitals.find((h) => h.id === hospitalId);
+    if (!hosp) throw new Error('Hospital not found');
+    hosp.ed_status = status;
+    this.broadcast('hospital_updated', hosp);
+    this.syncHandler?.onEdStatus?.(hospitalId, status);
+    return hosp;
   }
 
   /** True while hospitals and beds are the built-in demo set (not loaded from Supabase). */
@@ -444,9 +489,11 @@ class BedLinkDataStore {
     }
 
     const newCount = Math.max(0, Math.min(inv.total_beds, inv.available_beds + delta));
+    const appliedDelta = newCount - inv.available_beds;
     inv.available_beds = newCount;
     inv.updated_at = new Date().toISOString();
     inv.updated_by = actorId;
+    inv.updated_by_name = actorName;
 
     // Recalculate hospital load approximately
     const hosp = this.hospitals.find((h) => h.id === hospitalId);
@@ -461,7 +508,11 @@ class BedLinkDataStore {
     }
 
     this.broadcast('bed_updated', { hospitalId, bedType, available_beds: newCount, inv, actorName });
-    this.syncHandler?.onBedUpdate?.(hospitalId, bedType, newCount, actorId);
+    if (this.syncHandler?.onBedDelta) {
+      if (appliedDelta !== 0) this.syncHandler.onBedDelta(hospitalId, bedType, appliedDelta, actorName);
+    } else {
+      this.syncHandler?.onBedUpdate?.(hospitalId, bedType, newCount, actorId);
+    }
     return { ...inv };
   }
 
@@ -479,6 +530,7 @@ class BedLinkDataStore {
     for (const inv of beds) {
       inv.updated_at = confirmedAt;
       inv.updated_by = actorId;
+      inv.updated_by_name = actorName;
       this.broadcast('bed_updated', {
         hospitalId,
         bedType: inv.bed_type,
@@ -489,7 +541,7 @@ class BedLinkDataStore {
     }
     const hosp = this.hospitals.find((h) => h.id === hospitalId);
     if (hosp) hosp.load_updated_at = confirmedAt;
-    this.syncHandler?.onCountsConfirmed?.(hospitalId, confirmedAt, actorId);
+    this.syncHandler?.onCountsConfirmed?.(hospitalId, confirmedAt, actorId, actorName);
     return confirmedAt;
   }
 
@@ -568,6 +620,8 @@ class BedLinkDataStore {
       isShadow?: boolean;        // EC-1: pre-emptive shadow slot
       carrierId?: string;        // EC-3: ambulance/carrier unit ID
       distanceKm?: number;       // EC-3: distance used for auto-release ranking
+      urgency?: Urgency;         // sent to the hospital with the request
+      etaMinutes?: number;       // real drive time, so the hospital knows when to expect them
     }
   ): Reservation {
     const safeRequestId = ensureUUID(requestId);
@@ -658,7 +712,9 @@ class BedLinkDataStore {
         status: options?.isShadow ? 'shadow' : 'pending',
         requested_at: new Date().toISOString(),
         expires_at: expiresAt,
-        hospital_name: this.getHospital(hospitalId)?.name
+        hospital_name: this.getHospital(hospitalId)?.name,
+        patient_urgency: options?.urgency,
+        eta_minutes: options?.etaMinutes
       };
       this.reservations.unshift(reservation);
 
@@ -765,8 +821,61 @@ class BedLinkDataStore {
         inv
       });
     }
+    if (this.syncHandler?.onHoldCancelled) {
+      this.syncHandler.onHoldCancelled(reservation);
+    } else {
+      this.syncHandler?.onReservationStatus?.(reservation);
+      if (inv) this.syncHandler?.onBedUpdate?.(reservation.hospital_id, reservation.bed_type, inv.available_beds, actorId);
+    }
+    return reservation;
+  }
+
+  /**
+   * The server refused a hold this screen already showed (another ambulance got the last bed
+   * first, or the hospital went on diversion). Undo it here and, for our own patient, move on
+   * to the next hospital straight away.
+   */
+  public rollbackHold(reservationId: string, reason: string) {
+    const reservation = this.reservations.find((r) => r.id === reservationId);
+    if (!reservation || reservation.status !== 'pending') return;
+    reservation.status = 'cancelled';
+    reservation.responded_at = new Date().toISOString();
+    reservation.rejection_reason = reason;
+    const inv = this.bedInventories.find(
+      (b) => b.hospital_id === reservation.hospital_id && b.bed_type === reservation.bed_type
+    );
+    if (inv) inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
+    this.broadcast('reservation_conflict', { reservation, reason });
+    this.runFallback(reservation);
+  }
+
+  /**
+   * Hospital: the ambulance arrived but the held bed was gone. Costs reliability (-15) and the
+   * dispatcher's screen re-routes the patient to the next hospital.
+   */
+  public markBedLost(reservationId: string, actorId = 'coordinator', actorName = 'Hospital Coordinator'): Reservation {
+    const reservation = this.reservations.find((r) => r.id === reservationId);
+    if (!reservation) throw new Error('Reservation not found');
+    if (reservation.status !== 'accepted' && reservation.status !== 'pending') {
+      throw new Error(`This request is already ${reservation.status}.`);
+    }
+    const now = new Date().toISOString();
+    reservation.status = 'bed_lost';
+    reservation.responded_at = now;
+    const event: ReservationEvent = {
+      id: generateUUID(),
+      reservation_id: reservation.id,
+      event_type: 'reservation_bed_lost',
+      actor_id: actorId,
+      actor_name: actorName,
+      metadata: { hospital_id: reservation.hospital_id },
+      created_at: now
+    };
+    this.reservationEvents.unshift(event);
+    this.adjustReliability(reservation.hospital_id, -15);
+    this.broadcast('reservation_bed_lost', { reservation, event });
     this.syncHandler?.onReservationStatus?.(reservation);
-    if (inv) this.syncHandler?.onBedUpdate?.(reservation.hospital_id, reservation.bed_type, inv.available_beds, actorId);
+    this.runFallback(reservation);
     return reservation;
   }
 
@@ -853,6 +962,7 @@ class BedLinkDataStore {
       };
       this.reservationEvents.unshift(event);
 
+      this.adjustReliability(reservation.hospital_id, -2);
       this.broadcast('reservation_rejected', { reservation, event });
       if (inv) {
         this.broadcast('bed_updated', {
@@ -893,6 +1003,10 @@ class BedLinkDataStore {
       if (status === 'accepted' || status === 'completed') {
         res.accepted_by = actorId;
       }
+      if (status === 'completed' || status === 'arrived') {
+        res.arrived_at = res.responded_at;
+        this.adjustReliability(res.hospital_id, 1);
+      }
       const event: ReservationEvent = {
         id: generateUUID(),
         reservation_id: reservationId,
@@ -920,8 +1034,41 @@ class BedLinkDataStore {
         if (now >= expiresTime) {
           this.expireReservationInternal(reservation, '2-minute hospital response timeout reached');
         }
+      } else if (reservation.status === 'accepted' && !reservation.arrived_at) {
+        // No arrival by ETA + 15 minutes: give the bed back
+        const due = Date.parse(reservation.requested_at) + ((reservation.eta_minutes ?? 30) + 15) * 60_000;
+        if (now >= due) this.releaseReservation(reservation);
       }
     }
+  }
+
+  private releaseReservation(reservation: Reservation) {
+    reservation.status = 'released';
+    reservation.responded_at = new Date().toISOString();
+    const inv = this.bedInventories.find(
+      (b) => b.hospital_id === reservation.hospital_id && b.bed_type === reservation.bed_type
+    );
+    if (inv) inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
+    const event: ReservationEvent = {
+      id: generateUUID(),
+      reservation_id: reservation.id,
+      event_type: 'reservation_released',
+      actor_id: 'system',
+      actor_name: 'Automated Timeout Monitor',
+      metadata: { reason: 'No arrival by ETA + 15 min', hospital_id: reservation.hospital_id },
+      created_at: reservation.responded_at
+    };
+    this.reservationEvents.unshift(event);
+    this.broadcast('reservation_released', { reservation, event });
+    if (inv) {
+      this.broadcast('bed_updated', {
+        hospitalId: reservation.hospital_id,
+        bedType: reservation.bed_type,
+        available_beds: inv.available_beds,
+        inv
+      });
+    }
+    this.syncHandler?.onReservationReleased?.(reservation);
   }
 
   private expireReservationInternal(reservation: Reservation, reason: string) {
@@ -948,6 +1095,7 @@ class BedLinkDataStore {
     };
     this.reservationEvents.unshift(event);
 
+    this.adjustReliability(reservation.hospital_id, -5);
     this.broadcast('reservation_expired', { reservation, event });
     if (inv) {
       this.broadcast('bed_updated', {
@@ -1024,7 +1172,8 @@ class BedLinkDataStore {
           primary.hospital.id,
           request.required_bed_type,
           'system-fallback',
-          'Automated Fallback Router'
+          'Automated Fallback Router',
+          { urgency: request.urgency, etaMinutes: primary.etaMinutes }
         );
         const fallbackEvent: ReservationEvent = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
