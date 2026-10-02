@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { Minus, Plus, Check, AlertCircle } from 'lucide-react';
 import { BedInventory, BedType } from '@/lib/types';
@@ -22,6 +22,23 @@ const BED_METADATA: Record<BedType, { label: string; subtext: string; icon: stri
   emergency: { label: 'Emergency Resus', subtext: 'Trauma & Resuscitation Bays', icon: '⚡', image: '/emergency_resus_bed.jpg' },
   general: { label: 'General Ward', subtext: 'Standard Inpatient Admission', icon: '🛏️', image: '/general_ward_bed.jpg' }
 };
+
+/** Keeps the occupied bed numbers the user chose, adding or freeing beds to match the count. */
+function reconcileOccupied(prev: Set<number>, totalBeds: number, availableBeds: number): Set<number> {
+  const targetOccupiedCount = Math.max(0, totalBeds - availableBeds);
+  const next = new Set(Array.from(prev).filter((n) => n >= 1 && n <= totalBeds));
+  if (next.size < targetOccupiedCount) {
+    // Need more occupied beds (start from highest)
+    for (let b = totalBeds; b >= 1 && next.size < targetOccupiedCount; b--) next.add(b);
+  } else if (next.size > targetOccupiedCount) {
+    // Free some occupied beds (start from lowest)
+    for (const b of Array.from(next).sort((a, c) => a - c)) {
+      if (next.size === targetOccupiedCount) break;
+      next.delete(b);
+    }
+  }
+  return next;
+}
 
 export function BedTypeCard({
   inventory,
@@ -46,35 +63,14 @@ export function BedTypeCard({
     return initial;
   });
 
-  // Reconcile occupiedBeds state when external inventory changes
-  useEffect(() => {
-    setOccupiedBeds((prev) => {
-      const targetOccupiedCount = Math.max(0, inventory.total_beds - inventory.available_beds);
-      const validPrev = Array.from(prev).filter((n) => n >= 1 && n <= inventory.total_beds);
-
-      if (validPrev.length === targetOccupiedCount) {
-        return new Set(validPrev);
-      }
-
-      const nextSet = new Set(validPrev);
-      if (nextSet.size < targetOccupiedCount) {
-        // Need more occupied beds (start from highest)
-        for (let b = inventory.total_beds; b >= 1; b--) {
-          if (!nextSet.has(b)) {
-            nextSet.add(b);
-            if (nextSet.size === targetOccupiedCount) break;
-          }
-        }
-      } else if (nextSet.size > targetOccupiedCount) {
-        // Need to free some occupied beds (start from lowest occupied bed)
-        for (const b of Array.from(nextSet).sort((a, b) => a - b)) {
-          nextSet.delete(b);
-          if (nextSet.size === targetOccupiedCount) break;
-        }
-      }
-      return nextSet;
-    });
-  }, [inventory.available_beds, inventory.total_beds, inventory.id]);
+  // When the counts change elsewhere, bring the bed grid in line (adjusting state during render,
+  // React's pattern for "reset state when a prop changes")
+  const countsKey = `${inventory.id}:${inventory.total_beds}:${inventory.available_beds}`;
+  const [syncedCountsKey, setSyncedCountsKey] = useState(countsKey);
+  if (syncedCountsKey !== countsKey) {
+    setSyncedCountsKey(countsKey);
+    setOccupiedBeds((prev) => reconcileOccupied(prev, inventory.total_beds, inventory.available_beds));
+  }
 
   const meta = BED_METADATA[inventory.bed_type] || {
     label: inventory.bed_type.toUpperCase(),
@@ -128,6 +124,24 @@ export function BedTypeCard({
       });
       const msg = err instanceof Error ? err.message : 'Update failed';
       setErrorMessage(msg);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  /** Nurse one-tap: one more / one less free bed of this type. */
+  const handleFreeDelta = async (delta: number) => {
+    if (disabled || isUpdating) return;
+    if (delta < 0 && currentAvailable <= 0) return;
+    if (delta > 0 && currentAvailable >= inventory.total_beds) return;
+    setIsUpdating(true);
+    setErrorMessage(null);
+    try {
+      await onUpdateCount(inventory.bed_type, delta);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2000);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Update failed');
     } finally {
       setIsUpdating(false);
     }
@@ -318,6 +332,30 @@ export function BedTypeCard({
               Available Seats of <strong className="text-slate-700">{inventory.total_beds}</strong> total
             </span>
           </div>
+
+          {/* Nurse: big one-tap buttons for free beds (gloves, shaky hands, cheap phones) */}
+          {!onUpdateTotalBeds && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={disabled || isUpdating || currentAvailable <= 0}
+                onClick={() => handleFreeDelta(-1)}
+                aria-label={`One less free ${meta.label} bed`}
+                className="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 flex items-center justify-center border border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Minus className="w-7 h-7" />
+              </button>
+              <button
+                type="button"
+                disabled={disabled || isUpdating || currentAvailable >= inventory.total_beds}
+                onClick={() => handleFreeDelta(1)}
+                aria-label={`One more free ${meta.label} bed`}
+                className="w-14 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-7 h-7" />
+              </button>
+            </div>
+          )}
 
           {/* Stepper Buttons (Only rendered when onUpdateTotalBeds is provided, e.g. for Coordinator) */}
           {onUpdateTotalBeds && (

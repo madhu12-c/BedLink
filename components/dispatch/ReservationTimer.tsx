@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Timer, AlertTriangle } from 'lucide-react';
+import { useHydrated } from '@/lib/utils/useHydrated';
 
 interface ReservationTimerProps {
   expiresAt: string;
@@ -16,11 +17,10 @@ export function ReservationTimer({
   className = '',
   size = 'md'
 }: ReservationTimerProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const [secondsRemaining, setSecondsRemaining] = useState<number>(120);
 
   useEffect(() => {
-    setMounted(true);
     const calculate = () => {
       const diff = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
       const remaining = Math.max(0, diff);
@@ -30,9 +30,12 @@ export function ReservationTimer({
       }
     };
 
-    calculate();
+    const first = setTimeout(calculate, 0);
     const interval = setInterval(calculate, 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(first);
+      clearInterval(interval);
+    };
   }, [expiresAt, onExpire]);
 
   const displaySeconds = mounted ? secondsRemaining : 120;

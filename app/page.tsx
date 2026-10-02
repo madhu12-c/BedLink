@@ -7,7 +7,7 @@ import { PatientNeedForm, DispatchFormParams } from '@/components/dispatch/Patie
 import { HospitalMap } from '@/components/dispatch/HospitalMap';
 import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
-import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
+import { rankHospitals, rankHospitalsWithRealRoutes, RankingResult } from '@/lib/dispatch/ranking';
 import { BedType, ScoredHospital, Reservation } from '@/lib/types';
 import { generateUUID } from '@/lib/crypto/uuid';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
@@ -106,7 +106,11 @@ export default function DispatcherPage() {
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
   // Real road-ranked results (updated async from OSRM)
-  const [realRanked, setRealRanked] = useState<{ exactMatches: import('@/lib/types').ScoredHospital[]; partialMatches: import('@/lib/types').ScoredHospital[] } | null>(null);
+  // Road-distance ranking, tagged with the quick ranking it replaces (stale results are ignored)
+  const [realRanked, setRealRanked] = useState<{
+    forRanking: RankingResult;
+    result: RankingResult;
+  } | null>(null);
 
   // Voice assistant (Sarvam): spoken intake + spoken status updates for the crew
   const voiceAvailability = useVoiceAvailability();
@@ -247,7 +251,6 @@ export default function DispatcherPage() {
   // Async re-ranking with real OSRM road distances — updates list to match actual road route
   useEffect(() => {
     let cancelled = false;
-    setRealRanked(null); // reset while fetching
     const opts = {
       patientLocation: { latitude: formData.latitude, longitude: formData.longitude },
       requiredBedType: formData.bedType,
@@ -256,13 +259,14 @@ export default function DispatcherPage() {
       urgency: formData.urgency
     };
     rankHospitalsWithRealRoutes(candidates, opts).then((result) => {
-      if (!cancelled) setRealRanked(result);
+      if (!cancelled) setRealRanked({ forRanking: syncRanked, result });
     }).catch(() => { /* keep sync estimate */ });
     return () => { cancelled = true; };
-  }, [candidates, formData]);
+  }, [candidates, formData, syncRanked]);
 
-  // Use real road ranking if available, else show sync estimate immediately
-  const { exactMatches, partialMatches } = realRanked ?? syncRanked;
+  // Use the road ranking once it matches the current inputs, else the instant estimate
+  const { exactMatches, partialMatches } =
+    realRanked && realRanked.forRanking === syncRanked ? realRanked.result : syncRanked;
 
   const allRanked = useMemo(() => [...exactMatches, ...partialMatches], [exactMatches, partialMatches]);
 

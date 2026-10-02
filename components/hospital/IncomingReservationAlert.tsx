@@ -42,30 +42,27 @@ export function IncomingReservationAlert({
   const isExpired = reservation.status === 'expired';
   const isAnswered = isAccepted || isRejected || isExpired;
 
-  // When reservation is answered (accepted/rejected/expired), trigger 5-second auto-close timer!
+  // When the request is answered (accepted/rejected/expired), start the 5-second auto-close.
+  // Set during render when it changes (React's pattern), not inside an effect.
+  if (isAnswered && dismissCountdown === null && !isFadingOut && !isFullyDismissed) {
+    setDismissCountdown(5);
+  }
+
+  // Count down one second at a time
   useEffect(() => {
-    if (isAnswered && dismissCountdown === null && !isFadingOut && !isFullyDismissed) {
-      setDismissCountdown(5);
-    }
-  }, [isAnswered, dismissCountdown, isFadingOut, isFullyDismissed]);
+    if (dismissCountdown === null || dismissCountdown <= 0) return;
+    const tick = setTimeout(() => setDismissCountdown((prev) => (prev !== null && prev > 0 ? prev - 1 : 0)), 1000);
+    return () => clearTimeout(tick);
+  }, [dismissCountdown]);
 
+  // At zero: fade out, then remove the card
   useEffect(() => {
-    if (dismissCountdown === null) return;
-
-    if (dismissCountdown <= 0) {
-      setIsFadingOut(true);
-      const timer = setTimeout(() => {
-        setIsFullyDismissed(true);
-        onDismiss?.();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-
-    const interval = setInterval(() => {
-      setDismissCountdown((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    return () => clearInterval(interval);
+    if (dismissCountdown !== 0) return;
+    const fade = setTimeout(() => {
+      setIsFullyDismissed(true);
+      onDismiss?.();
+    }, 500);
+    return () => clearTimeout(fade);
   }, [dismissCountdown, onDismiss]);
 
   const handleManualDismiss = () => {
@@ -95,6 +92,8 @@ export function IncomingReservationAlert({
     }
   };
 
+  const fadingOut = isFadingOut || dismissCountdown === 0;
+
   if (isFullyDismissed) {
     return null;
   }
@@ -102,7 +101,7 @@ export function IncomingReservationAlert({
   return (
     <div
       className={`rounded-2xl border-2 p-5 sm:p-6 shadow-xl transition-all duration-500 transform ${
-        isFadingOut
+        fadingOut
           ? 'opacity-0 scale-95 -translate-y-4 max-h-0 overflow-hidden pointer-events-none p-0 my-0 border-0'
           : 'opacity-100 scale-100 translate-y-0 max-h-[800px]'
       } ${

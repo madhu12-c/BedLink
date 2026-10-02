@@ -314,7 +314,7 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               diagnosis: row.diagnosis ? String(row.diagnosis) : undefined,
               admitted_at: String(row.admitted_at || new Date().toISOString()),
               discharged_at: row.discharged_at ? String(row.discharged_at) : undefined,
-              status: (row.status as any) || 'occupied',
+              status: (row.status as BedHistoryLog['status']) || 'occupied',
               handover_sha256: row.handover_sha256 ? String(row.handover_sha256) : undefined,
               actor_name: String(row.actor_name || 'Staff Nurse'),
             });

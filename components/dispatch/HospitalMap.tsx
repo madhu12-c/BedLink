@@ -27,10 +27,15 @@ export function HospitalMap({
   const markersLayerGroupRef = useRef<LeafletType.LayerGroup | null>(null);
   const routeLineRef = useRef<LeafletType.Layer | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [isRouteLoading, setIsRouteLoading] = useState(false);
-  const [routeFailed, setRouteFailed] = useState(false);
-
   const selectedHospital = hospitals.find((h) => h.hospital.id === selectedHospitalId) || hospitals[0];
+  // Result of the last road-route lookup, tagged with the route it was for
+  const [routeResult, setRouteResult] = useState<{ key: string; failed: boolean } | null>(null);
+  const routeKey = selectedHospital
+    ? `${patientLocation.latitude},${patientLocation.longitude}->${selectedHospital.hospital.id}`
+    : null;
+  const isRouteLoading = routeKey !== null && routeResult?.key !== routeKey;
+  const routeFailed = routeKey !== null && routeResult?.key === routeKey && routeResult.failed;
+
 
   const initialLocationRef = useRef(patientLocation);
 
@@ -237,8 +242,7 @@ export function HospitalMap({
       const dest = { latitude: selectedHospital.hospital.latitude, longitude: selectedHospital.hospital.longitude };
 
       let isCurrent = true;
-      setIsRouteLoading(true);
-      setRouteFailed(false);
+      const thisRoute = `${origin.latitude},${origin.longitude}->${selectedHospital.hospital.id}`;
 
       fetchRoadPolyline(origin, dest)
         .then((roadCoords) => {
@@ -253,12 +257,9 @@ export function HospitalMap({
 
           // Empty polyline = OSRM failed, show nothing (better than building-cutting line)
           if (!roadCoords || roadCoords.length < 2) {
-            setIsRouteLoading(false);
-            setRouteFailed(true);
+            setRouteResult({ key: thisRoute, failed: true });
             return;
           }
-
-          setRouteFailed(false);
 
           // Outer high-contrast street outline (dark navy)
           const casing = currentL.polyline(roadCoords, {
@@ -280,7 +281,7 @@ export function HospitalMap({
 
           const group = currentL.layerGroup([casing, core]).addTo(currentMap);
           routeLineRef.current = group;
-          setIsRouteLoading(false);
+          setRouteResult({ key: thisRoute, failed: false });
 
           // Fit map bounds to show patient and target hospital
           const bounds = currentL.latLngBounds(roadCoords);
@@ -288,8 +289,7 @@ export function HospitalMap({
         })
         .catch(() => {
           if (!isCurrent) return;
-          setIsRouteLoading(false);
-          setRouteFailed(true);
+          setRouteResult({ key: thisRoute, failed: true });
           // Fit map to just show both points without a route line
           if (mapInstanceRef.current && leafletRef.current) {
             const currentL = leafletRef.current;

@@ -43,7 +43,7 @@ export function AmbulanceArrivalCountdown({
   onAcceptReservation
 }: AmbulanceArrivalCountdownProps) {
   const [selectedHandover, setSelectedHandover] = useState<PatientHandoverRecord | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [confirmLostId, setConfirmLostId] = useState<string | null>(null);
 
   // Tick every second for live countdown only when ambulances are en-route
