@@ -89,7 +89,7 @@ export function FreshnessIndicator({
     <span
       suppressHydrationWarning
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${currentStyle.badge} ${className}`}
-      title={mounted ? `Inventory updated at ${new Date(updatedAt).toLocaleTimeString()}` : 'Inventory update status'}
+      title="Inventory freshness status"
       role="status"
       aria-label={`${info.label} ${currentStyle.labelSuffix}`}
     >

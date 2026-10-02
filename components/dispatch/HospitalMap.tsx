@@ -53,13 +53,13 @@ export function HospitalMap({
           center: [initialLocationRef.current.latitude, initialLocationRef.current.longitude],
           zoom: 13,
           zoomControl: false,
-          attributionControl: false
+          attributionControl: true
         });
 
-        // CartoDB Voyager TileLayer - clean, modern, healthcare-appropriate
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        // OpenStreetMap tiles — free, no API key required
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          subdomains: 'abcd'
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
         L.control.zoom({ position: 'topright' }).addTo(map);
@@ -241,7 +241,7 @@ export function HospitalMap({
       <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-200/80 shadow-md text-xs flex items-center gap-3 pointer-events-auto">
         <div className="flex items-center gap-1.5 font-semibold text-slate-800">
           <Layers className="w-3.5 h-3.5 text-blue-600" />
-          <span>Leaflet GIS Route</span>
+          <span>OSM Live Route</span>
         </div>
         {selectedHospital && (
           <div className="flex items-center gap-2 text-slate-600 border-l border-slate-200 pl-3">
@@ -273,9 +273,9 @@ export function HospitalMap({
       <div className="bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between z-10">
         <span className="flex items-center gap-1">
           <Navigation className="w-3 h-3 text-blue-600" />
-          Leaflet GL OpenStreetMap Engine
+          Leaflet + OpenStreetMap
         </span>
-        <span className="font-mono text-slate-400">LEAFLET ACTIVE</span>
+        <span className="font-mono text-slate-400">LIVE MAP</span>
       </div>
     </div>
   );
