@@ -131,7 +131,8 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         phone: h.phone || undefined,
         created_at: h.created_at,
         ed_status: h.ed_status || 'open',
-        reliability: typeof h.reliability === 'number' ? h.reliability : 100
+        reliability: typeof h.reliability === 'number' ? h.reliability : 100,
+        free_care: h.free_care === 'govt' || h.free_care === 'charity' ? h.free_care : null
       }));
 
       const liveCaps: HospitalCapability[] = (capsRes.data || []).map((c) => ({

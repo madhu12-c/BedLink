@@ -3,6 +3,14 @@ export type BedType = 'icu' | 'ventilator' | 'oxygen' | 'cardiac' | 'burns' | 'e
 /** Emergency department status a hospital sets: on diversion, ambulances are not sent there. */
 export type EdStatus = 'open' | 'busy' | 'diversion';
 
+/**
+ * Free care for patients who can't pay:
+ * - govt: government / municipal hospital, free for everyone
+ * - charity: charitable trust hospital; Maharashtra law makes it keep 10% of beds free for
+ *   poor patients (income up to Rs 1.8 lakh) and 10% at concession
+ */
+export type FreeCare = 'govt' | 'charity';
+
 export type Urgency = 'critical' | 'urgent' | 'normal';
 
 export type Specialty = 'cardiac' | 'burns' | 'trauma' | 'neuro' | 'pediatric';
@@ -48,6 +56,8 @@ export interface Hospital {
   ed_status?: EdStatus;
   /** 0-100: drops on reject (-2), timeout (-5), bed lost on arrival (-15); +1 per arrival */
   reliability?: number;
+  /** Free care for patients who can't pay; null / missing = not known */
+  free_care?: FreeCare | null;
 }
 
 export interface HospitalCapability {
@@ -77,6 +87,8 @@ export interface EmergencyRequest {
   required_bed_type: BedType;
   required_specialty?: string | null;
   requires_ventilator?: boolean;
+  /** Patient can't pay: prefer government (free) and charity hospitals */
+  needs_free_care?: boolean;
   notes?: string | null;
   status: 'active' | 'holding' | 'matched' | 'cancelled' | 'completed';
   created_at: string;
