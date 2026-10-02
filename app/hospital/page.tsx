@@ -13,6 +13,7 @@ import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArriva
 import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { TelegramConnectButton } from '@/components/hospital/TelegramConnectButton';
+import { IncomingAmbulanceMap } from '@/components/hospital/IncomingAmbulanceMap';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -621,6 +622,9 @@ Bed Type: ${bed}
             )}
           </div>
         )}
+
+        {/* Accepted ambulances moving along the road to this hospital (both screens) */}
+        <IncomingAmbulanceMap key={currentHospital.id} hospital={currentHospital} incoming={incomingAmbulances} />
 
         {/* Admin only: preview either hospital screen. Staff get the screen for their role. */}
         {!isHospitalStaff && (
