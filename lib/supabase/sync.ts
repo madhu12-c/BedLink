@@ -639,6 +639,23 @@ export async function persistMessage(message: QuickMessage) {
   }
 }
 
+/**
+ * Where the ambulance picked the patient up, for the hospital's live map. Hospital staff may
+ * read the requests sent to their own hospital (row-level security); null if not found.
+ */
+export async function fetchPickupLocation(requestId: string): Promise<{ latitude: number; longitude: number } | null> {
+  if (!isSupabaseConfigured() || !isUUID(requestId)) return null;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from('emergency_requests')
+    .select('patient_latitude, patient_longitude')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!data || data.patient_latitude == null || data.patient_longitude == null) return null;
+  return { latitude: Number(data.patient_latitude), longitude: Number(data.patient_longitude) };
+}
+
 /** Tells the hospital's Telegram chats about a new hold (the server skips it if no bot is set up). */
 function notifyTelegram(reservationId: string) {
   void fetch('/api/telegram/notify', {

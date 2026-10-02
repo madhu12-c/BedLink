@@ -43,6 +43,35 @@ export function calculateHaversineDistanceKm(
   return R * c;
 }
 
+/**
+ * The point a given fraction (0-1) of the way along a road route, by distance, plus how much
+ * of the route is left. Used to show a simulated ambulance moving along the real road.
+ */
+export function pointAlongRoute(
+  route: [number, number][],
+  fraction: number
+): { point: [number, number]; remainingKm: number; totalKm: number } {
+  if (route.length === 0) return { point: [0, 0], remainingKm: 0, totalKm: 0 };
+  const legs = route.slice(1).map((p, i) => calculateHaversineDistanceKm(route[i][0], route[i][1], p[0], p[1]));
+  const totalKm = legs.reduce((sum, km) => sum + km, 0);
+  const f = Math.max(0, Math.min(1, fraction));
+  let left = f * totalKm;
+  for (let i = 0; i < legs.length; i++) {
+    if (left <= legs[i] || i === legs.length - 1) {
+      const t = legs[i] > 0 ? Math.min(1, left / legs[i]) : 1;
+      const [lat1, lng1] = route[i];
+      const [lat2, lng2] = route[i + 1];
+      return {
+        point: [lat1 + (lat2 - lat1) * t, lng1 + (lng2 - lng1) * t],
+        remainingKm: totalKm * (1 - f),
+        totalKm
+      };
+    }
+    left -= legs[i];
+  }
+  return { point: route[route.length - 1], remainingKm: 0, totalKm };
+}
+
 // In-memory cache — keyed by 3-decimal coord precision (~111m grid)
 const routeCache = new Map<string, RouteResult>();
 
