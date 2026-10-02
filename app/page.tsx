@@ -8,6 +8,8 @@ import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
 import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
 import { ScoredHospital, UserRole, Reservation } from '@/lib/types';
+import { generateUUID } from '@/lib/crypto/uuid';
+import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
 import {
   ShieldAlert,
@@ -45,7 +47,7 @@ export default function DispatcherPage() {
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(null);
-  const currentRequestId = 'req-demo-1';
+  const [currentRequestId] = useState(() => generateUUID());
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
@@ -67,6 +69,10 @@ export default function DispatcherPage() {
 
       if (event.type === 'reservation_created') {
         const payload = event.payload as { reservation: Reservation };
+        playEmergencyAlertSound();
+        triggerEmergencyNotification('🛏️ EMERGENCY BED HOLD ACTIVE', {
+          body: `Facility: ${payload.reservation.hospital_name || 'Hospital'}\nBed: ${payload.reservation.bed_type.toUpperCase()}\n2-minute confirmation timer started.`
+        });
         setActiveReservation(payload.reservation);
         setActionNotice(`Hold initiated for ${payload.reservation.hospital_name || 'Hospital'}. 2-minute confirmation timer started.`);
         // Auto-switch to hospitals tab to see the hold

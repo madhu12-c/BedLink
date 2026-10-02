@@ -67,24 +67,38 @@ CREATE INDEX IF NOT EXISTS idx_handovers_reservation ON patient_handovers(reserv
 CREATE INDEX IF NOT EXISTS idx_handovers_hospital ON patient_handovers(destination_hospital_id);
 
 -- ============================================================
--- SECTION D: Enable Realtime (AFTER tables exist!)
+-- SECTION D: Enable Realtime (Dynamic EXECUTE prevents 42P01)
 -- ============================================================
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_inventory') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory;
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'bed_inventory') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_inventory') THEN
+      EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory';
+    END IF;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'reservations') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'reservations') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'reservations') THEN
+      EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE reservations';
+    END IF;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'hospitals') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE hospitals;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'hospitals') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'hospitals') THEN
+      EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE hospitals';
+    END IF;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_history_logs') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE bed_history_logs;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'bed_history_logs') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_history_logs') THEN
+      EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE bed_history_logs';
+    END IF;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'patient_handovers') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE patient_handovers;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'patient_handovers') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'patient_handovers') THEN
+      EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE patient_handovers';
+    END IF;
   END IF;
 END $$;
 

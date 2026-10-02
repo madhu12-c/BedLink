@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     request_id UUID NOT NULL REFERENCES emergency_requests(id) ON DELETE CASCADE,
     hospital_id UUID NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
     bed_type TEXT NOT NULL CHECK (bed_type IN ('icu', 'ventilator', 'oxygen', 'emergency', 'general')),
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'expired', 'cancelled', 'completed')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'expired', 'cancelled', 'completed', 'shadow', 'auto_released')),
     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '2 minutes'),
     responded_at TIMESTAMPTZ,

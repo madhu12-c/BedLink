@@ -10,6 +10,7 @@ import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, Reservation, UserRole } from '@/lib/types';
 import { persistBedHistoryLog, persistPatientHandover } from '@/lib/supabase/sync';
+import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import {
   Sparkles,
   Bell,
@@ -34,6 +35,13 @@ export default function HospitalNursePage() {
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showAddBedModal, setShowAddBedModal] = useState(false);
 
+  // Request notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
   // Subscribe to realtime store events
   useEffect(() => {
     const unsubscribe = bedLinkStore.subscribe((event) => {
@@ -41,10 +49,22 @@ export default function HospitalNursePage() {
 
       if (event.type === 'reservation_created') {
         const payload = event.payload as { reservation: Reservation };
-        if (payload.reservation.hospital_id === selectedHospitalId) {
-          setActiveReservation(payload.reservation);
-          setToastMessage(`🚨 INCOMING EMERGENCY HOLD REQUEST! 2-minute decision timer started.`);
-        }
+        const hosp = bedLinkStore.getHospital(payload.reservation.hospital_id);
+        const hospName = hosp?.name || payload.reservation.hospital_name || 'Hospital';
+
+        // Play loud audible chime immediately
+        playEmergencyAlertSound();
+
+        // Push desktop notification
+        triggerEmergencyNotification('🚨 INCOMING EMERGENCY BED HOLD!', {
+          body: `Hospital: ${hospName}\nBed Type: ${payload.reservation.bed_type.toUpperCase()}\n2-minute decision timer started.`
+        });
+
+        // Auto-switch to the held hospital so staff immediately sees the triage alert!
+        setSelectedHospitalId(payload.reservation.hospital_id);
+        setActiveReservation(payload.reservation);
+        setRole('nurse'); // Ensure triage card is front and center
+        setToastMessage(`🚨 INCOMING EMERGENCY HOLD at ${hospName}! 2-minute decision timer started.`);
       } else if (event.type === 'reservation_accepted') {
         const payload = event.payload as { reservation: Reservation };
         if (payload.reservation.hospital_id === selectedHospitalId) {
@@ -64,8 +84,11 @@ export default function HospitalNursePage() {
         }
       } else if (event.type === 'fallback_triggered') {
         const payload = event.payload as { newReservation: Reservation };
-        if (payload.newReservation?.hospital_id === selectedHospitalId) {
+        playEmergencyAlertSound();
+        if (payload.newReservation?.hospital_id) {
+          setSelectedHospitalId(payload.newReservation.hospital_id);
           setActiveReservation(payload.newReservation);
+          setRole('nurse');
           setToastMessage(`🚨 INCOMING FALLBACK EMERGENCY: Patient re-routed to your facility!`);
         }
       }

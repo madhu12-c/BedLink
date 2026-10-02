@@ -1,7 +1,9 @@
 import { getBrowserSupabaseClient, isSupabaseConfigured } from './client';
 import { bedLinkStore } from '../data/store';
 import { BedHistoryLog, BedInventory, BedType, Hospital, HospitalCapability, Reservation, ReservationEvent } from '../types';
+import { isUUID, ensureUUID, generateUUID } from '../crypto/uuid';
 
+let initPromise: Promise<boolean> | null = null;
 let syncInitialized = false;
 let isConnected = false;
 let lastSyncTime: string | null = null;
@@ -47,15 +49,19 @@ export function getSupabaseStatus() {
  * 1. Initial snapshot fetch from PostgreSQL
  * 2. Supabase Realtime WebSocket subscription on tables
  */
-export async function initSupabaseSync(): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
+export function initSupabaseSync(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
   if (!isSupabaseConfigured()) {
     isConnected = false;
     notifyConnectionChange();
-    return false;
+    return Promise.resolve(false);
   }
-  if (syncInitialized) return isConnected;
+  if (initPromise) return initPromise;
+  initPromise = runSupabaseSyncInit();
+  return initPromise;
+}
 
+async function runSupabaseSyncInit(): Promise<boolean> {
   const supabase = getBrowserSupabaseClient();
   if (!supabase) return false;
 
@@ -177,7 +183,13 @@ export async function initSupabaseSync(): Promise<boolean> {
       notifyConnectionChange();
     }
 
-    // 2. Setup Supabase Realtime Channels
+    // 2. Setup Supabase Realtime Channels (safely remove old channel if exists to avoid duplicate callbacks)
+    const existingChannels = supabase.getChannels();
+    const oldChannel = existingChannels.find((c) => c.topic === 'realtime:bedlink_live_bus');
+    if (oldChannel) {
+      await supabase.removeChannel(oldChannel);
+    }
+
     const channel = supabase
       .channel('bedlink_live_bus')
       .on(
@@ -277,6 +289,7 @@ export async function initSupabaseSync(): Promise<boolean> {
     return true;
   } catch (err) {
     console.warn('Supabase sync initialization warning:', err);
+    initPromise = null;
     isConnected = false;
     notifyConnectionChange();
     return false;
@@ -292,12 +305,14 @@ export async function persistBedUpdate(hospitalId: string, bedType: BedType, new
   if (!supabase) return;
 
   try {
+    // updated_by must be a valid UUID referencing profiles(id) — null for non-UUID actor IDs
+    const isValidUUID = actorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actorId);
     await supabase
       .from('bed_inventory')
       .update({
         available_beds: newAvailable,
         updated_at: new Date().toISOString(),
-        updated_by: actorId || null
+        updated_by: isValidUUID ? actorId : null
       })
       .eq('hospital_id', hospitalId)
       .eq('bed_type', bedType);
@@ -315,44 +330,75 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
   if (!supabase) return;
 
   try {
-    // 1. Insert reservation
-    await supabase.from('reservations').insert({
-      id: reservation.id,
-      request_id: reservation.request_id,
-      hospital_id: reservation.hospital_id,
+    const safeReservationId = ensureUUID(reservation.id);
+    const safeRequestId = ensureUUID(reservation.request_id);
+    const safeHospitalId = ensureUUID(reservation.hospital_id);
+
+    // 1. Ensure emergency_request row exists (request_id FK must resolve)
+    const { error: reqErr } = await supabase.from('emergency_requests').upsert({
+      id: safeRequestId,
+      patient_latitude: 19.2158,
+      patient_longitude: 72.8623,
+      urgency: 'critical',
+      required_bed_type: reservation.bed_type,
+      status: 'holding'
+    }, { onConflict: 'id' });
+
+    if (reqErr) {
+      console.warn('[BedLink] emergency_requests upsert warning:', reqErr.message);
+    }
+
+    // 2. Insert reservation — upsert to handle duplicate holds gracefully
+    const allowedStatuses = ['pending', 'accepted', 'rejected', 'expired', 'cancelled', 'completed', 'shadow', 'auto_released'];
+    const safeStatus = allowedStatuses.includes(reservation.status) ? reservation.status : 'pending';
+
+    const { error: resErr } = await supabase.from('reservations').upsert({
+      id: safeReservationId,
+      request_id: safeRequestId,
+      hospital_id: safeHospitalId,
       bed_type: reservation.bed_type,
-      status: reservation.status,
+      status: safeStatus,
       requested_at: reservation.requested_at,
       expires_at: reservation.expires_at
-    });
+    }, { onConflict: 'id' });
 
-    // 2. Decrement bed inventory
+    if (resErr) {
+      console.error('[BedLink] Reservation upsert error:', resErr.message, resErr.details);
+      return;
+    }
+    console.info('[BedLink] Successfully saved reservation hold to Supabase:', safeReservationId);
+
+    // 3. Update bed inventory count (triggers Realtime on other devices)
     const currentBeds = bedLinkStore.getBedInventories(reservation.hospital_id).find((b) => b.bed_type === reservation.bed_type);
     if (currentBeds) {
-      await supabase
+      const { error: bedErr } = await supabase
         .from('bed_inventory')
         .update({
           available_beds: currentBeds.available_beds,
           updated_at: new Date().toISOString(),
-          updated_by: actorId || null
+          updated_by: isUUID(actorId) ? actorId : null
         })
-        .eq('hospital_id', reservation.hospital_id)
+        .eq('hospital_id', safeHospitalId)
         .eq('bed_type', reservation.bed_type);
+      if (bedErr) {
+        console.warn('[BedLink] bed_inventory update warning:', bedErr.message);
+      }
     }
 
-    // 3. Log event
+    // 4. Log audit event
     await supabase.from('reservation_events').insert({
-      reservation_id: reservation.id,
+      id: generateUUID(),
+      reservation_id: safeReservationId,
       event_type: 'reservation_created',
-      actor_id: actorId || null,
+      actor_id: isUUID(actorId) ? actorId : null,
       metadata: {
-        hospital_id: reservation.hospital_id,
+        hospital_id: safeHospitalId,
         bed_type: reservation.bed_type,
         expires_at: reservation.expires_at
       }
     });
   } catch (err) {
-    console.warn('Failed to persist reservation hold to Supabase:', err);
+    console.warn('[BedLink] Failed to persist reservation hold to Supabase:', err);
   }
 }
 
@@ -372,45 +418,47 @@ export async function persistReservationResponse(
   if (!supabase) return;
 
   try {
+    const safeResId = ensureUUID(reservationId);
+    const safeHospId = ensureUUID(hospitalId);
     const status = action === 'accept' ? 'accepted' : 'rejected';
+
     await supabase
       .from('reservations')
       .update({
         status,
         responded_at: new Date().toISOString(),
-        accepted_by: action === 'accept' ? (actorId || null) : null,
+        accepted_by: action === 'accept' && isUUID(actorId) ? actorId : null,
         rejection_reason: action === 'reject' ? (rejectionReason || null) : null
       })
-      .eq('id', reservationId);
+      .eq('id', safeResId);
 
-    // If rejected, restore bed count in Supabase
-    if (action === 'reject') {
-      const currentBeds = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
-      if (currentBeds) {
-        await supabase
-          .from('bed_inventory')
-          .update({
-            available_beds: currentBeds.available_beds,
-            updated_at: new Date().toISOString(),
-            updated_by: actorId || null
-          })
-          .eq('hospital_id', hospitalId)
-          .eq('bed_type', bedType);
-      }
+    // Restore/update bed count in Supabase (fires Realtime on all devices)
+    const currentBeds = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
+    if (currentBeds) {
+      await supabase
+        .from('bed_inventory')
+        .update({
+          available_beds: currentBeds.available_beds,
+          updated_at: new Date().toISOString(),
+          updated_by: isUUID(actorId) ? actorId : null
+        })
+        .eq('hospital_id', safeHospId)
+        .eq('bed_type', bedType);
     }
 
-    // Log event
+    // Log audit event
     await supabase.from('reservation_events').insert({
-      reservation_id: reservationId,
+      id: generateUUID(),
+      reservation_id: safeResId,
       event_type: action === 'accept' ? 'reservation_accepted' : 'reservation_rejected',
-      actor_id: actorId || null,
+      actor_id: isUUID(actorId) ? actorId : null,
       metadata: {
         action,
         rejection_reason: rejectionReason || null
       }
     });
   } catch (err) {
-    console.warn('Failed to persist reservation response to Supabase:', err);
+    console.warn('[BedLink] Failed to persist reservation response to Supabase:', err);
   }
 }
 
@@ -423,27 +471,32 @@ export async function persistReservationExpired(reservationId: string, hospitalI
   if (!supabase) return;
 
   try {
+    const safeResId = ensureUUID(reservationId);
+    const safeHospId = ensureUUID(hospitalId);
+
     await supabase
       .from('reservations')
       .update({
         status: 'expired',
         responded_at: new Date().toISOString()
       })
-      .eq('id', reservationId);
+      .eq('id', safeResId);
 
+    // Restore inventory — fires Realtime bed_inventory update on all devices
     const currentBeds = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
     if (currentBeds) {
       await supabase
         .from('bed_inventory')
         .update({
           available_beds: currentBeds.available_beds,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          updated_by: null
         })
-        .eq('hospital_id', hospitalId)
+        .eq('hospital_id', safeHospId)
         .eq('bed_type', bedType);
     }
   } catch (err) {
-    console.warn('Failed to persist expired reservation to Supabase:', err);
+    console.warn('[BedLink] Failed to persist expired reservation to Supabase:', err);
   }
 }
 

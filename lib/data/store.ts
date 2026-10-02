@@ -21,6 +21,7 @@ import {
 } from '../demo/seed-data';
 import { INITIAL_BED_HISTORY_LOGS } from '../demo/bed-history-data';
 import { generateDefaultHandover } from '../crypto/handoverSha';
+import { generateUUID, ensureUUID } from '../crypto/uuid';
 import { rankHospitals } from '../dispatch/ranking';
 
 export type SyncHandler = {
@@ -379,7 +380,7 @@ class BedLinkDataStore {
   public createEmergencyRequest(requestData: Omit<EmergencyRequest, 'id' | 'created_at' | 'status'>): EmergencyRequest {
     const newReq: EmergencyRequest = {
       ...requestData,
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`,
+      id: generateUUID(),
       status: 'active',
       created_at: new Date().toISOString()
     };
@@ -405,6 +406,7 @@ class BedLinkDataStore {
       distanceKm?: number;       // EC-3: distance used for auto-release ranking
     }
   ): Reservation {
+    const safeRequestId = ensureUUID(requestId);
     const lockKey = `${hospitalId}::${bedType}`;
 
     // ── EC-2: Race-condition guard ──────────────────────────────────────────
@@ -412,17 +414,17 @@ class BedLinkDataStore {
     // async callers (paramedic app + dispatcher) firing within the same tick
     // via BroadcastChannel can.  We set a hard lock that survives the tick.
     const existingLock = this.bedHoldLocks.get(lockKey);
-    if (existingLock && existingLock.lockedByRequestId !== requestId) {
+    if (existingLock && existingLock.lockedByRequestId !== safeRequestId) {
       // Another request is currently holding the lock for this bed slot.
       // Log a blocked event and throw so the caller can re-route.
       const blockedEvent: ReservationEvent = {
-        id: `evt-${Date.now()}-race`,
+        id: generateUUID(),
         reservation_id: 'race-block',
         event_type: 'race_condition_blocked',
         actor_id: actorId,
         actor_name: actorName,
         metadata: {
-          blocked_request_id: requestId,
+          blocked_request_id: safeRequestId,
           lock_held_by: existingLock.lockedByRequestId,
           hospital_id: hospitalId,
           bed_type: bedType
@@ -431,7 +433,7 @@ class BedLinkDataStore {
       };
       this.reservationEvents.unshift(blockedEvent);
       this.broadcast('race_condition_blocked', {
-        requestId,
+        requestId: safeRequestId,
         hospitalId,
         bedType,
         blockedByRequestId: existingLock.lockedByRequestId
@@ -446,14 +448,14 @@ class BedLinkDataStore {
       hospitalId,
       bedType,
       lockedAt: Date.now(),
-      lockedByRequestId: requestId
+      lockedByRequestId: safeRequestId
     });
 
     // ── EC-3: Auto-release farthest hold if same carrier ───────────────────
     if (options?.carrierId && options?.distanceKm !== undefined) {
       this.enforceCarrierSingleHold(
         options.carrierId,
-        requestId,
+        safeRequestId,
         hospitalId,
         options.distanceKm
       );
@@ -481,15 +483,12 @@ class BedLinkDataStore {
       inv.updated_by = actorId;
 
       // 3. Create reservation (shadow or primary)
-      const reservationId =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `res-${Date.now()}`;
+      const reservationId = generateUUID();
       const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
 
       const reservation: Reservation = {
         id: reservationId,
-        request_id: requestId,
+        request_id: safeRequestId,
         hospital_id: hospitalId,
         bed_type: bedType,
         status: options?.isShadow ? 'shadow' : 'pending',
@@ -502,10 +501,7 @@ class BedLinkDataStore {
       // 4. Audit event
       const eventType = options?.isShadow ? 'shadow_hold_created' : 'reservation_created';
       const event: ReservationEvent = {
-        id:
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `evt-${Date.now()}`,
+        id: generateUUID(),
         reservation_id: reservationId,
         event_type: eventType,
         actor_id: actorId,
@@ -514,7 +510,7 @@ class BedLinkDataStore {
           hospital_id: hospitalId,
           bed_type: bedType,
           expires_at: expiresAt,
-          requestId,
+          requestId: safeRequestId,
           is_shadow: options?.isShadow ?? false
         },
         created_at: new Date().toISOString()
@@ -597,7 +593,7 @@ class BedLinkDataStore {
       }
 
       const event: ReservationEvent = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+        id: generateUUID(),
         reservation_id: reservationId,
         event_type: 'reservation_accepted',
         actor_id: actorId,
@@ -631,7 +627,7 @@ class BedLinkDataStore {
       }
 
       const event: ReservationEvent = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+        id: generateUUID(),
         reservation_id: reservationId,
         event_type: 'reservation_rejected',
         actor_id: actorId,
@@ -699,7 +695,7 @@ class BedLinkDataStore {
     }
 
     const event: ReservationEvent = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+      id: generateUUID(),
       reservation_id: reservation.id,
       event_type: 'reservation_expired',
       actor_id: 'system',
@@ -856,7 +852,7 @@ class BedLinkDataStore {
 
     shadowRes.status = 'pending';
     const event: ReservationEvent = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+      id: generateUUID(),
       reservation_id: shadowRes.id,
       event_type: 'shadow_hold_activated',
       actor_id: 'system',
@@ -902,7 +898,7 @@ class BedLinkDataStore {
       }
 
       const event: ReservationEvent = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+        id: generateUUID(),
         reservation_id: shadow.id,
         event_type: 'shadow_hold_released',
         actor_id: 'system',
@@ -1121,7 +1117,7 @@ class BedLinkDataStore {
 
     // Log to reservation_events / audit
     const event: ReservationEvent = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+      id: generateUUID(),
       reservation_id: `bed-add-${hospitalId}`,
       event_type: 'bed_updated',
       actor_name: actorName,
