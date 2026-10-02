@@ -52,11 +52,10 @@ export function CityIcuHeatmap({
           attributionControl: true
         });
 
-        // Crisp dark-slate CARTO basemap perfect for emergency heatmaps
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        // Clean OpenStreetMap standard tiles (No API key, zero watermarks)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          subdomains: 'abcd',
-          attribution: '&copy; OpenStreetMap &copy; CARTO'
+          attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -117,27 +116,27 @@ export function CityIcuHeatmap({
       // Critical Red (0) -> Amber (1-2) -> Lime/Green (3-5) -> Bright Cyan (>5)
       let fillColor = '#10b981'; // emerald
       let strokeColor = '#059669';
-      let radiusMeters = 550;
-      let haloRadiusMeters = 850;
+      let radiusMeters = 220;
+      let haloRadiusMeters = 380;
       let intensityText = 'Optimal Capacity';
 
       if (value === 0) {
         fillColor = '#ef4444'; // critical red
         strokeColor = '#b91c1c';
-        radiusMeters = 650;
-        haloRadiusMeters = 1000;
+        radiusMeters = 260;
+        haloRadiusMeters = 440;
         intensityText = 'CRITICAL DEFICIT / DIVERT';
       } else if (value <= 2) {
         fillColor = '#f59e0b'; // amber
         strokeColor = '#d97706';
-        radiusMeters = 500;
-        haloRadiusMeters = 750;
+        radiusMeters = 200;
+        haloRadiusMeters = 340;
         intensityText = 'Tight Reserve';
       } else if (value > 5) {
         fillColor = '#06b6d4'; // bright cyan
         strokeColor = '#0891b2';
-        radiusMeters = 600;
-        haloRadiusMeters = 900;
+        radiusMeters = 240;
+        haloRadiusMeters = 400;
         intensityText = 'Abundant Capacity';
       }
 
@@ -146,7 +145,7 @@ export function CityIcuHeatmap({
         radius: haloRadiusMeters,
         color: fillColor,
         fillColor: fillColor,
-        fillOpacity: value === 0 ? 0.28 : 0.16,
+        fillOpacity: value === 0 ? 0.20 : 0.12,
         weight: 0,
         interactive: false
       });
@@ -157,8 +156,8 @@ export function CityIcuHeatmap({
         radius: radiusMeters,
         color: strokeColor,
         fillColor: fillColor,
-        fillOpacity: value === 0 ? 0.55 : 0.45,
-        weight: 2
+        fillOpacity: value === 0 ? 0.38 : 0.25,
+        weight: 1.5
       });
       core.addTo(layerGroup);
 
