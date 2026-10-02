@@ -224,3 +224,20 @@ button {
   }
 }
 
+
+
+/* Sunlight mode: maximum contrast for phones used outdoors (toggle in the header).
+   Tailwind v4 colours are CSS variables, so darkening the greys lifts every muted text and
+   faint border at once; the fresh/old/none colours stay as they are. */
+html[data-sunlight='on'] {
+  --color-slate-300: #475569;
+  --color-slate-400: #1e293b;
+  --color-slate-500: #0f172a;
+  --color-slate-600: #020617;
+  --color-slate-200: #64748b;
+  --color-slate-100: #e2e8f0;
+}
+html[data-sunlight='on'] body {
+  background: #ffffff;
+  font-weight: 500;
+}

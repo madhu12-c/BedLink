@@ -602,7 +602,7 @@ Bed Type: ${bed}
                         type="button"
                         aria-pressed={active}
                         onClick={() => handleEdStatus(status)}
-                        className={`px-3 min-h-[40px] text-xs font-extrabold capitalize ${
+                        className={`px-4 min-h-[48px] text-sm font-extrabold capitalize ${
                           active ? color : 'bg-white text-slate-600 hover:bg-slate-50'
                         }`}
                       >

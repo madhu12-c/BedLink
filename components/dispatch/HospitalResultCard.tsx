@@ -277,7 +277,7 @@ export function HospitalResultCard({
           <a
             href={callUrl(hospital.phone)}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[40px]"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[44px]"
             aria-label={`Call ${hospital.name}`}
           >
             <Phone className="w-3.5 h-3.5" />
@@ -289,7 +289,7 @@ export function HospitalResultCard({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[40px]"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[44px]"
           aria-label={`Directions to ${hospital.name}`}
         >
           <Navigation className="w-3.5 h-3.5" />
@@ -334,7 +334,7 @@ export function HospitalResultCard({
               e.stopPropagation();
               onHoldBed(hospital.id);
             }}
-            className={`w-full py-3.5 sm:py-2.5 px-4 rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm transition-all duration-150 flex items-center justify-center gap-2 min-h-[54px] sm:min-h-[44px] ${
+            className={`w-full py-3.5 sm:py-2.5 px-4 rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm transition-all duration-150 flex items-center justify-center gap-2 min-h-[56px] sm:min-h-[44px] ${
               availableBeds > 0 && !onDiversion
                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl active:scale-[0.98]'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'

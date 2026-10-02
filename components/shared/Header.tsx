@@ -13,12 +13,14 @@ import {
   Clock,
   PhoneCall,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Sun
 } from 'lucide-react';
 import { initSupabaseSync, subscribeSupabaseStatus } from '@/lib/supabase/sync';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { canAccess, ROLE_LABELS } from '@/lib/auth/roles';
 import { bedLinkStore } from '@/lib/data/store';
+import { applySunlight, useSunlight } from '@/lib/utils/sunlight';
 
 interface HeaderProps {
   hideBottomNav?: boolean;
@@ -37,6 +39,9 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
   const pathname = usePathname();
   const { user, role, lockedHospitalId, demoMode, signOut, signingOut } = useAuth();
   const userHospitalName = lockedHospitalId ? bedLinkStore.getHospital(lockedHospitalId)?.name ?? null : null;
+  const [sunlight, setSunlight] = useSunlight();
+  // Re-apply the remembered choice after a page load
+  useEffect(() => applySunlight(sunlight), [sunlight]);
 
   // Supabase Realtime State
   const [supabaseState, setSupabaseState] = useState({
@@ -208,6 +213,20 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                   : 'DEMO'}
               </span>
             </div>
+
+            {/* Sunlight mode: high contrast for outdoor use */}
+            <button
+              type="button"
+              onClick={() => setSunlight(!sunlight)}
+              aria-pressed={sunlight}
+              title={sunlight ? 'Sunlight mode on (high contrast)' : 'Sunlight mode: high contrast for outdoor use'}
+              className={`flex items-center gap-1.5 rounded-lg px-2 min-h-[36px] text-xs font-bold border transition-colors ${
+                sunlight ? 'bg-amber-400 text-slate-950 border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <Sun className="w-4 h-4" />
+              <span className="hidden lg:inline">Sunlight</span>
+            </button>
 
             {/* Signed-in user + sign out */}
             {demoMode ? (

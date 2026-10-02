@@ -1,5 +1,6 @@
 'use client';
 
+import { useHydrated } from '@/lib/utils/useHydrated';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Clock } from 'lucide-react';
 import { FreshnessCategory } from '@/lib/types';
@@ -52,11 +53,10 @@ export function FreshnessIndicator({
   className = '',
   showIcon = true
 }: FreshnessIndicatorProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    setMounted(true);
     const interval = setInterval(() => {
       setNow(Date.now());
     }, 15000);
@@ -79,9 +79,9 @@ export function FreshnessIndicator({
       labelSuffix: '(Fresh)'
     },
     recent: {
-      text: 'text-blue-700 dark:text-blue-400',
-      badge: 'bg-blue-50 text-blue-800 border-blue-200',
-      dot: 'bg-blue-500',
+      text: 'text-emerald-700 dark:text-emerald-400',
+      badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      dot: 'bg-emerald-400',
       labelSuffix: '(Recent)'
     },
     aging: {
@@ -91,9 +91,9 @@ export function FreshnessIndicator({
       labelSuffix: '(Aging)'
     },
     stale: {
-      text: 'text-rose-700 dark:text-rose-400',
-      badge: 'bg-rose-50 text-rose-800 border-rose-200',
-      dot: 'bg-rose-500',
+      text: 'text-red-700 dark:text-red-400',
+      badge: 'bg-red-50 text-red-800 border-red-200',
+      dot: 'bg-red-500',
       labelSuffix: '(Stale)'
     }
   };

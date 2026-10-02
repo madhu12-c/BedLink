@@ -76,7 +76,7 @@ export function ActiveHoldBar({ reservation, onCancel }: ActiveHoldBarProps) {
               href={navigateUrl(hospital.latitude, hospital.longitude)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 bg-white text-slate-900 font-extrabold text-sm rounded-xl px-3 min-h-[48px]"
+              className="flex items-center justify-center gap-1.5 bg-white text-slate-900 font-extrabold text-sm rounded-xl px-3 min-h-[56px]"
             >
               <Navigation className="w-4 h-4" />
               Navigate
@@ -85,7 +85,7 @@ export function ActiveHoldBar({ reservation, onCancel }: ActiveHoldBarProps) {
           {hospital?.phone && (
             <a
               href={callUrl(hospital.phone)}
-              className="flex items-center justify-center gap-1.5 bg-white/15 border border-white/40 font-bold text-sm rounded-xl px-3 min-h-[48px]"
+              className="flex items-center justify-center gap-1.5 bg-white/15 border border-white/40 font-bold text-sm rounded-xl px-3 min-h-[56px]"
             >
               <Phone className="w-4 h-4" />
               Call
@@ -95,7 +95,7 @@ export function ActiveHoldBar({ reservation, onCancel }: ActiveHoldBarProps) {
             <button
               type="button"
               onClick={handleCancel}
-              className={`flex items-center justify-center gap-1.5 font-bold text-sm rounded-xl px-3 min-h-[48px] border ${
+              className={`flex items-center justify-center gap-1.5 font-bold text-sm rounded-xl px-3 min-h-[56px] border ${
                 confirmingCancel ? 'bg-red-600 border-red-300' : 'bg-white/15 border-white/40'
               }`}
             >
