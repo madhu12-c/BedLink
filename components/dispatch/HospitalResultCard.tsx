@@ -74,9 +74,9 @@ export function HospitalResultCard({
     >
       {/* Top Bar: Rank & Status */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
               rank === 1 && isExactMatch
                 ? 'bg-amber-500 text-white shadow-sm'
                 : 'bg-slate-100 text-slate-700'
@@ -84,6 +84,11 @@ export function HospitalResultCard({
           >
             {rank}
           </span>
+          <img 
+            src="/icons/hospital-building.svg" 
+            alt="Hospital" 
+            className="w-7 h-7 object-contain shrink-0 drop-shadow-sm" 
+          />
           <h3 className="font-semibold text-slate-900 text-base leading-snug">
             {hospital.name}
           </h3>

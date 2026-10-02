@@ -103,19 +103,29 @@ export function HospitalMap({
       routeLineRef.current = null;
     }
 
-    // Patient / Ambulance Pulsing Marker
+    // Patient / Ambulance Pulsing Graphic Vehicle Marker
     const patientIcon = L.divIcon({
       className: 'leaflet-patient-marker',
       html: `
-        <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-          <div style="position: absolute; inset: -4px; border-radius: 50%; background-color: rgba(220, 38, 38, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-          <div style="background-color: #dc2626; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.45); border: 2.5px solid white; z-index: 10;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10h4"/><path d="M12 8v4"/><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+        <div style="position: relative; width: 64px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <!-- Emergency Beacon Pulse Glow -->
+          <div style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle, rgba(239,68,68,0.4) 0%, rgba(59,130,246,0.2) 60%, transparent 80%); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          
+          <!-- Realistic Top-Down Ambulance Vehicle Graphic -->
+          <img 
+            src="/icons/ambulance-top.svg" 
+            alt="Ambulance" 
+            style="width: 60px; height: 30px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45)); transform: rotate(-10deg); transition: transform 0.2s;"
+          />
+          
+          <!-- Origin Tag -->
+          <div style="position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); background: #dc2626; color: #ffffff; font-size: 9px; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; border: 1.5px solid #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.25); white-space: nowrap;">
+            AMBULANCE
           </div>
         </div>
       `,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18]
+      iconSize: [64, 36],
+      iconAnchor: [32, 18]
     });
 
     const patientMarker = L.marker([patientLocation.latitude, patientLocation.longitude], {
@@ -124,47 +134,76 @@ export function HospitalMap({
 
     patientMarker.bindPopup(`
       <div style="font-family: inherit;">
-        <span style="display: block; font-size: 10px; font-weight: 800; color: #dc2626; text-transform: uppercase; letter-spacing: 0.05em;">Emergency Triage</span>
+        <span style="display: block; font-size: 10px; font-weight: 800; color: #dc2626; text-transform: uppercase; letter-spacing: 0.05em;">Emergency Ambulance</span>
         <strong style="font-size: 13px; color: #0f172a; display: block; margin-top: 2px;">Patient / Ambulance Origin</strong>
         <span style="font-size: 11px; color: #64748b; font-family: monospace;">${patientLocation.latitude.toFixed(4)}, ${patientLocation.longitude.toFixed(4)}</span>
       </div>
     `);
 
-    // Hospital Markers
+    // Hospital Markers with Graphic Image of Hospital Building
     hospitals.forEach((h, index) => {
       const isSelected = h.hospital.id === selectedHospitalId;
       const isExact = h.isExactMatch;
 
-      const bgColor = isSelected ? '#2563eb' : isExact ? '#0f172a' : '#64748b';
-      const scale = isSelected ? '1.15' : '1.0';
+      const badgeBg = isSelected ? '#2563eb' : isExact ? '#0f172a' : '#64748b';
+      const glowEffect = isSelected ? 'drop-shadow(0 0 10px rgba(37,99,235,0.7)) drop-shadow(0 6px 12px rgba(0,0,0,0.4))' : 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))';
+      const scale = isSelected ? '1.18' : '1.0';
       const zIndexOffset = isSelected ? 1000 : 100;
 
       const hospitalIcon = L.divIcon({
         className: `leaflet-hospital-marker-${h.hospital.id}`,
         html: `
           <div style="
-            background-color: ${bgColor};
-            color: #ffffff;
-            padding: 4px 9px;
-            border-radius: 9999px;
-            font-size: 11px;
-            font-weight: 800;
+            position: relative;
+            width: 52px;
+            height: 52px;
             display: flex;
             align-items: center;
-            gap: 5px;
-            border: 2px solid #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+            justify-content: center;
             transform: scale(${scale});
-            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             cursor: pointer;
-            white-space: nowrap;
           ">
-            <span style="background: rgba(255,255,255,0.25); border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px;">#${index + 1}</span>
-            <span>${h.etaMinutes}m</span>
+            <!-- Floating Rank & ETA Pill above roof -->
+            <div style="
+              position: absolute;
+              top: -10px;
+              left: 50%;
+              transform: translateX(-50%);
+              background-color: ${badgeBg};
+              color: #ffffff;
+              padding: 2px 7px;
+              border-radius: 9999px;
+              font-size: 10px;
+              font-weight: 800;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              border: 1.5px solid #ffffff;
+              box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+              white-space: nowrap;
+              z-index: 20;
+            ">
+              <span style="background: rgba(255,255,255,0.25); border-radius: 50%; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px;">#${index + 1}</span>
+              <span>${h.etaMinutes}m</span>
+            </div>
+
+            <!-- Graphic Hospital Building Image -->
+            <img 
+              src="/icons/hospital-building.svg" 
+              alt="${h.hospital.name}"
+              style="
+                width: 48px;
+                height: 48px;
+                object-fit: contain;
+                filter: ${glowEffect};
+                margin-top: 4px;
+              "
+            />
           </div>
         `,
-        iconSize: [66, 28],
-        iconAnchor: [33, 14]
+        iconSize: [52, 52],
+        iconAnchor: [26, 38]
       });
 
       const marker = L.marker([h.hospital.latitude, h.hospital.longitude], {

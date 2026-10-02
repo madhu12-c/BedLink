@@ -109,7 +109,10 @@ export function PatientNeedForm({
       {/* Patient Location */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-          <span>Patient / Ambulance Location</span>
+          <span className="flex items-center gap-1.5">
+            <img src="/icons/ambulance-top.svg" alt="Ambulance" className="w-5 h-2.5 object-contain" />
+            <span>Patient / Ambulance Origin</span>
+          </span>
           <button
             type="button"
             onClick={onUseCurrentLocation}

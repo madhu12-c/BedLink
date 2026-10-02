@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50">
+  <defs>
+    <filter id="amb-shadow" x="-10%" y="-10%" width="125%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#334155" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Drop Shadow & Main Ambulance Body -->
+  <g filter="url(#amb-shadow)">
+    <!-- Main Chassis Outer Contour -->
+    <path d="
+      M 16 7
+      C 11 11, 7 18, 7 25
+      C 7 32, 11 39, 16 43
+      C 22 44, 82 44, 88 43
+      C 91 43, 93 40, 93 36
+      L 93 14
+      C 93 10, 91 7, 88 7
+      Z"
+      fill="#ffffff"
+      stroke="#1e293b"
+      stroke-width="1.8"
+      stroke-linejoin="round"
+    />
+
+    <!-- Red Racing/Emergency Side Stripes -->
+    <line x1="28" y1="8" x2="87" y2="8" stroke="#dc2626" stroke-width="1.6" stroke-linecap="round" />
+    <line x1="28" y1="42" x2="87" y2="42" stroke="#dc2626" stroke-width="1.6" stroke-linecap="round" />
+
+    <!-- Side Mirrors -->
+    <path d="M 25 7 L 27 3 L 30 5 L 28 7 Z" fill="#ffffff" stroke="#1e293b" stroke-width="1" />
+    <path d="M 25 43 L 27 47 L 30 45 L 28 43 Z" fill="#ffffff" stroke="#1e293b" stroke-width="1" />
+
+    <!-- Front Headlights -->
+    <path d="M 9 14 C 11 15, 13 18, 11 20 C 9 19, 8 16, 9 14 Z" fill="#bae6fd" stroke="#0284c7" stroke-width="0.7" />
+    <path d="M 9 36 C 11 35, 13 32, 11 30 C 9 31, 8 34, 9 36 Z" fill="#bae6fd" stroke="#0284c7" stroke-width="0.7" />
+
+    <!-- Front Hood Red Cross Emblem -->
+    <circle cx="15" cy="25" r="4.8" fill="#dc2626" />
+    <path d="M 15 22.2 L 15 27.8 M 12.2 25 L 17.8 25" stroke="#ffffff" stroke-width="1.6" stroke-linecap="square" />
+
+    <!-- Front Windshield -->
+    <path d="
+      M 21 11
+      L 34 13
+      L 34 37
+      L 21 39
+      C 20 33, 20 17, 21 11
+      Z"
+      fill="url(#glass)"
+      stroke="#0f172a"
+      stroke-width="1"
+    />
+    <!-- Windshield subtle glare line -->
+    <line x1="23" y1="16" x2="31" y2="34" stroke="#ffffff" stroke-width="0.8" opacity="0.4" stroke-linecap="round" />
+
+    <!-- Side Windows Left (Top in view) -->
+    <path d="M 25 8.5 L 38 10.5 L 48 10.5 L 48 8.5 Z" fill="url(#glass)" stroke="#0f172a" stroke-width="0.8" />
+    <path d="M 50 8.5 L 69 8.5 L 69 10.5 L 50 10.5 Z" fill="url(#glass)" stroke="#0f172a" stroke-width="0.8" />
+
+    <!-- Side Windows Right (Bottom in view) -->
+    <path d="M 25 41.5 L 38 39.5 L 48 39.5 L 48 41.5 Z" fill="url(#glass)" stroke="#0f172a" stroke-width="0.8" />
+    <path d="M 50 41.5 L 69 41.5 L 69 39.5 L 50 39.5 Z" fill="url(#glass)" stroke="#0f172a" stroke-width="0.8" />
+
+    <!-- Emergency Roof Lightbar (Blue / Dark Grey) -->
+    <rect x="47" y="14" width="4.5" height="22" rx="1.5" fill="#1e293b" />
+    <rect x="47.5" y="15" width="3.5" height="8" rx="1" fill="#2563eb" />
+    <rect x="47.5" y="27" width="3.5" height="8" rx="1" fill="#2563eb" />
+    <rect x="47.5" y="23.5" width="3.5" height="3" fill="#64748b" />
+
+    <!-- Star of Life on Roof (Blue 6-pointed medical emblem) -->
+    <g transform="translate(67, 25)">
+      <!-- 6-armed star -->
+      <path d="
+        M -2 -7 L 2 -7 L 2 -4 L 6 -6 L 8 -3 L 4 -1 L 7 2 L 5 5 L 2 3 L 2 7 L -2 7 L -2 3 L -5 5 L -7 2 L -4 -1 L -8 -3 L -6 -6 L -2 -4 Z"
+        fill="#1d4ed8"
+      />
+      <!-- Center snake/staff motif simplified -->
+      <line x1="0" y1="-5.5" x2="0" y2="5.5" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" />
+      <path d="M -0.8 -2.5 C 0.8 -1.5, 0.8 1.5, -0.8 2.5" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" />
+    </g>
+
+    <!-- Roof Vent / Antenna Dot -->
+    <circle cx="82" cy="25" r="1.8" fill="#1e293b" />
+
+    <!-- Rear Door Parting Line & Bumpers -->
+    <line x1="88" y1="25" x2="93" y2="25" stroke="#1e293b" stroke-width="1.2" />
+    <rect x="88" y="10" width="3" height="30" fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="1 2" />
+    <rect x="91" y="12" width="2" height="6" rx="0.5" fill="#0f172a" />
+    <rect x="91" y="32" width="2" height="6" rx="0.5" fill="#0f172a" />
+  </g>
+</svg>
