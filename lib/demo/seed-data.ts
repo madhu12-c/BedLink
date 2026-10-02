@@ -3,6 +3,8 @@ import { BedInventory, Hospital, HospitalCapability } from '../types';
 // Static demo timestamps: fixed offsets from a reference time to ensure
 // consistent hydration between server and client renders.
 const REF = '2026-10-02T04:00:00.000Z';
+/** The fixed time the demo ages count back from. The browser shifts it to "now" after loading. */
+export const SEED_REFERENCE_MS = new Date(REF).getTime();
 function ago(minutesBefore: number) {
   return new Date(new Date(REF).getTime() - minutesBefore * 60 * 1000).toISOString();
 }

@@ -17,7 +17,8 @@ import {
 import {
   INITIAL_BED_INVENTORY,
   INITIAL_CAPABILITIES,
-  INITIAL_HOSPITALS
+  INITIAL_HOSPITALS,
+  SEED_REFERENCE_MS
 } from '../demo/seed-data';
 import { INITIAL_BED_HISTORY_LOGS } from '../demo/bed-history-data';
 import { generateDefaultHandover } from '../crypto/handoverSha';
@@ -114,6 +115,7 @@ class BedLinkDataStore {
     bedHistoryLogs?: BedHistoryLog[];
   }) {
     if (!data) return;
+    if ((data.hospitals?.length ?? 0) > 0 || (data.bedInventories?.length ?? 0) > 0) this.usingSeedData = false;
     if (data.hospitals && data.hospitals.length > 0) this.hospitals = data.hospitals;
     if (data.capabilities && data.capabilities.length > 0) this.capabilities = data.capabilities;
     if (data.bedInventories && data.bedInventories.length > 0) this.bedInventories = data.bedInventories;
@@ -276,7 +278,36 @@ class BedLinkDataStore {
     }
   }
 
+  /** True while hospitals and beds are the built-in demo set (not loaded from Supabase). */
+  private usingSeedData = true;
+  private demoClockStarted = false;
+
+  /**
+   * Demo data uses fixed times so the server and the browser render the same page. Once the
+   * page runs in the browser, shift them so ages count from now (e.g. one hospital stays about
+   * 45 minutes stale) instead of drifting to "1 day ago" as the day goes on.
+   */
+  public startDemoClock() {
+    if (this.demoClockStarted) return;
+    this.demoClockStarted = true;
+    if (this.usingSeedData) {
+      this.rebaseSeedTimes();
+      this.notifyListeners('SYNC_STATE', null);
+    }
+  }
+
+  private rebaseSeedTimes() {
+    const offset = Date.now() - SEED_REFERENCE_MS;
+    const shift = (iso: string) => new Date(Date.parse(iso) + offset).toISOString();
+    for (const h of this.hospitals) {
+      h.load_updated_at = shift(h.load_updated_at);
+      if (h.created_at) h.created_at = shift(h.created_at);
+    }
+    for (const b of this.bedInventories) b.updated_at = shift(b.updated_at);
+  }
+
   public resetToDefaults() {
+    this.usingSeedData = true;
     this.hospitals = JSON.parse(JSON.stringify(INITIAL_HOSPITALS));
     this.capabilities = JSON.parse(JSON.stringify(INITIAL_CAPABILITIES));
     this.bedInventories = JSON.parse(JSON.stringify(INITIAL_BED_INVENTORY));
@@ -285,6 +316,7 @@ class BedLinkDataStore {
     this.emergencyRequests = [];
     this.bedHistoryLogs = JSON.parse(JSON.stringify(INITIAL_BED_HISTORY_LOGS));
     this.patientHandovers = new Map();
+    if (this.demoClockStarted) this.rebaseSeedTimes();
   }
 
   private broadcast(type: string, payload: unknown) {
@@ -690,6 +722,55 @@ class BedLinkDataStore {
   }
 
   /**
+   * Dispatcher withdraws a pending hold (e.g. tapped the wrong hospital). The bed is freed right
+   * away and the hospital's request card goes away.
+   */
+  public cancelHold(reservationId: string, actorId = 'disp-1', actorName = 'Dispatcher'): Reservation {
+    const reservation = this.reservations.find((r) => r.id === reservationId);
+    if (!reservation) {
+      throw new Error('Reservation not found');
+    }
+    if (reservation.status !== 'pending') {
+      throw new Error(`Only a hold that is still waiting can be cancelled (now: ${reservation.status}).`);
+    }
+    const now = new Date().toISOString();
+    reservation.status = 'cancelled';
+    reservation.responded_at = now;
+
+    const inv = this.bedInventories.find(
+      (b) => b.hospital_id === reservation.hospital_id && b.bed_type === reservation.bed_type
+    );
+    if (inv) {
+      inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
+      inv.updated_at = now;
+    }
+
+    const event: ReservationEvent = {
+      id: generateUUID(),
+      reservation_id: reservation.id,
+      event_type: 'reservation_cancelled',
+      actor_id: actorId,
+      actor_name: actorName,
+      metadata: { hospital_id: reservation.hospital_id, reason: 'Cancelled by dispatcher' },
+      created_at: now
+    };
+    this.reservationEvents.unshift(event);
+
+    this.broadcast('reservation_cancelled', { reservation, event });
+    if (inv) {
+      this.broadcast('bed_updated', {
+        hospitalId: reservation.hospital_id,
+        bedType: reservation.bed_type,
+        available_beds: inv.available_beds,
+        inv
+      });
+    }
+    this.syncHandler?.onReservationStatus?.(reservation);
+    if (inv) this.syncHandler?.onBedUpdate?.(reservation.hospital_id, reservation.bed_type, inv.available_beds, actorId);
+    return reservation;
+  }
+
+  /**
    * Hospital Responds to Reservation (Accept / Reject) - Step 16, 17, 18
    */
   public respondReservationAtomic(
@@ -933,7 +1014,7 @@ class BedLinkDataStore {
     });
 
     const ranked = [...ranking.exactMatches, ...ranking.partialMatches];
-    const [primary, shadow] = ranked;
+    const [primary] = ranked;
 
     // Hold primary as normal 'pending'
     if (primary) {
@@ -971,25 +1052,8 @@ class BedLinkDataStore {
       }
     }
 
-    // EC-1: Pre-emptively hold shadow slot at hospital #2
-    if (shadow) {
-      try {
-        this.holdBedAtomic(
-          requestId,
-          shadow.hospital.id,
-          request.required_bed_type,
-          'system-shadow',
-          'Shadow Pre-Hold System',
-          { isShadow: true }
-        );
-        console.info(
-          `[EC-1] Shadow pre-hold created at ${shadow.hospital.name} for request ${requestId}`
-        );
-      } catch (err) {
-        // Shadow hold failure is non-fatal — primary fallback still works
-        console.warn('[EC-1] Shadow hold attempt failed (non-fatal):', err);
-      }
-    }
+    // Shadow pre-holds at the next hospital are off: they took a real bed from a hospital that
+    // never agreed to it. If this hospital also fails, the next one is held at that point.
 
     return primary;
   }

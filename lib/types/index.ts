@@ -116,7 +116,8 @@ export interface ReservationEvent {
     | 'shadow_hold_activated'  // Edge Case 1: shadow promoted to primary
     | 'shadow_hold_released'   // Edge Case 1: shadow released (primary was accepted)
     | 'race_condition_blocked'  // Edge Case 2: second carrier lost the race
-    | 'auto_released_distant';  // Edge Case 3: farthest hold auto-released
+    | 'auto_released_distant'  // Edge Case 3: farthest hold auto-released
+    | 'reservation_cancelled'; // dispatcher withdrew a pending hold
   actor_id?: string | null;
   actor_name?: string | null;
   metadata: Record<string, unknown>;
