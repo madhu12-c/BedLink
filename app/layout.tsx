@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "@/components/auth/AuthProvider";
+import { getCurrentUser } from "@/lib/auth/session";
+import { getSupabaseEnv } from "@/lib/supabase/env";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -62,11 +65,14 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const demoMode = getSupabaseEnv() === null;
+  const user = demoMode ? null : await getCurrentUser();
+
   return (
     <html
       lang="en"
@@ -85,7 +91,9 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=yes" />
       </head>
       <body className="min-h-full bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
-        {children}
+        <AuthProvider user={user} demoMode={demoMode}>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

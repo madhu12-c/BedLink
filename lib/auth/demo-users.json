@@ -1,0 +1,14 @@
+[
+  { "email": "admin@bedlink.test", "name": "Regional EMS Admin", "role": "admin", "hospitalId": null },
+  { "email": "dispatcher@bedlink.test", "name": "108 Dispatch Control", "role": "dispatcher", "hospitalId": null },
+  { "email": "nurse.aditi@bedlink.test", "name": "Ward Nurse, Aditi Hospital", "role": "nurse", "hospitalId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
+  { "email": "coordinator.aditi@bedlink.test", "name": "Coordinator, Aditi Hospital", "role": "coordinator", "hospitalId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
+  { "email": "nurse.lifeline@bedlink.test", "name": "Ward Nurse, Lifeline Medicare", "role": "nurse", "hospitalId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
+  { "email": "coordinator.lifeline@bedlink.test", "name": "Coordinator, Lifeline Medicare", "role": "coordinator", "hospitalId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
+  { "email": "nurse.dna@bedlink.test", "name": "Ward Nurse, DNA Multispeciality", "role": "nurse", "hospitalId": "cccccccc-cccc-cccc-cccc-cccccccccccc" },
+  { "email": "coordinator.dna@bedlink.test", "name": "Coordinator, DNA Multispeciality", "role": "coordinator", "hospitalId": "cccccccc-cccc-cccc-cccc-cccccccccccc" },
+  { "email": "nurse.apex@bedlink.test", "name": "Ward Nurse, Apex Superspeciality", "role": "nurse", "hospitalId": "dddddddd-dddd-dddd-dddd-dddddddddddd" },
+  { "email": "coordinator.apex@bedlink.test", "name": "Coordinator, Apex Superspeciality", "role": "coordinator", "hospitalId": "dddddddd-dddd-dddd-dddd-dddddddddddd" },
+  { "email": "nurse.shatabdi@bedlink.test", "name": "Ward Nurse, Shatabdi Hospital", "role": "nurse", "hospitalId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee" },
+  { "email": "coordinator.shatabdi@bedlink.test", "name": "Coordinator, Shatabdi Hospital", "role": "coordinator", "hospitalId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee" }
+]
