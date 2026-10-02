@@ -259,12 +259,21 @@ Bed Type: ${bed}
       bed_identifier: assignment.bedIdentifier,
       patient_id: assignment.handover.patient_id,
       patient_name: patientName,
+      patient_age: assignment.handover.patient_age,
+      patient_gender: assignment.handover.patient_gender,
       diagnosis: `${assignment.handover.chief_complaint} [Auto Need: ${assignment.needReason}]`,
       admitted_at: assignment.admittedAt,
       discharged_at: undefined,
       status: 'occupied',
       handover_sha256: assignment.handover.sha256_hash,
-      actor_name: admittedBy
+      actor_name: admittedBy,
+      vitals: assignment.handover.vitals,
+      allergies: assignment.handover.allergies,
+      medications_administered: assignment.handover.medications_administered,
+      procedures_performed: assignment.handover.procedures_performed,
+      paramedic_badge_id: assignment.handover.paramedic_badge_id,
+      ambulance_vehicle_id: assignment.handover.ambulance_vehicle_id,
+      triage_level: assignment.handover.triage_level
     });
 
     // 4. Persist to Supabase → cross-device visibility
@@ -593,12 +602,18 @@ Bed Type: ${bed}
               onUpdateCount={handleUpdateCount}
             />
 
+            {/* Patient Bed Occupancy History & Handover Audit Trail with total patient details */}
+            <BedHistoryLogTable
+              logs={bedHistoryLogs}
+              hospitalName={currentHospital?.name || 'Hospital'}
+              onSelectHandover={(handover) => setSelectedHandoverForModal(handover)}
+            />
+
             {/* Nurse Guidance Banner */}
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-900">
               <Lock className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
-                <strong>Ward Nurse screen:</strong> tap to update free beds. Ambulance requests, arrivals and new beds
-                are handled by the hospital coordinator.
+                <strong>Ward Nurse screen:</strong> rapid bed updates and real-time patient audit trail with en-route procedures and administered medications. Ambulance requests, arrivals and authorized allocations are coordinated with the desk.
               </span>
             </div>
           </div>
@@ -703,6 +718,7 @@ Bed Type: ${bed}
             <BedHistoryLogTable
               logs={bedHistoryLogs}
               hospitalName={currentHospital?.name || 'Hospital'}
+              onSelectHandover={(handover) => setSelectedHandoverForModal(handover)}
             />
           </div>
         )}

@@ -14,7 +14,10 @@ import {
   X,
   Lock,
   Stethoscope,
-  AlertTriangle
+  AlertTriangle,
+  Pill,
+  Syringe,
+  CheckCircle2
 } from 'lucide-react';
 
 interface PatientHandoverModalProps {
@@ -209,6 +212,24 @@ export function PatientHandoverModal({
               <div class="card">
                 <div class="label">Heart Rate</div>
                 <div class="value">${handover.vitals.heart_rate} bpm</div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${handover?.procedures_performed && handover.procedures_performed.length > 0 ? `
+            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; padding: 12px; border-radius: 8px; margin: 14px 0;">
+              <div class="label" style="color: #6d28d9;">Procedures Done En-Route / On-Scene</div>
+              <div style="font-size: 13px; font-weight: 600; color: #4c1d95; margin-top: 4px; line-height: 1.6;">
+                ${handover.procedures_performed.map(p => `• ${p}`).join('<br/>')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${handover?.medications_administered && handover.medications_administered.length > 0 ? `
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; margin: 14px 0;">
+              <div class="label" style="color: #1d4ed8;">Medications Given On The Way</div>
+              <div style="font-size: 13px; font-weight: 600; color: #1e3a8a; margin-top: 4px; line-height: 1.6;">
+                ${handover.medications_administered.map(m => `• ${m}`).join('<br/>')}
               </div>
             </div>
           ` : ''}
@@ -427,14 +448,18 @@ export function PatientHandoverModal({
             </div>
           )}
 
-          {/* Allergies & Medications */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">Known Allergies</span>
-              <div className="flex flex-wrap gap-1.5 mt-2">
+          {/* Clinical Interventions: Allergies, Procedures & Medications */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Known Allergies */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <span>Known Allergies</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
                 {handover?.allergies && handover.allergies.length > 0 ? (
                   handover.allergies.map((allergy, i) => (
-                    <span key={i} className="text-xs font-semibold bg-red-100 text-red-800 px-2.5 py-1 rounded-lg">
+                    <span key={i} className="text-xs font-semibold bg-red-100 text-red-800 px-2.5 py-1 rounded-lg border border-red-200">
                       {allergy}
                     </span>
                   ))
@@ -444,19 +469,54 @@ export function PatientHandoverModal({
               </div>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-                Medications Administered En-Route
-              </span>
-              <div className="flex flex-wrap gap-1.5 mt-2">
+            {/* Procedures Done En-Route */}
+            <div className="bg-purple-50/60 p-4 rounded-xl border border-purple-200 flex flex-col">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-purple-900">
+                  <Syringe className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Procedures Done En-Route</span>
+                </div>
+                {handover?.procedures_performed && handover.procedures_performed.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-200/80 text-purple-900">
+                    {handover.procedures_performed.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {handover?.procedures_performed && handover.procedures_performed.length > 0 ? (
+                  handover.procedures_performed.map((proc, i) => (
+                    <span key={i} className="text-xs font-semibold bg-white text-purple-900 border border-purple-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                      {proc}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-purple-600/70 font-medium">None recorded</span>
+                )}
+              </div>
+            </div>
+
+            {/* Medications Administered En-Route */}
+            <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 flex flex-col">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-900">
+                  <Pill className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Medicines Given On The Way</span>
+                </div>
+                {handover?.medications_administered && handover.medications_administered.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-200/80 text-blue-900">
+                    {handover.medications_administered.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
                 {handover?.medications_administered && handover.medications_administered.length > 0 ? (
                   handover.medications_administered.map((med, i) => (
-                    <span key={i} className="text-xs font-semibold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-lg">
+                    <span key={i} className="text-xs font-semibold bg-white text-blue-900 border border-blue-200 px-2.5 py-1 rounded-lg shadow-2xs">
                       {med}
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-slate-500 font-medium">None administered</span>
+                  <span className="text-xs text-blue-600/70 font-medium">None administered</span>
                 )}
               </div>
             </div>

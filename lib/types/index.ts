@@ -186,6 +186,7 @@ export interface PatientHandoverRecord {
   vitals: PatientVitals;
   allergies?: string[];
   medications_administered?: string[];
+  procedures_performed?: string[];
   paramedic_badge_id: string;
   ambulance_vehicle_id: string;
   destination_hospital_id: string;
@@ -200,12 +201,22 @@ export interface BedHistoryLog {
   bed_identifier: string; // e.g. "ICU-Bed-02", "Vent-Room-104"
   patient_id?: string;
   patient_name?: string;
+  patient_age?: number;
+  patient_gender?: string;
   diagnosis?: string;
   admitted_at: string;
   discharged_at?: string;
   status: 'occupied' | 'discharged' | 'reserved' | 'cleaning' | 'available';
   handover_sha256?: string;
   actor_name: string;
+  // Clinical handover telemetry details
+  vitals?: PatientVitals;
+  allergies?: string[];
+  medications_administered?: string[];
+  procedures_performed?: string[];
+  paramedic_badge_id?: string;
+  ambulance_vehicle_id?: string;
+  triage_level?: 'red' | 'yellow' | 'green';
 }
 
 /**

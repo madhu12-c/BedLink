@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS patient_handovers (
   vitals JSONB NOT NULL DEFAULT '{}',
   allergies JSONB,
   medications_administered JSONB,
+  procedures_performed JSONB,
   paramedic_badge_id TEXT NOT NULL,
   ambulance_vehicle_id TEXT NOT NULL,
   destination_hospital_id UUID REFERENCES hospitals(id) ON DELETE SET NULL,
