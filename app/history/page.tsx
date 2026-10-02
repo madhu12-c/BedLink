@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Header } from '@/components/shared/Header';
 import { bedLinkStore } from '@/lib/data/store';
-import { UserRole, Reservation } from '@/lib/types';
+import { Reservation } from '@/lib/types';
 import {
   History,
   ShieldCheck,
@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 
 export default function HistoryAuditPage() {
-  const [role, setRole] = useState<UserRole>('admin');
   const [activeTab, setActiveTab] = useState<'audit' | 'reservations'>('audit');
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
 
@@ -77,7 +76,7 @@ export default function HistoryAuditPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      <Header currentRole={role} onRoleChange={(r) => setRole(r)} />
+      <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
         {/* Header */}

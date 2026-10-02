@@ -13,17 +13,15 @@ import {
   Radio,
   Clock,
   PhoneCall,
-  UserCheck,
-  ChevronDown,
+  LogOut,
   ShieldCheck
 } from 'lucide-react';
-import { UserRole } from '@/lib/types';
 import { initSupabaseSync, subscribeSupabaseStatus } from '@/lib/supabase/sync';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { canAccess, ROLE_LABELS } from '@/lib/auth/roles';
+import { bedLinkStore } from '@/lib/data/store';
 
 interface HeaderProps {
-  currentRole: UserRole;
-  selectedHospitalId?: string;
-  onRoleChange: (role: UserRole, hospitalId?: string) => void;
   hideBottomNav?: boolean;
 }
 
@@ -36,13 +34,10 @@ function subscribeOnline(callback: () => void) {
   };
 }
 
-export function Header({
-  currentRole,
-  selectedHospitalId,
-  onRoleChange,
-  hideBottomNav = false
-}: HeaderProps) {
+export function Header({ hideBottomNav = false }: HeaderProps) {
   const pathname = usePathname();
+  const { user, role, lockedHospitalId, demoMode, signOut, signingOut } = useAuth();
+  const userHospitalName = lockedHospitalId ? bedLinkStore.getHospital(lockedHospitalId)?.name ?? null : null;
 
   // Supabase Realtime State
   const [supabaseState, setSupabaseState] = useState({
@@ -86,12 +81,13 @@ export function Header({
     () => true
   );
 
+  // Only the screens this role may open (the proxy enforces the same rules on the server).
   const navLinks = [
     { href: '/', label: 'Dispatch CAD', icon: Ambulance, badge: 'LIVE' },
-    { href: '/hospital', label: 'Nurse Portal', icon: Building2 },
+    { href: '/hospital', label: role === 'nurse' ? 'Nurse Portal' : 'Hospital Desk', icon: Building2 },
     { href: '/dashboard', label: 'EMS Analytics', icon: BarChart3 },
     { href: '/history', label: 'Audit Trail', icon: History }
-  ];
+  ].filter((link) => role !== null && canAccess(role, link.href));
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-900 shadow-sm transition-all">
@@ -159,7 +155,7 @@ export function Header({
             </nav>
           </div>
 
-          {/* Right: Live Telemetry, Persona Switcher & Emergency Clock */}
+          {/* Right: Live Telemetry, Signed-in User & Emergency Clock */}
           <div className="flex items-center gap-2 sm:gap-2.5 sm:gap-3.5">
             
             {/* Live Operational Clock (Desktop only) */}
@@ -213,69 +209,45 @@ export function Header({
               </span>
             </div>
 
-            {/* Persona Selector — compact on mobile */}
-            <div className="relative flex items-center">
-              <div className="flex items-center gap-1 bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2 pr-1.5 py-1 transition-all focus-within:ring-2 focus-within:ring-blue-400/40 shadow-sm">
-                <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hidden xl:inline">
-                  Persona:
-                </span>
-                <select
-                  id="role-select"
-                  aria-label="Active Persona Command Selector"
-                  value={
-                    currentRole === 'dispatcher'
-                      ? 'dispatcher'
-                      : currentRole === 'admin'
-                      ? 'admin'
-                      : currentRole === 'coordinator'
-                      ? (selectedHospitalId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' ? 'coord-lifeline' : 'coord-aditi')
-                      : selectedHospitalId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
-                      ? 'nurse-lifeline'
-                      : selectedHospitalId === 'cccccccc-cccc-cccc-cccc-cccccccccccc'
-                      ? 'nurse-dna'
-                      : selectedHospitalId === 'dddddddd-dddd-dddd-dddd-dddddddddddd'
-                      ? 'nurse-apex'
-                      : selectedHospitalId === 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
-                      ? 'nurse-shatabdi'
-                      : 'nurse-aditi'
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'dispatcher') {
-                      onRoleChange('dispatcher');
-                    } else if (val === 'admin') {
-                      onRoleChange('admin');
-                    } else if (val === 'coord-aditi') {
-                      onRoleChange('coordinator', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
-                    } else if (val === 'coord-lifeline') {
-                      onRoleChange('coordinator', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
-                    } else if (val === 'nurse-lifeline') {
-                      onRoleChange('nurse', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
-                    } else if (val === 'nurse-dna') {
-                      onRoleChange('nurse', 'cccccccc-cccc-cccc-cccc-cccccccccccc');
-                    } else if (val === 'nurse-apex') {
-                      onRoleChange('nurse', 'dddddddd-dddd-dddd-dddd-dddddddddddd');
-                    } else if (val === 'nurse-shatabdi') {
-                      onRoleChange('nurse', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee');
-                    } else {
-                      onRoleChange('nurse', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
-                    }
-                  }}
-                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer py-1 max-w-[90px] sm:max-w-[150px] lg:max-w-[210px] truncate"
-                >
-                  <option value="dispatcher">🚑 Dispatcher CAD</option>
-                  <option value="nurse-aditi">👩‍⚕️ Nurse (Aditi)</option>
-                  <option value="coord-aditi">🏢 Bed Coordinator (Aditi)</option>
-                  <option value="nurse-lifeline">👩‍⚕️ Nurse (Lifeline)</option>
-                  <option value="coord-lifeline">🏢 Bed Coordinator (Lifeline)</option>
-                  <option value="nurse-dna">👩‍⚕️ Nurse (DNA Hospital)</option>
-                  <option value="nurse-apex">👩‍⚕️ Nurse (Apex Hospital)</option>
-                  <option value="admin">🛡️ Regional EMS Command</option>
-                </select>
-                <ChevronDown className="w-3 h-3 text-slate-400 pointer-events-none shrink-0" />
+            {/* Signed-in user + sign out */}
+            {demoMode ? (
+              <div
+                className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-amber-800"
+                title="Supabase is not configured, so there is no login and every screen is open."
+              >
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Demo mode · no login</span>
+                <span className="sm:hidden">Demo</span>
               </div>
-            </div>
+            ) : user ? (
+              <div className="flex items-center gap-1.5">
+                <div
+                  className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg pl-2 pr-2.5 py-1 shadow-sm"
+                  title={`${user.email ?? ''}${userHospitalName ? ` · ${userHospitalName}` : ''}`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <div className="flex flex-col leading-tight min-w-0">
+                    <span className="text-xs font-bold text-slate-800 truncate max-w-[90px] sm:max-w-[160px]">
+                      {user.name}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 truncate max-w-[90px] sm:max-w-[200px]">
+                      {role ? ROLE_LABELS[role] : 'No role'}
+                      {userHospitalName && <span className="hidden lg:inline"> · {userHospitalName}</span>}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  disabled={signingOut}
+                  className="flex items-center gap-1.5 border border-slate-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 text-slate-600 rounded-lg px-2 py-1.5 text-xs font-bold min-h-[36px] transition-colors disabled:opacity-60"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{signingOut ? 'Signing out…' : 'Sign out'}</span>
+                </button>
+              </div>
+            ) : null}
 
             {/* 108 Hotline — desktop only */}
             <div className="hidden 2xl:flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg text-red-600 text-xs font-bold">
@@ -288,8 +260,11 @@ export function Header({
       </div>
 
       {/* Mobile Bottom Navigation Bar (WCAG AA compliant, 48px touch targets) */}
-      {!hideBottomNav && (
-        <div className="md:hidden border-t border-slate-200 bg-white/98 backdrop-blur-lg grid grid-cols-4 py-1 px-2">
+      {!hideBottomNav && navLinks.length > 1 && (
+        <div
+          className="md:hidden border-t border-slate-200 bg-white/98 backdrop-blur-lg grid py-1 px-2"
+          style={{ gridTemplateColumns: `repeat(${navLinks.length}, minmax(0, 1fr))` }}
+        >
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;

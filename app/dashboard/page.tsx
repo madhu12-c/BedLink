@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Header } from '@/components/shared/Header';
 import { bedLinkStore } from '@/lib/data/store';
-import { UserRole } from '@/lib/types';
 import {
   Activity,
   Building2,
@@ -17,7 +16,6 @@ import { FreshnessIndicator } from '@/components/dispatch/FreshnessIndicator';
 import { CityIcuHeatmap } from '@/components/dashboard/CityIcuHeatmap';
 
 export default function DashboardMetricsPage() {
-  const [role, setRole] = useState<UserRole>('admin');
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
 
   useEffect(() => {
@@ -75,7 +73,7 @@ export default function DashboardMetricsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      <Header currentRole={role} onRoleChange={(r) => setRole(r)} />
+      <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
         {/* Title */}

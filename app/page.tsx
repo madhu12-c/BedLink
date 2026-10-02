@@ -7,7 +7,7 @@ import { HospitalMap } from '@/components/dispatch/HospitalMap';
 import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
 import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
-import { ScoredHospital, UserRole, Reservation } from '@/lib/types';
+import { ScoredHospital, Reservation } from '@/lib/types';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
 import { VoiceBestMatch, VoiceIntakePanel } from '@/components/voice/VoiceIntakePanel';
 import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
@@ -52,10 +52,6 @@ function latestReservationFor(requestId: string): Reservation | null {
 }
 
 export default function DispatcherPage() {
-  const [role, setRole] = useState<UserRole>('dispatcher');
-  const [selectedHospitalForNurse, setSelectedHospitalForNurse] = useState<string>(
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-  );
   const [mobileTab, setMobileTab] = useState<MobileTab>('hospitals');
 
   // Form State
@@ -377,15 +373,7 @@ export default function DispatcherPage() {
           onDismiss={() => setShowConfirmedAlert(false)}
         />
       )}
-      <Header
-        currentRole={role}
-        selectedHospitalId={selectedHospitalForNurse}
-        hideBottomNav
-        onRoleChange={(newRole, hospId) => {
-          setRole(newRole);
-          if (hospId) setSelectedHospitalForNurse(hospId);
-        }}
-      />
+      <Header hideBottomNav />
 
       {/* Active Reservation Status Bar — sticky, always visible */}
       {activeReservation && activeReservation.status === 'pending' && (
