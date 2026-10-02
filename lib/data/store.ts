@@ -36,6 +36,8 @@ export type SyncHandler = {
     rejectionReason?: string
   ) => void;
   onReservationExpired?: (reservationId: string, hospitalId: string, bedType: BedType) => void;
+  /** Status / deadline change with no other side effects (shadow hold promoted or released). */
+  onReservationStatus?: (reservation: Reservation) => void;
 };
 
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
@@ -79,7 +81,11 @@ class BedLinkDataStore {
             this.hydrateFromSerialized(msg.data.payload);
             this.notifyListeners('SYNC_STATE', null);
           } else if (msg.data?.type) {
+            // Keep this tab's copy in step with the other tab (otherwise e.g. Accept here
+            // cannot find a request the dispatcher tab created), then tell the screen.
+            const react = this.applyPeerTabState(msg.data.type, msg.data.payload);
             this.notifyListeners(msg.data.type, msg.data.payload);
+            react?.();
           }
         };
       } catch {
@@ -143,6 +149,40 @@ class BedLinkDataStore {
   }
 
   public applyExternalReservation(item: Reservation) {
+    const { changed, react } = this.mergeReservation(item);
+    // Our own write echoing back from Supabase: nothing new, so don't announce it twice.
+    if (!changed) return;
+    const hosp = this.getHospital(item.hospital_id);
+    const enriched = { ...item, hospital_name: hosp?.name || 'Hospital' };
+    this.broadcast(BedLinkDataStore.eventForStatus(item.status), { reservation: enriched });
+    react?.();
+  }
+
+  private static eventForStatus(status: ReservationStatus): string {
+    switch (status) {
+      case 'pending':
+        return 'reservation_created';
+      case 'accepted':
+        return 'reservation_accepted';
+      case 'rejected':
+        return 'reservation_rejected';
+      case 'expired':
+        return 'reservation_expired';
+      case 'shadow':
+        // A pre-hold: not a request the hospital has to answer yet
+        return 'shadow_hold_created';
+      default:
+        return 'reservation_updated';
+    }
+  }
+
+  /**
+   * Stores a reservation that changed somewhere else (another tab or device). Returns whether
+   * its status changed, and what this store must do about it: only the store that owns the
+   * request (the dispatcher's screen that created it) re-routes after a reject or timeout, and
+   * frees its shadow pre-holds once another hospital accepts.
+   */
+  private mergeReservation(item: Reservation): { changed: boolean; react?: () => void } {
     const idx = this.reservations.findIndex((r) => r.id === item.id);
     const knownStatus = idx >= 0 ? this.reservations[idx].status : null;
     if (idx >= 0) {
@@ -150,20 +190,79 @@ class BedLinkDataStore {
     } else {
       this.reservations.unshift(item);
     }
-    // Our own write echoing back from Supabase: nothing new, so don't announce it twice.
-    if (knownStatus === item.status) return;
-    const hosp = this.getHospital(item.hospital_id);
-    const enriched = { ...item, hospital_name: hosp?.name || 'Hospital' };
-    this.broadcast(
-      item.status === 'accepted'
-        ? 'reservation_accepted'
-        : item.status === 'rejected'
-        ? 'reservation_rejected'
-        : item.status === 'expired'
-        ? 'reservation_expired'
-        : 'reservation_created',
-      { reservation: enriched }
+    if (knownStatus === item.status) return { changed: false };
+
+    const current = idx >= 0 ? this.reservations[idx] : item;
+    if (!this.ownsRequest(current.request_id)) return { changed: true };
+    if (knownStatus === 'pending' && (item.status === 'rejected' || item.status === 'expired')) {
+      return { changed: true, react: () => void this.runFallback(current) };
+    }
+    if (item.status === 'accepted') {
+      return {
+        changed: true,
+        react: () => this.releaseShadowHoldsForRequest(current.request_id, current.hospital_id)
+      };
+    }
+    return { changed: true };
+  }
+
+  /** Applies a change another tab in this browser made, without sending it back out. */
+  private applyPeerTabState(type: string, payload: unknown): (() => void) | undefined {
+    const data = (payload ?? {}) as {
+      reservation?: Reservation;
+      newReservation?: Reservation;
+      shadow?: Reservation;
+      inv?: BedInventory;
+    };
+    if (type === 'bed_updated' && data.inv) {
+      const inv = data.inv;
+      const idx = this.bedInventories.findIndex(
+        (b) => b.hospital_id === inv.hospital_id && b.bed_type === inv.bed_type
+      );
+      if (idx >= 0) this.bedInventories[idx] = { ...this.bedInventories[idx], ...inv };
+      else this.bedInventories.push({ ...inv });
+      return undefined;
+    }
+    const reservation = data.reservation ?? data.newReservation ?? data.shadow;
+    if (reservation?.id && reservation.request_id) {
+      return this.mergeReservation({ ...reservation }).react;
+    }
+    return undefined;
+  }
+
+  /**
+   * Registers (or refreshes) the emergency request this screen is dispatching. Only the
+   * dispatcher's own store holds it, which makes that store the one that re-routes when a
+   * hold is rejected or times out, even when the hospital answered on another device.
+   */
+  public upsertEmergencyRequest(request: Omit<EmergencyRequest, 'created_at' | 'status'>): EmergencyRequest {
+    const existing = this.emergencyRequests.find((r) => r.id === request.id);
+    if (existing) {
+      Object.assign(existing, request);
+      return existing;
+    }
+    const created: EmergencyRequest = { ...request, status: 'active', created_at: new Date().toISOString() };
+    this.emergencyRequests.unshift(created);
+    return created;
+  }
+
+  private ownsRequest(requestId: string): boolean {
+    return this.emergencyRequests.some((r) => r.id === requestId);
+  }
+
+  /**
+   * After a reject or timeout: promote a shadow pre-hold if there is one, else hold the
+   * next-best hospital. Runs once, and only in the store that owns the request.
+   */
+  private runFallback(failed: Reservation): ScoredHospital | null {
+    if (!this.ownsRequest(failed.request_id)) return null;
+    // Already re-routed, or another hospital is holding / has accepted this patient
+    const stillOpen = this.reservations.some(
+      (r) => r.request_id === failed.request_id && (r.status === 'pending' || r.status === 'accepted')
     );
+    if (stillOpen) return null;
+    if (this.activateShadowHold(failed.request_id, failed.hospital_id)) return null;
+    return this.triggerAutomaticFallbackWithShadows(failed.request_id, failed.hospital_id);
   }
 
   public applyExternalHospitalUpdate(update: { id: string; current_load: number; load_updated_at: string }) {
@@ -662,8 +761,9 @@ class BedLinkDataStore {
         reservation.rejection_reason
       );
 
-      // Step 20 — Automatic Fallback to Next Best Eligible Hospital
-      const nextHospital = this.triggerAutomaticFallback(reservation.request_id, reservation.hospital_id);
+      // Step 20 — Automatic Fallback to Next Best Eligible Hospital (if this screen owns the request;
+      // otherwise the dispatcher's screen does it when it hears about the rejection)
+      const nextHospital = this.runFallback(reservation);
 
       return { success: true, status: 'rejected', nextHospital };
     }
@@ -720,12 +820,8 @@ class BedLinkDataStore {
 
     this.syncHandler?.onReservationExpired?.(reservation.id, reservation.hospital_id, reservation.bed_type);
 
-    // EC-1: Try to activate a shadow hold first before doing a full fallback
-    const shadowActivated = this.activateShadowHold(reservation.request_id, reservation.hospital_id);
-    if (!shadowActivated) {
-      // No shadow hold available — do full fallback + create top-2 shadow slots
-      this.triggerAutomaticFallbackWithShadows(reservation.request_id, reservation.hospital_id);
-    }
+    // EC-1: shadow hold first, else full fallback + new shadow slots (owner screen only)
+    this.runFallback(reservation);
   }
 
   /**
@@ -854,6 +950,8 @@ class BedLinkDataStore {
     if (!shadowRes) return false;
 
     shadowRes.status = 'pending';
+    // The hospital gets a full 2 minutes from now, not what was left of the pre-hold
+    shadowRes.expires_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
     const event: ReservationEvent = {
       id: generateUUID(),
       reservation_id: shadowRes.id,
@@ -869,6 +967,7 @@ class BedLinkDataStore {
     };
     this.reservationEvents.unshift(event);
     this.broadcast('reservation_created', { reservation: shadowRes, event });
+    this.syncHandler?.onReservationStatus?.(shadowRes);
     console.info(
       `[EC-1] Shadow hold ACTIVATED at ${shadowRes.hospital_name} — no wait needed.`
     );
@@ -924,6 +1023,8 @@ class BedLinkDataStore {
         });
       }
       this.broadcast('shadow_hold_released', { shadow, event });
+      this.syncHandler?.onReservationStatus?.(shadow);
+      if (inv) this.syncHandler?.onBedUpdate?.(shadow.hospital_id, shadow.bed_type, inv.available_beds, 'system');
       console.info(
         `[EC-1] Shadow hold at ${shadow.hospital_name} released (primary accepted at ${acceptedHospitalId}).`
       );

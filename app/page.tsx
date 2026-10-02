@@ -2,6 +2,7 @@
 
 import React, { useEffect, useEffectEvent, useState, useMemo } from 'react';
 import { Header } from '@/components/shared/Header';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { PatientNeedForm, DispatchFormParams } from '@/components/dispatch/PatientNeedForm';
 import { HospitalMap } from '@/components/dispatch/HospitalMap';
 import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
@@ -76,7 +77,8 @@ export default function DispatcherPage() {
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
-  const [currentRequestId] = useState(getTabRequestId);
+  const { user } = useAuth();
+  const [currentRequestId, setCurrentRequestId] = useState(getTabRequestId);
   // Restored when coming back from another page, so an accepted hold is still shown.
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(() =>
     latestReservationFor(getTabRequestId())
@@ -219,16 +221,51 @@ export default function DispatcherPage() {
     selectedHospitalId || (allRanked.length > 0 ? allRanked[0].hospital.id : null);
 
   // Handlers
+  const dispatcherId = user?.id ?? 'disp-dispatcher';
+  const dispatcherName = user?.name ?? 'EMS Dispatcher #41';
+
+  // The patient this hold is for. Once the current patient has a confirmed bed, the next
+  // hold is a new patient with its own request id.
+  const requestIdForNewHold = (): string => {
+    const placed = bedLinkStore
+      .getReservations()
+      .some((r) => r.request_id === currentRequestId && r.status === 'accepted');
+    if (!placed) return currentRequestId;
+    const fresh = generateUUID();
+    tabRequestId = fresh;
+    setCurrentRequestId(fresh);
+    return fresh;
+  };
+
+  // Registers the patient's needs before holding. This screen then owns the request, so it is
+  // the one that re-routes to the next-best hospital if the hold is rejected or times out.
+  // No patient details are kept (notes stay out).
+  const registerRequest = (requestId: string, form: DispatchFormParams) => {
+    bedLinkStore.upsertEmergencyRequest({
+      id: requestId,
+      dispatcher_id: dispatcherId,
+      patient_latitude: form.latitude,
+      patient_longitude: form.longitude,
+      urgency: form.urgency,
+      required_bed_type: form.bedType,
+      required_specialty: form.specialty || null,
+      requires_ventilator: form.requiresVentilator,
+      notes: null
+    });
+  };
+
   const handleHoldBed = async (hospitalId: string) => {
     setIsLoading(true);
     setActionNotice(null);
     try {
+      const requestId = requestIdForNewHold();
+      registerRequest(requestId, formData);
       const res = bedLinkStore.holdBedAtomic(
-        currentRequestId,
+        requestId,
         hospitalId,
         formData.bedType,
-        'disp-dispatcher',
-        'EMS Dispatcher #41'
+        dispatcherId,
+        dispatcherName
       );
       setActiveReservation(res);
       setSelectedHospitalId(hospitalId);
@@ -324,12 +361,14 @@ export default function DispatcherPage() {
     const next = applyVoiceDetails(values, spokenLanguage);
     setSelectedHospitalId(hospitalId);
     try {
+      const requestId = requestIdForNewHold();
+      registerRequest(requestId, next);
       const res = bedLinkStore.holdBedAtomic(
-        currentRequestId,
+        requestId,
         hospitalId,
         next.bedType,
-        'disp-dispatcher',
-        'EMS Dispatcher #41 (voice)'
+        dispatcherId,
+        `${dispatcherName} (voice)`
       );
       setActiveReservation(res);
       setActionNotice(`Bed hold sent to ${res.hospital_name ?? 'the hospital'} by voice. 2-minute timer started.`);
