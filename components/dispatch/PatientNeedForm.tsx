@@ -74,7 +74,7 @@ export function PatientNeedForm({
       {/* Quick Demo Scenario Trigger */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div>
-          <h2 className="text-base font-bold text-slate-900">Patient Emergency Intake</h2>
+          <h2 className="text-base font-bold text-slate-900">Patient details</h2>
           <p className="text-xs text-slate-500">Configure triage resources for hospital matching</p>
         </div>
         {onQuickLoadCriticalScenario && (
@@ -145,7 +145,7 @@ export function PatientNeedForm({
 
       {/* Urgency Selection */}
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-xs font-bold text-slate-700 uppercase tracking-wider">Triage Urgency</legend>
+        <legend className="text-xs font-bold text-slate-700 uppercase tracking-wider">How urgent</legend>
         <div className="grid grid-cols-3 gap-2">
           {(['critical', 'urgent', 'normal'] as Urgency[]).map((level) => {
             const isSelected = formData.urgency === level;

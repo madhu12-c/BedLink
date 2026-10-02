@@ -110,7 +110,7 @@ export function BedHistoryLogTable({
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Historical patient occupancy, admission records, and SHA-256 legal chain of custody for {hospitalName}
+            Past admissions and tamper-proof handover sheets for {hospitalName}
           </p>
         </div>
 
@@ -197,7 +197,7 @@ export function BedHistoryLogTable({
               <th className="py-3 px-4">Procedures Done En-Route</th>
               <th className="py-3 px-4">Medicines Given En-Route</th>
               <th className="py-3 px-4">Admission Timeline</th>
-              <th className="py-3 px-4">Handover SHA-256</th>
+              <th className="py-3 px-4">Handover sheet</th>
               <th className="py-3 px-4">Attending Clinician</th>
               <th className="py-3 px-4 text-center">Dossier</th>
               <th className="py-3 px-4 text-right">Status</th>
@@ -375,7 +375,7 @@ export function BedHistoryLogTable({
                               type="button"
                               onClick={(e) => handleCopyHash(log.handover_sha256!, e)}
                               className="text-slate-400 hover:text-slate-700 p-0.5"
-                              title="Copy SHA-256"
+                              title="Copy tamper-proof code"
                             >
                               {copiedHash === log.handover_sha256 ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -455,7 +455,7 @@ export function BedHistoryLogTable({
                                 </span>
                                 <div>
                                   <h4 className="font-black text-sm text-slate-900">
-                                    Total Clinical Telemetry & Pre-Hospital Interventions
+                                    Vitals and treatment before arrival
                                   </h4>
                                   <p className="text-xs text-slate-500">
                                     Patient: <strong>{log.patient_name || 'Emergency Patient'}</strong> ({log.patient_id}) • Bed: <strong>{log.bed_identifier}</strong> ({log.bed_type.toUpperCase()})
@@ -628,7 +628,7 @@ export function BedHistoryLogTable({
                                   <div className="mt-3 pt-2 border-t border-slate-200/80">
                                     <div className="flex items-center gap-1 text-xs text-emerald-700 font-bold">
                                       <ShieldCheck className="w-3.5 h-3.5" />
-                                      <span>SHA-256 Tamper Sealed</span>
+                                      <span>Tamper-proof</span>
                                     </div>
                                     <span className="text-xs font-mono text-slate-400 block truncate mt-0.5">
                                       {log.handover_sha256}

@@ -104,7 +104,7 @@ export function FreshnessIndicator({
     <span
       suppressHydrationWarning
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${currentStyle.badge} ${className}`}
-      title="Inventory freshness status"
+      title="How old this bed count is"
       role="status"
       aria-label={`${info.label} ${currentStyle.labelSuffix}`}
     >

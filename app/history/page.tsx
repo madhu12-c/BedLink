@@ -55,7 +55,7 @@ export default function HistoryAuditPage() {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
             <XCircle className="w-3.5 h-3.5 text-rose-600" />
-            Rejected (Auto-routed)
+            Rejected (moved to next hospital)
           </span>
         );
       case 'expired':
@@ -93,7 +93,7 @@ export default function HistoryAuditPage() {
               Emergency Coordination Audit & History
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Cryptographically timestamped audit trail of reservations, hospital responses, and automatic fallbacks
+              Every hold, hospital answer and automatic switch, with the time it happened
             </p>
           </div>
 
@@ -108,7 +108,7 @@ export default function HistoryAuditPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Realtime Audit Log ({auditEvents.length})
+              Activity log ({auditEvents.length})
             </button>
             <button
               type="button"
@@ -267,7 +267,7 @@ export default function HistoryAuditPage() {
                   <span>Bed History & Patient Diagnosis Audit</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Cross-device clinical admission records with diagnosis and cryptographic SHA-256 handover seals
+                  Admissions with diagnosis and tamper-proof handover sheets
                 </p>
               </div>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -294,7 +294,7 @@ export default function HistoryAuditPage() {
                       <th className="px-4 py-3">Admitted At</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Attending Staff</th>
-                      <th className="px-4 py-3">Handover SHA-256</th>
+                      <th className="px-4 py-3">Handover sheet</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 font-sans">
@@ -337,7 +337,7 @@ export default function HistoryAuditPage() {
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-emerald-700">
                             {log.handover_sha256 ? (
-                              <span title={`SHA-256 Verified: ${log.handover_sha256}`} className="inline-flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <span title={`Tamper-proof code: ${log.handover_sha256}`} className="inline-flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                 <ShieldCheck className="w-3 h-3 text-emerald-600" />
                                 {log.handover_sha256.slice(0, 10)}...
                               </span>

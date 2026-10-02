@@ -151,18 +151,18 @@ export function PatientHandoverModal({
         <body>
           <div class="header">
             <div>
-              <div class="title">Pre-Hospital Patient Handover Telemetry</div>
+              <div class="title">Patient handover sheet</div>
               <div class="subtitle">Ambulance Vehicle Unit: ${handover?.ambulance_vehicle_id || 'EMS Unit'}</div>
             </div>
             <div style="text-align: right;">
               <span style="font-size: 11px; font-weight: bold; color: #059669; background: #d1fae5; padding: 4px 8px; border-radius: 4px; border: 1px solid #a7f3d0;">
-                SHA-256 SEALED
+                TAMPER-PROOF
               </span>
             </div>
           </div>
 
           <div class="seal-box">
-            <strong style="color: #9ca3af; text-transform: uppercase;">Cryptographic Integrity Checksum (SHA-256):</strong><br/>
+            <strong style="color: #9ca3af; text-transform: uppercase;">Tamper-proof code (SHA-256):</strong><br/>
             ${handover?.sha256_hash || 'VERIFIED_HASH_SEAL'}
           </div>
 
@@ -180,7 +180,7 @@ export function PatientHandoverModal({
               <div class="value" style="font-family: monospace; color: #1d4ed8;">${handover?.paramedic_badge_id || 'P-108'}</div>
             </div>
             <div class="card">
-              <div class="label">Triage Level</div>
+              <div class="label">Urgency</div>
               <div class="value" style="text-transform: uppercase;">${handover?.triage_level || 'YELLOW'} TRIAGE</div>
             </div>
           </div>
@@ -194,7 +194,7 @@ export function PatientHandoverModal({
 
           ${handover?.vitals ? `
             <h4 style="margin: 16px 0 8px 0; font-size: 13px; text-transform: uppercase; color: #334155; font-weight: bold;">
-              Live Pre-Hospital Vitals Telemetry
+              Vitals in the ambulance
             </h4>
             <div class="grid">
               <div class="card">
@@ -272,14 +272,14 @@ export function PatientHandoverModal({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs uppercase font-bold tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
-                    SHA-256 SEALED
+                    TAMPER-PROOF
                   </span>
                   <span className="text-xs text-slate-400 font-mono">
                     {handover?.ambulance_vehicle_id || 'EMS UNIT'}
                   </span>
                 </div>
                 <h2 className="text-lg font-black tracking-tight text-white mt-0.5">
-                  Pre-Hospital Patient Handover Telemetry
+                  Patient handover sheet
                 </h2>
               </div>
             </div>
@@ -298,7 +298,7 @@ export function PatientHandoverModal({
               <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
               <div className="flex flex-col truncate">
                 <span className="text-xs uppercase font-bold tracking-wider text-slate-400">
-                  Cryptographic Integrity Checksum (SHA-256)
+                  Tamper-proof code (SHA-256)
                 </span>
                 <span className="font-mono text-xs text-emerald-300 break-all select-all truncate">
                   {handover?.sha256_hash}
@@ -310,7 +310,7 @@ export function PatientHandoverModal({
                 type="button"
                 onClick={handleCopyHash}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
-                title="Copy SHA-256 Hash"
+                title="Copy tamper-proof code"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
                 <span>{copied ? 'Copied' : 'Copy Hash'}</span>
@@ -340,7 +340,7 @@ export function PatientHandoverModal({
                 <>
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>
-                    <strong>100% UNTAMPERED MEDICAL RECORD.</strong> Canonical payload matches SHA-256 signature. Authorized by {handover?.paramedic_badge_id}.
+                    <strong>Not changed.</strong> This sheet is exactly what the crew sent. Sent by {handover?.paramedic_badge_id}.
                   </span>
                 </>
               ) : (
@@ -375,7 +375,7 @@ export function PatientHandoverModal({
               <span className="text-sm font-mono font-bold text-blue-700">{handover?.paramedic_badge_id}</span>
             </div>
             <div>
-              <span className="text-xs uppercase font-bold text-slate-400 block">Triage Classification</span>
+              <span className="text-xs uppercase font-bold text-slate-400 block">Urgency</span>
               <span
                 className={`inline-block text-xs font-black uppercase px-2 py-0.5 rounded mt-0.5 ${
                   handover?.triage_level === 'red'
@@ -406,7 +406,7 @@ export function PatientHandoverModal({
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-1.5">
                 <Activity className="w-4 h-4 text-blue-600" />
-                <span>Live Pre-Hospital Vitals Telemetry</span>
+                <span>Vitals in the ambulance</span>
               </h4>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

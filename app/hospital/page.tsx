@@ -468,7 +468,7 @@ Bed Type: ${bed}
         'Medic #12'
       );
       setActiveReservation(res);
-      setToastMessage('Simulated incoming critical emergency triggered!');
+      setToastMessage('Test ambulance request sent');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Cannot simulate';
       setToastMessage(msg);
@@ -515,7 +515,7 @@ Bed Type: ${bed}
                 }`}
               >
                 <HeartPulse className="w-4 h-4" />
-                <span>Ward Nurse screen</span>
+                <span>Nurse screen</span>
               </button>
               <button
                 type="button"
@@ -584,7 +584,7 @@ Bed Type: ${bed}
                 {view === 'nurse' ? 'Floor Nurse Desk' : 'Bed Capacity Operations'}
               </span>
               <span className="text-xs text-slate-400">
-                {view === 'nurse' ? '10-Sec Rapid Triage' : 'Ward Infrastructure Control'}
+                {view === 'nurse' ? 'Update free beds' : 'Manage beds'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
@@ -743,7 +743,7 @@ Bed Type: ${bed}
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-900">
               <Lock className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
-                <strong>Ward Nurse screen:</strong> rapid bed updates and real-time patient audit trail with en-route procedures and administered medications. Ambulance requests, arrivals and authorized allocations are coordinated with the desk.
+                <strong>Nurse screen:</strong> keep the free-bed counts right and see past admissions. The bed desk answers ambulance requests.
               </span>
             </div>
           </div>
@@ -833,7 +833,7 @@ Bed Type: ${bed}
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  Facility Load Factor
+                  How full the hospital is
                 </span>
                 <span className="text-2xl font-black font-mono text-amber-600 mt-1 block">
                   {currentHospital?.current_load}%
@@ -869,7 +869,7 @@ Bed Type: ${bed}
         <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
           <div>
             <strong className="text-slate-800 font-semibold block">Need to test incoming emergency alert & countdown?</strong>
-            <span>Click below to simulate a live ambulance reservation request with signed SHA-256 handover vitals.</span>
+            <span>Tap below to send a test ambulance request (demo only).</span>
           </div>
           <button
             type="button"
@@ -877,7 +877,7 @@ Bed Type: ${bed}
             className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm flex items-center gap-1.5 min-h-[44px]"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Simulate Incoming Emergency</span>
+            <span>Send test ambulance request</span>
           </button>
         </div>
         )}

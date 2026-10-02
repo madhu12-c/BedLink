@@ -164,7 +164,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
           <div className="flex items-center gap-2 sm:gap-2.5 sm:gap-3.5">
             
             {/* Live Operational Clock (Desktop only) */}
-            <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-700 text-xs font-mono font-bold" title="Operational Telemetry Time">
+            <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-700 text-xs font-mono font-bold" title="Current time">
               <Clock className="w-3.5 h-3.5 text-blue-600" />
               <span suppressHydrationWarning>{currentTime ?? '--:--:--'}</span>
               <span className="text-xs text-slate-400 font-sans font-semibold">IST</span>
@@ -181,10 +181,10 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
               }`}
               title={
                 supabaseState.connected
-                  ? `Supabase Realtime Active`
+                  ? 'Live: shared with every hospital and ambulance'
                   : supabaseState.configured
-                  ? 'Connecting...'
-                  : 'Demo Mode'
+                  ? 'Connecting to the shared database…'
+                  : 'Demo: data stays on this device'
               }
             >
               <span
@@ -209,7 +209,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                 {supabaseState.connected
                   ? 'LIVE'
                   : supabaseState.configured
-                  ? 'SYNC'
+                  ? 'CONNECTING'
                   : 'DEMO'}
               </span>
             </div>

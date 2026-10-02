@@ -92,7 +92,7 @@ export function AmbulanceArrivalCountdown({
             </h2>
           </div>
           <span className="text-xs text-slate-400 font-semibold">
-            Live GPS Telemetry
+            Ambulance on the way
           </span>
         </div>
 
@@ -201,10 +201,10 @@ export function AmbulanceArrivalCountdown({
                         type="button"
                         onClick={() => setSelectedHandover(item.handover)}
                         className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-                        title="View Patient Handover Sheet & Cryptographic SHA-256 Hash"
+                        title="Open the handover sheet"
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="hidden md:inline">Vitals (SHA-256)</span>
+                        <span className="hidden md:inline">Handover sheet</span>
                         <span className="md:hidden">Vitals</span>
                       </button>
 

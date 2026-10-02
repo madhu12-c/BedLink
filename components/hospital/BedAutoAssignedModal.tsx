@@ -86,7 +86,7 @@ export function BedAutoAssignedModal({
           <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
-                Auto-Assigned Bed Identifier
+                Bed given to this patient
               </span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="font-mono text-2xl font-black text-slate-900">
@@ -141,7 +141,7 @@ export function BedAutoAssignedModal({
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-600" />
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Clinical Auto-Assignment Rationale
+                Why this bed
               </span>
             </div>
 
@@ -165,7 +165,7 @@ export function BedAutoAssignedModal({
                 <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
                 <div className="truncate">
                   <span className="text-xs text-slate-400 uppercase font-bold block">
-                    SHA-256 Legal Handover Seal
+                    Tamper-proof handover sheet
                   </span>
                   <span className="font-mono text-xs text-emerald-300 truncate block">
                     {handover.sha256_hash}
@@ -184,7 +184,7 @@ export function BedAutoAssignedModal({
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all"
               >
                 <FileText className="w-4 h-4 text-slate-600" />
-                <span>View Full Telemetry</span>
+                <span>Open handover sheet</span>
               </button>
             )}
 

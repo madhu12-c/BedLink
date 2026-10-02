@@ -165,7 +165,7 @@ export function BedConfirmedAlert({ reservation, onDismiss }: BedConfirmedAlertP
             className="flex items-center justify-center gap-2 bg-white/20 border border-white/40 text-white font-extrabold text-sm py-3.5 rounded-2xl active:scale-95 transition-transform"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            Vitals (SHA-256)
+            Handover sheet
           </button>
         </div>
 

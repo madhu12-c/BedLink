@@ -198,7 +198,7 @@ export default function DispatcherPage() {
       const payload = event.payload as { reservation: Reservation };
       playEmergencyAlertSound();
       triggerEmergencyNotification('🛏️ EMERGENCY BED HOLD ACTIVE', {
-        body: `Facility: ${payload.reservation.hospital_name || 'Hospital'}\nBed: ${payload.reservation.bed_type.toUpperCase()}\n2-minute confirmation timer started.`
+        body: `Hospital: ${payload.reservation.hospital_name || 'Hospital'}\nBed: ${payload.reservation.bed_type.toUpperCase()}\n2-minute confirmation timer started.`
       });
       setActiveReservation(payload.reservation);
       setActionNotice(`Hold initiated for ${payload.reservation.hospital_name || 'Hospital'}. 2-minute confirmation timer started.`);
@@ -604,7 +604,7 @@ export default function DispatcherPage() {
 
   // Mobile tab config
   const mobileTabs: { id: MobileTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
-    { id: 'intake', label: 'Intake', icon: ClipboardList },
+    { id: 'intake', label: 'Patient', icon: ClipboardList },
     { id: 'hospitals', label: 'Hospitals', icon: Building2, badge: exactMatches.length },
     { id: 'map', label: 'Map', icon: Map }
   ];
@@ -712,7 +712,7 @@ export default function DispatcherPage() {
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                Candidate Hospitals
+                Hospitals
                 <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold">
                   {allRanked.length} Found
                 </span>
@@ -736,7 +736,7 @@ export default function DispatcherPage() {
             <div className="flex items-center gap-1.5 px-1">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Exact Matches ({exactMatches.length})
+                Have everything ({exactMatches.length})
               </span>
             </div>
             {exactMatches.length === 0 ? (
@@ -771,7 +771,7 @@ export default function DispatcherPage() {
               <div className="flex items-center gap-1.5 px-1">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
                 <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  Partial Matches ({partialMatches.length})
+                  Missing something ({partialMatches.length})
                 </span>
               </div>
               {partialMatches.map((scored, idx) => (
@@ -858,7 +858,7 @@ export default function DispatcherPage() {
             <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
               <div>
                 <h2 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                  Candidate Hospitals
+                  Hospitals
                   <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold">
                     {allRanked.length}
                   </span>
@@ -888,7 +888,7 @@ export default function DispatcherPage() {
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                      Exact Matches ({exactMatches.length})
+                      Have everything ({exactMatches.length})
                     </span>
                   </div>
                   {exactMatches.map((scored, idx) => (
@@ -928,7 +928,7 @@ export default function DispatcherPage() {
                   <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-slate-200">
                     <AlertTriangle className="w-4 h-4 text-amber-600" />
                     <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                      Partial ({partialMatches.length})
+                      Missing something ({partialMatches.length})
                     </span>
                   </div>
                   {partialMatches.map((scored, idx) => (

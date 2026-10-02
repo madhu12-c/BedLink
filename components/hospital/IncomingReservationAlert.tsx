@@ -245,7 +245,7 @@ export function IncomingReservationAlert({
             <div>
               <span className="font-extrabold text-base block">BED SECURED & HELD</span>
               <span className="text-xs text-emerald-100 font-mono block">
-                Ambulance en route to ER. Moving to Live Telemetry in {dismissCountdown ?? 5}s...
+                Ambulance on the way. Showing its arrival in {dismissCountdown ?? 5}s…
               </span>
             </div>
           </div>
