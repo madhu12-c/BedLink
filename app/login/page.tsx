@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { getBrowserSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,7 +32,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string; desc: string; icon: string
   { value: "admin", label: "Regional EMS Command", desc: "Audit logs & citywide emergency oversight", icon: "🛡️" },
 ];
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/";
@@ -612,5 +612,17 @@ export default function LoginPage() {
         </p>
       </footer>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-slate-400 text-sm">Loading...</div>
+      </div>
+    }>
+      <LoginPageInner />
+    </Suspense>
   );
 }
