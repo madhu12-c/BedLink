@@ -1,32 +1,10 @@
-﻿-- ============================================================
+-- ============================================================
 -- BedLink FULL Setup: Paste & Run in Supabase SQL Editor
 -- https://supabase.com/dashboard/project/_/sql
 -- ============================================================
 
 -- ============================================================
--- SECTION A: Enable Realtime (idempotent)
--- ============================================================
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_inventory') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'reservations') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'hospitals') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE hospitals;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_history_logs') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE bed_history_logs;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'patient_handovers') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE patient_handovers;
-  END IF;
-END $$;
-
--- ============================================================
--- SECTION B: Extend reservations status for edge-case statuses
+-- SECTION A: Extend reservations status for edge-case statuses
 -- ============================================================
 ALTER TABLE reservations
   DROP CONSTRAINT IF EXISTS reservations_status_check;
@@ -36,7 +14,7 @@ ALTER TABLE reservations
   CHECK (status IN ('pending','accepted','rejected','expired','cancelled','completed','shadow','auto_released'));
 
 -- ============================================================
--- SECTION C: Bed History Logs (who was in which bed)
+-- SECTION B: Bed History Logs (who was in which bed)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS bed_history_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -60,7 +38,7 @@ ALTER TABLE bed_history_logs REPLICA IDENTITY FULL;
 CREATE INDEX IF NOT EXISTS idx_bed_history_hospital ON bed_history_logs(hospital_id, admitted_at DESC);
 
 -- ============================================================
--- SECTION D: Patient Handover Records (SHA-256 sealed)
+-- SECTION C: Patient Handover Records (SHA-256 sealed)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS patient_handovers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,6 +65,28 @@ ALTER TABLE patient_handovers REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_handovers_reservation ON patient_handovers(reservation_id);
 CREATE INDEX IF NOT EXISTS idx_handovers_hospital ON patient_handovers(destination_hospital_id);
+
+-- ============================================================
+-- SECTION D: Enable Realtime (AFTER tables exist!)
+-- ============================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_inventory') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE bed_inventory;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'reservations') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE reservations;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'hospitals') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE hospitals;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bed_history_logs') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE bed_history_logs;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'patient_handovers') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE patient_handovers;
+  END IF;
+END $$;
 
 -- ============================================================
 -- SECTION E: RLS Policies (allow anon for demo)
