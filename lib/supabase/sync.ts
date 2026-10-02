@@ -530,6 +530,44 @@ export async function persistReservationStatus(reservation: Reservation) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// BED INVENTORY UPSERT — Persist new/updated bed inventory rows
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Upserts a complete bed_inventory row to Supabase.
+ * Use this when adding a new bed type (INSERT) or updating total/available counts.
+ * Falls back gracefully if Supabase is not configured.
+ */
+export async function persistBedInventoryUpsert(inv: {
+  id: string;
+  hospital_id: string;
+  bed_type: string;
+  total_beds: number;
+  available_beds: number;
+  updated_by?: string | null;
+}) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from('bed_inventory').upsert({
+      id: inv.id,
+      hospital_id: inv.hospital_id,
+      bed_type: inv.bed_type,
+      total_beds: inv.total_beds,
+      available_beds: inv.available_beds,
+      updated_at: new Date().toISOString(),
+      updated_by: inv.updated_by ?? null,
+    }, { onConflict: 'hospital_id,bed_type' });
+    if (error) {
+      console.warn('[BedLink] bed_inventory upsert warning:', error.message);
+    }
+  } catch (err) {
+    console.warn('[BedLink] Failed to upsert bed inventory to Supabase:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // BED HISTORY LOG — Persist to Supabase (cross-device audit trail)
 // ═══════════════════════════════════════════════════════════════════════
 export async function persistBedHistoryLog(log: {

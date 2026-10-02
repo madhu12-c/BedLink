@@ -14,7 +14,7 @@ import { bedLinkStore } from '@/lib/data/store';
 import { BedType, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/roles';
-import { persistBedHistoryLog, persistPatientHandover, persistReservationStatus } from '@/lib/supabase/sync';
+import { persistBedHistoryLog, persistPatientHandover, persistReservationStatus, persistBedInventoryUpsert } from '@/lib/supabase/sync';
 import { executeAutoBedAssignment, BedNeedEvaluation } from '@/lib/utils/bedAutoAssign';
 import { BedAutoAssignedModal } from '@/components/hospital/BedAutoAssignedModal';
 import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
@@ -220,6 +220,18 @@ Bed Type: ${bed}
       availableCount,
       actorName('Bed Coordinator')
     );
+    // Persist to Supabase so the new bed survives page refreshes and Vercel cold-starts
+    const updatedInv = bedLinkStore.getBedInventories(selectedHospitalId).find((b) => b.bed_type === type);
+    if (updatedInv) {
+      persistBedInventoryUpsert({
+        id: updatedInv.id,
+        hospital_id: updatedInv.hospital_id,
+        bed_type: updatedInv.bed_type,
+        total_beds: updatedInv.total_beds,
+        available_beds: updatedInv.available_beds,
+        updated_by: null,
+      });
+    }
     setToastMessage(`✓ Added ${totalCount} ${type.toUpperCase()} bed(s) in ${wardName}!`);
     setLastUpdateTrigger((prev) => prev + 1);
   };
