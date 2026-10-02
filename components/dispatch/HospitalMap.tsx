@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { ScoredHospital } from '@/lib/types';
 import { Navigation, Layers, Compass } from 'lucide-react';
 import type * as LeafletType from 'leaflet';
+import { fetchRoadPolyline } from '@/lib/routing';
 
 interface HospitalMapProps {
   patientLocation: { latitude: number; longitude: number };
@@ -24,7 +25,7 @@ export function HospitalMap({
   const leafletRef = useRef<typeof LeafletType | null>(null);
   const mapInstanceRef = useRef<LeafletType.Map | null>(null);
   const markersLayerGroupRef = useRef<LeafletType.LayerGroup | null>(null);
-  const routeLineRef = useRef<LeafletType.Polyline | null>(null);
+  const routeLineRef = useRef<LeafletType.Layer | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
   const selectedHospital = hospitals.find((h) => h.hospital.id === selectedHospitalId) || hospitals[0];
@@ -189,38 +190,75 @@ export function HospitalMap({
       });
     });
 
-    // Draw route line to selected hospital
+    // Draw real turn-by-turn road route to selected hospital
     if (selectedHospital) {
-      const latlngs: [number, number][] = [
-        [patientLocation.latitude, patientLocation.longitude],
-        [
-          patientLocation.latitude + (selectedHospital.hospital.latitude - patientLocation.latitude) * 0.45 + 0.003,
-          patientLocation.longitude + (selectedHospital.hospital.longitude - patientLocation.longitude) * 0.35 - 0.002
-        ],
-        [
-          patientLocation.latitude + (selectedHospital.hospital.latitude - patientLocation.latitude) * 0.75 - 0.002,
-          patientLocation.longitude + (selectedHospital.hospital.longitude - patientLocation.longitude) * 0.8 + 0.001
-        ],
-        [selectedHospital.hospital.latitude, selectedHospital.hospital.longitude]
-      ];
+      const origin = { latitude: patientLocation.latitude, longitude: patientLocation.longitude };
+      const dest = { latitude: selectedHospital.hospital.latitude, longitude: selectedHospital.hospital.longitude };
 
-      const polyline = L.polyline(latlngs, {
-        color: '#2563eb',
-        weight: 4.5,
-        opacity: 0.85,
-        dashArray: '6, 8',
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(map);
+      let isCurrent = true;
 
-      routeLineRef.current = polyline;
+      fetchRoadPolyline(origin, dest)
+        .then((roadCoords) => {
+          if (!isCurrent || !mapInstanceRef.current || !leafletRef.current) return;
+          const currentMap = mapInstanceRef.current;
+          const currentL = leafletRef.current;
 
-      // Fit map bounds to show patient and target hospital
-      const bounds = L.latLngBounds([
-        [patientLocation.latitude, patientLocation.longitude],
-        [selectedHospital.hospital.latitude, selectedHospital.hospital.longitude]
-      ]);
-      map.fitBounds(bounds, { padding: [55, 55], maxZoom: 15 });
+          if (routeLineRef.current) {
+            currentMap.removeLayer(routeLineRef.current);
+            routeLineRef.current = null;
+          }
+
+          // Outer high-contrast street outline (dark navy)
+          const casing = currentL.polyline(roadCoords, {
+            color: '#1e3a8a',
+            weight: 6.5,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+
+          // Inner vibrant emergency route (electric blue)
+          const core = currentL.polyline(roadCoords, {
+            color: '#3b82f6',
+            weight: 4,
+            opacity: 1.0,
+            lineCap: 'round',
+            lineJoin: 'round'
+          });
+
+          const group = currentL.layerGroup([casing, core]).addTo(currentMap);
+          routeLineRef.current = group;
+
+          // Fit map bounds to show patient and target hospital
+          const bounds = currentL.latLngBounds(roadCoords);
+          currentMap.fitBounds(bounds, { padding: [55, 55], maxZoom: 16 });
+        })
+        .catch(() => {
+          if (!isCurrent || !mapInstanceRef.current || !leafletRef.current) return;
+          const currentMap = mapInstanceRef.current;
+          const currentL = leafletRef.current;
+
+          const polyline = currentL.polyline([
+            [origin.latitude, origin.longitude],
+            [dest.latitude, dest.longitude]
+          ], {
+            color: '#2563eb',
+            weight: 4.5,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(currentMap);
+
+          routeLineRef.current = polyline;
+        });
+
+      return () => {
+        isCurrent = false;
+        if (routeLineRef.current && mapInstanceRef.current) {
+          mapInstanceRef.current.removeLayer(routeLineRef.current);
+          routeLineRef.current = null;
+        }
+      };
     }
   }, [isMapReady, patientLocation, hospitals, selectedHospitalId, onSelectHospital, selectedHospital]);
 
@@ -241,7 +279,7 @@ export function HospitalMap({
       <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-200/80 shadow-md text-xs flex items-center gap-3 pointer-events-auto">
         <div className="flex items-center gap-1.5 font-semibold text-slate-800">
           <Layers className="w-3.5 h-3.5 text-blue-600" />
-          <span>OSM Live Route</span>
+          <span>🛣️ Road Route (Turn-by-Turn)</span>
         </div>
         {selectedHospital && (
           <div className="flex items-center gap-2 text-slate-600 border-l border-slate-200 pl-3">
