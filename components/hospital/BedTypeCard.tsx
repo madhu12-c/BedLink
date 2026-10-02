@@ -192,7 +192,8 @@ export function BedTypeCard({
     >
       {/* 1. Header (Fixed alignment across cards) */}
       <div className="flex items-start justify-between gap-2 mb-3 min-h-[48px] shrink-0">
-        <div>
+        {/* min-w-0 lets long names below shrink and cut off with "…" instead of spilling out */}
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="text-lg" aria-hidden="true">
               {meta.icon}
