@@ -23,7 +23,8 @@ import {
   HeartPulse,
   Building2,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  Ambulance
 } from 'lucide-react';
 
 type HospitalView = 'nurse' | 'coordinator';
@@ -488,10 +489,42 @@ Bed Type: ${bed}
         </div>
 
         {/* =========================================================================
-            VIEW 1: WARD NURSE (bed counts only — no accept/reject)
+            VIEW 1: WARD NURSE (bed counts; sees requests but no accept/reject)
            ========================================================================= */}
         {view === 'nurse' && (
           <div className="space-y-6">
+            {/* Incoming request heads-up (read-only: the coordinator accepts or rejects) */}
+            {displayReservation &&
+              (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+                <div
+                  role="status"
+                  className={`p-4 rounded-2xl border-2 flex items-start gap-3 ${
+                    displayReservation.status === 'pending'
+                      ? 'bg-red-50 border-red-300 text-red-900'
+                      : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  }`}
+                >
+                  <Ambulance className="w-6 h-6 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5">
+                    <strong className="text-sm font-black">
+                      {displayReservation.status === 'pending'
+                        ? 'Incoming ambulance request'
+                        : 'Bed allotted: patient on the way'}
+                    </strong>
+                    <span className="text-xs font-semibold">
+                      {displayReservation.bed_type.toUpperCase()} bed
+                      {displayReservation.patient_urgency ? ` · ${displayReservation.patient_urgency}` : ''}
+                      {displayReservation.eta_minutes ? ` · ETA ${displayReservation.eta_minutes} min` : ''}
+                    </span>
+                    <span className="text-xs">
+                      {displayReservation.status === 'pending'
+                        ? 'The hospital coordinator is deciding (2-minute timer). Get the bed ready in case it is accepted.'
+                        : 'Accepted by the coordinator. Prepare the bed to receive the patient.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
             {/* Bedside Rapid Bed Count Update Grid */}
             <BedUpdateGrid
               hospital={currentHospital}
