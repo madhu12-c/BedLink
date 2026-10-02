@@ -102,6 +102,7 @@ class BedLinkDataStore {
     bedInventories?: BedInventory[];
     reservations?: Reservation[];
     reservationEvents?: ReservationEvent[];
+    bedHistoryLogs?: BedHistoryLog[];
   }) {
     if (!data) return;
     if (data.hospitals && data.hospitals.length > 0) this.hospitals = data.hospitals;
@@ -109,6 +110,7 @@ class BedLinkDataStore {
     if (data.bedInventories && data.bedInventories.length > 0) this.bedInventories = data.bedInventories;
     if (data.reservations) this.reservations = data.reservations;
     if (data.reservationEvents) this.reservationEvents = data.reservationEvents;
+    if (data.bedHistoryLogs && data.bedHistoryLogs.length > 0) this.bedHistoryLogs = data.bedHistoryLogs;
     this.notifyListeners('SYNC_STATE', null);
   }
 
@@ -1050,6 +1052,16 @@ class BedLinkDataStore {
 
   public addBedHistoryLog(log: BedHistoryLog) {
     this.bedHistoryLogs.unshift(log);
+    this.broadcast('bed_history_logged', { log });
+  }
+
+  public applyExternalBedHistoryLog(log: BedHistoryLog) {
+    const existingIndex = this.bedHistoryLogs.findIndex((l) => l.id === log.id);
+    if (existingIndex >= 0) {
+      this.bedHistoryLogs[existingIndex] = log;
+    } else {
+      this.bedHistoryLogs.unshift(log);
+    }
     this.broadcast('bed_history_logged', { log });
   }
 

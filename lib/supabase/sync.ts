@@ -1,6 +1,6 @@
 import { getBrowserSupabaseClient, isSupabaseConfigured } from './client';
 import { bedLinkStore } from '../data/store';
-import { BedInventory, BedType, Hospital, HospitalCapability, Reservation, ReservationEvent } from '../types';
+import { BedHistoryLog, BedInventory, BedType, Hospital, HospitalCapability, Reservation, ReservationEvent } from '../types';
 
 let syncInitialized = false;
 let isConnected = false;
@@ -79,12 +79,13 @@ export async function initSupabaseSync(): Promise<boolean> {
 
   try {
     // 1. Initial Data Fetch
-    const [hospitalsRes, capsRes, bedsRes, reservationsRes, eventsRes] = await Promise.all([
+    const [hospitalsRes, capsRes, bedsRes, reservationsRes, eventsRes, historyRes] = await Promise.all([
       supabase.from('hospitals').select('*'),
       supabase.from('hospital_capabilities').select('*'),
       supabase.from('bed_inventory').select('*'),
       supabase.from('reservations').select('*').order('requested_at', { ascending: false }).limit(50),
-      supabase.from('reservation_events').select('*').order('created_at', { ascending: false }).limit(50)
+      supabase.from('reservation_events').select('*').order('created_at', { ascending: false }).limit(50),
+      supabase.from('bed_history_logs').select('*').order('admitted_at', { ascending: false }).limit(50)
     ]);
 
     if (!hospitalsRes.error && hospitalsRes.data && hospitalsRes.data.length > 0) {
@@ -142,12 +143,28 @@ export async function initSupabaseSync(): Promise<boolean> {
         created_at: e.created_at
       }));
 
+      const liveHistory: BedHistoryLog[] = (historyRes?.data || []).map((h) => ({
+        id: h.id,
+        hospital_id: h.hospital_id,
+        bed_type: h.bed_type as BedType,
+        bed_identifier: h.bed_identifier,
+        patient_id: h.patient_id || undefined,
+        patient_name: h.patient_name || undefined,
+        diagnosis: h.diagnosis || undefined,
+        admitted_at: h.admitted_at,
+        discharged_at: h.discharged_at || undefined,
+        status: h.status,
+        handover_sha256: h.handover_sha256 || undefined,
+        actor_name: h.actor_name,
+      }));
+
       bedLinkStore.hydrateFromSerialized({
         hospitals: liveHospitals,
         capabilities: liveCaps,
         bedInventories: liveBeds,
         reservations: liveReservations,
-        reservationEvents: liveEvents
+        reservationEvents: liveEvents,
+        bedHistoryLogs: liveHistory.length > 0 ? liveHistory : undefined,
       });
 
       isConnected = true;
@@ -216,6 +233,31 @@ export async function initSupabaseSync(): Promise<boolean> {
               id: String(row.id),
               current_load: Number(row.current_load),
               load_updated_at: String(row.load_updated_at || new Date().toISOString())
+            });
+            lastSyncTime = new Date().toLocaleTimeString();
+            notifyConnectionChange();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bed_history_logs' },
+        (payload) => {
+          if (payload.new && typeof payload.new === 'object') {
+            const row = payload.new as Record<string, unknown>;
+            bedLinkStore.applyExternalBedHistoryLog({
+              id: String(row.id),
+              hospital_id: String(row.hospital_id),
+              bed_type: row.bed_type as BedType,
+              bed_identifier: String(row.bed_identifier),
+              patient_id: row.patient_id ? String(row.patient_id) : undefined,
+              patient_name: row.patient_name ? String(row.patient_name) : undefined,
+              diagnosis: row.diagnosis ? String(row.diagnosis) : undefined,
+              admitted_at: String(row.admitted_at || new Date().toISOString()),
+              discharged_at: row.discharged_at ? String(row.discharged_at) : undefined,
+              status: (row.status as any) || 'occupied',
+              handover_sha256: row.handover_sha256 ? String(row.handover_sha256) : undefined,
+              actor_name: String(row.actor_name || 'Staff Nurse'),
             });
             lastSyncTime = new Date().toLocaleTimeString();
             notifyConnectionChange();
