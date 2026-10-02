@@ -194,25 +194,25 @@ export function HospitalResultCard({
       {/* Action Area: Pending / Accepted / Hold Bed */}
       <div>
         {isAcceptedHere ? (
-          <div className="w-full py-2.5 px-3 bg-emerald-600 text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 shadow-sm">
-            <Check className="w-4 h-4" />
-            BED CONFIRMED & HELD
+          <div className="w-full py-3 sm:py-2.5 px-3 bg-emerald-600 text-white rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm flex items-center justify-center gap-2 shadow-md">
+            <Check className="w-5 h-5 sm:w-4 sm:h-4" />
+            BED CONFIRMED &amp; HELD
           </div>
         ) : isPendingHere ? (
-          <div className="p-3 bg-blue-100/90 border border-blue-300 rounded-lg flex flex-col gap-2">
+          <div className="p-3.5 sm:p-3 bg-blue-100/90 border border-blue-300 rounded-xl sm:rounded-lg flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                Holding Resource · Response Pending
+                Holding · Awaiting Hospital
               </span>
               <ReservationTimer expiresAt={activeReservation.expires_at} size="sm" />
             </div>
             <div className="text-xs text-blue-800">
-              Hospital team notified via realtime. Awaiting nurse acceptance.
+              Hospital notified. Awaiting nurse acceptance.
             </div>
           </div>
         ) : isRejectedHere ? (
-          <div className="p-2.5 bg-rose-100 border border-rose-300 rounded-lg text-xs text-rose-900 font-medium text-center">
-            Hospital declined reservation. Auto-routed to alternate candidate.
+          <div className="p-3 sm:p-2.5 bg-rose-100 border border-rose-300 rounded-xl sm:rounded-lg text-xs text-rose-900 font-medium text-center">
+            Hospital declined. Auto-routed to next facility.
           </div>
         ) : (
           <button
@@ -222,15 +222,15 @@ export function HospitalResultCard({
               e.stopPropagation();
               onHoldBed(hospital.id);
             }}
-            className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-150 flex items-center justify-center gap-2 min-h-[44px] ${
+            className={`w-full py-3.5 sm:py-2.5 px-4 rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm transition-all duration-150 flex items-center justify-center gap-2 min-h-[54px] sm:min-h-[44px] ${
               availableBeds > 0
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow hover:shadow-md active:scale-[0.98]'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl active:scale-[0.98]'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
             }`}
             aria-label={`Hold bed at ${hospital.name}`}
           >
-            <span>{availableBeds > 0 ? 'HOLD BED (2 MIN)' : 'NO BEDS AVAILABLE'}</span>
-            {availableBeds > 0 && <ArrowRight className="w-4 h-4" />}
+            <span>{availableBeds > 0 ? '🔒 HOLD BED (2 MIN)' : 'NO BEDS AVAILABLE'}</span>
+            {availableBeds > 0 && <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4" />}
           </button>
         )}
       </div>

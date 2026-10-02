@@ -18,6 +18,7 @@ interface HeaderProps {
   currentRole: UserRole;
   selectedHospitalId?: string;
   onRoleChange: (role: UserRole, hospitalId?: string) => void;
+  hideBottomNav?: boolean;
 }
 
 function subscribeOnline(callback: () => void) {
@@ -32,7 +33,8 @@ function subscribeOnline(callback: () => void) {
 export function Header({
   currentRole,
   selectedHospitalId,
-  onRoleChange
+  onRoleChange,
+  hideBottomNav = false
 }: HeaderProps) {
   const pathname = usePathname();
 
@@ -160,24 +162,26 @@ export function Header({
       </div>
 
       {/* Mobile Bottom Navigation Bar (WCAG AA & Touch Targets >= 44x44px) */}
-      <div className="md:hidden border-t border-slate-200 bg-white grid grid-cols-4 py-1 px-2">
-        {navLinks.map((link) => {
-          const Icon = link.icon;
-          const isActive = pathname === link.href;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex flex-col items-center justify-center py-1.5 px-1 rounded text-[10px] font-semibold min-h-[44px] ${
-                isActive ? 'text-blue-600 font-bold' : 'text-slate-500'
-              }`}
-            >
-              <Icon className="w-5 h-5 mb-0.5" />
-              <span className="truncate max-w-[70px]">{link.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+      {!hideBottomNav && (
+        <div className="md:hidden border-t border-slate-200 bg-white grid grid-cols-4 py-1 px-2">
+          {navLinks.map((link) => {
+            const Icon = link.icon;
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded text-[10px] font-semibold min-h-[44px] ${
+                  isActive ? 'text-blue-600 font-bold' : 'text-slate-500'
+                }`}
+              >
+                <Icon className="w-5 h-5 mb-0.5" />
+                <span className="truncate max-w-[70px]">{link.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </header>
   );
 }
