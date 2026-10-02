@@ -65,6 +65,26 @@ export function calculateLoadScore(currentLoadPercent: number): number {
   return Number(((100 - clampedLoad) / 100).toFixed(3));
 }
 
+/**
+ * Chance (0-100) that at least one of the free beds is still free when the ambulance gets there.
+ * Each bed's chance fades with the age of the count plus the drive time (about 60% after half an
+ * hour, 40% after an hour). Beds already held for other ambulances are not in the free count.
+ */
+export function likelyFreeOnArrival(freeBeds: number, dataAgeMinutes: number, etaMinutes: number): number {
+  if (freeBeds <= 0) return 0;
+  const perBed = Math.exp(-(Math.max(0, dataAgeMinutes) + Math.max(0, etaMinutes)) / 65);
+  // Never claim certainty: the count can always be wrong
+  return Math.min(99, Math.round((1 - Math.pow(1 - perBed, freeBeds)) * 100));
+}
+
+/** likelyFreeOnArrival for a ranked hospital and bed type, using its data age right now. */
+export function likelyFreeFor(scored: { inventory: Partial<Record<BedType, BedInventory>>; etaMinutes: number }, bedType: BedType): number {
+  const inv = scored.inventory[bedType];
+  if (!inv) return 0;
+  const ageMinutes = (Date.now() - Date.parse(inv.updated_at)) / 60000;
+  return likelyFreeOnArrival(inv.available_beds, ageMinutes, scored.etaMinutes);
+}
+
 export interface HospitalCandidate {
   hospital: Hospital;
   inventory: Record<BedType, BedInventory>;

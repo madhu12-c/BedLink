@@ -19,7 +19,7 @@ import { FreshnessIndicator } from './FreshnessIndicator';
 import { LoadIndicator } from './LoadIndicator';
 import { ReservationTimer } from './ReservationTimer';
 import { callUrl, navigateUrl } from './ActiveHoldBar';
-import { DEFAULT_RANKING_WEIGHTS } from '@/lib/dispatch/ranking';
+import { DEFAULT_RANKING_WEIGHTS, likelyFreeFor } from '@/lib/dispatch/ranking';
 
 interface HospitalResultCardProps {
   scoredHospital: ScoredHospital;
@@ -73,6 +73,8 @@ export function HospitalResultCard({
     { label: `Reliability ${hospital.reliability ?? 100}/100`, pts: points(scoredHospital.reliabilityScore ?? 1, w.reliability), max: Math.round(w.reliability * 100) }
   ];
   const onDiversion = hospital.ed_status === 'diversion';
+  // Chance a bed is still free on arrival (data age + drive time)
+  const likelyFree = availableBeds > 0 ? likelyFreeFor(scoredHospital, requiredBedType) : 0;
   const reliability = hospital.reliability ?? 100;
 
   return (
@@ -157,6 +159,23 @@ export function HospitalResultCard({
           {hospital.address}
         </span>
       </div>
+
+      {/* Chance the bed is still free when the ambulance arrives */}
+      {availableBeds > 0 && (
+        <div
+          className={`mb-3 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between border ${
+            likelyFree >= 70
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : likelyFree >= 40
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-red-50 text-red-800 border-red-200'
+          }`}
+          title="Based on how old the bed count is and how long the drive takes"
+        >
+          <span>Likely free when you arrive</span>
+          <span className="font-mono text-sm" suppressHydrationWarning>{likelyFree}%</span>
+        </div>
+      )}
 
       {/* Requirements Matrix */}
       <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 rounded-lg text-xs mb-3 border border-slate-100">
