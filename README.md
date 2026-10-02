@@ -287,7 +287,9 @@ npm run telegram:webhook     # Configure remote Telegram webhook URL
 
 **Team T39 - Techforge 2026 (Healthtech Track)**
 
-- **Madhavan Chanda** (`madhu12-c`) — Full Stack Lead & System Architect
-- **Swayam Gode** (`swayamgode`) — Frontend Engineer & Database Specialist
+- **Swayam Dashrath Gode**
+- **Vedant Kishor Mhatre**
+- **Madhusudan Jitendra Chanda**
+- **Yash Vilas Karande**
 
 ---
