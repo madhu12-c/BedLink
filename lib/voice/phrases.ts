@@ -17,9 +17,9 @@ export interface SpokenPhrase {
 }
 
 const BED_LABELS: Record<PhraseLanguage, Record<BedType, string>> = {
-  'en-IN': { icu: 'ICU', ventilator: 'ventilator', oxygen: 'oxygen', emergency: 'emergency', general: 'general ward' },
-  'hi-IN': { icu: 'आईसीयू', ventilator: 'वेंटिलेटर', oxygen: 'ऑक्सीजन', emergency: 'इमरजेंसी', general: 'जनरल वार्ड' },
-  'mr-IN': { icu: 'आयसीयू', ventilator: 'व्हेंटिलेटर', oxygen: 'ऑक्सिजन', emergency: 'इमर्जन्सी', general: 'जनरल वॉर्ड' }
+  'en-IN': { icu: 'ICU', ventilator: 'ventilator', oxygen: 'oxygen', cardiac: 'cardiac', burns: 'burns', emergency: 'emergency', general: 'general ward' },
+  'hi-IN': { icu: 'आईसीयू', ventilator: 'वेंटिलेटर', oxygen: 'ऑक्सीजन', cardiac: 'कार्डियक', burns: 'बर्न्स', emergency: 'इमरजेंसी', general: 'जनरल वार्ड' },
+  'mr-IN': { icu: 'आयसीयू', ventilator: 'व्हेंटिलेटर', oxygen: 'ऑक्सिजन', cardiac: 'कार्डियाक', burns: 'बर्न्स', emergency: 'इमर्जन्सी', general: 'जनरल वॉर्ड' }
 };
 
 const SPECIALTY_LABELS: Record<PhraseLanguage, Record<Exclude<VoiceSpecialty, 'none'>, string>> = {

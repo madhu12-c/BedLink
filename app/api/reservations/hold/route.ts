@@ -6,7 +6,7 @@ import { requireApiUser } from '@/lib/auth/session';
 const HoldSchema = z.object({
   requestId: z.string().min(1),
   hospitalId: z.string().min(1),
-  bedType: z.enum(['icu', 'ventilator', 'oxygen', 'emergency', 'general']),
+  bedType: z.enum(['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general']),
   actorId: z.string().optional(),
   actorName: z.string().optional()
 });

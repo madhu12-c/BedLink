@@ -5,7 +5,7 @@ import { requireApiUser, staffHospitalDenied } from '@/lib/auth/session';
 
 const BedUpdateSchema = z.object({
   hospitalId: z.string().min(1),
-  bedType: z.enum(['icu', 'ventilator', 'oxygen', 'emergency', 'general']),
+  bedType: z.enum(['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general']),
   delta: z.number().int(),
   actorId: z.string().optional(),
   actorName: z.string().optional()

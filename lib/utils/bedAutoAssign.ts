@@ -113,6 +113,8 @@ const BED_PREFIXES: Record<BedType, string> = {
   icu: 'ICU',
   ventilator: 'VENT',
   oxygen: 'OXY',
+  cardiac: 'CCU',
+  burns: 'BRN',
   emergency: 'EMG',
   general: 'GEN'
 };

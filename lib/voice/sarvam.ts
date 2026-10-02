@@ -185,7 +185,7 @@ async function chatJsonCompletion(
 const INTAKE_SYSTEM_PROMPT = `You extract emergency bed requirements from an ambulance crew's spoken request for BedLink, a hospital bed finder in India. The speech may be in any Indian language, or mixed with English.
 
 Return ONLY a JSON object with exactly these keys:
-- "bedType": one of "icu", "ventilator", "oxygen", "emergency", "general", or null if not mentioned
+- "bedType": one of "icu", "ventilator", "oxygen", "cardiac", "burns", "emergency", "general", or null if not mentioned
 - "requiresVentilator": true if a ventilator or breathing machine is needed, false if explicitly not needed, null if not mentioned
 - "specialty": one of "cardiac", "burns", "trauma", "neuro", "pediatric", "none", or null if not mentioned
 - "urgency": one of "critical", "urgent", "normal", or null if not mentioned
@@ -194,7 +194,7 @@ Return ONLY a JSON object with exactly these keys:
 Rules:
 - Never put patient names, ages tied to a name, phone numbers or addresses in "notes".
 - Use null when the speech does not say something. Do not invent values.
-- Only set "bedType" when a bed type is actually named. A specialty such as a burns unit or cardiac care is not a bed type.
+- Only set "bedType" when a bed type is actually named. Use "cardiac" only for a cardiac / CCU / coronary care bed and "burns" only for a burns ward or burns unit bed; a heart or burn patient who needs an ICU bed is "icu" with that specialty.
 - Only set "requiresVentilator" when a ventilator or breathing support is mentioned.
 - Heart attack, chest pain or STEMI means "cardiac". Accident, fall or fracture means "trauma". Stroke, seizure or head injury means "neuro". A child or infant means "pediatric". Burns or fire injury means "burns".
 - Unconscious, not breathing or heavy bleeding means "critical".`;

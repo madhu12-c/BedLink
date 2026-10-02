@@ -38,6 +38,8 @@ const BED_TYPES: { type: BedType; label: string; desc: string }[] = [
   { type: 'icu', label: 'ICU', desc: 'Intensive Care Unit' },
   { type: 'ventilator', label: 'Ventilator', desc: 'Mechanical Ventilation' },
   { type: 'oxygen', label: 'Oxygen', desc: 'High-flow O₂ Support' },
+  { type: 'cardiac', label: 'Cardiac', desc: 'CCU / Coronary Care' },
+  { type: 'burns', label: 'Burns', desc: 'Burns Unit Bed' },
   { type: 'emergency', label: 'Emergency', desc: 'Immediate Resus' },
   { type: 'general', label: 'General', desc: 'Standard Inpatient' }
 ];

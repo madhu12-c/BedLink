@@ -17,6 +17,8 @@ const BED_METADATA: Record<BedType, { label: string; subtext: string; icon: stri
   icu: { label: 'ICU Beds', subtext: 'Intensive Critical Care Units', icon: '🏥', image: '/icu_bed.jpg' },
   ventilator: { label: 'Ventilators', subtext: 'Invasive / Non-Invasive Mechanical', icon: '🫁', image: '/ventilator_bed.jpg' },
   oxygen: { label: 'Oxygen Beds', subtext: 'High-Flow Wall & Tank O₂', icon: '💨', image: '/oxygen_bed.jpg' },
+  cardiac: { label: 'Cardiac Beds (CCU)', subtext: 'Coronary care, cath-lab ready', icon: '❤️', image: '/icu_bed.jpg' },
+  burns: { label: 'Burns Unit', subtext: 'Dedicated burns care beds', icon: '🔥', image: '/emergency_resus_bed.jpg' },
   emergency: { label: 'Emergency Resus', subtext: 'Trauma & Resuscitation Bays', icon: '⚡', image: '/emergency_resus_bed.jpg' },
   general: { label: 'General Ward', subtext: 'Standard Inpatient Admission', icon: '🛏️', image: '/general_ward_bed.jpg' }
 };
@@ -186,6 +188,11 @@ export function BedTypeCard({
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">{meta.subtext}</p>
+          {inventory.updated_by_name && (
+            <p className="text-[11px] text-slate-500 mt-0.5 truncate" title="Who last changed or confirmed this count">
+              Last update by <span className="font-semibold text-slate-700">{inventory.updated_by_name}</span>
+            </p>
+          )}
         </div>
 
         {/* Freshness / Saved indicator */}

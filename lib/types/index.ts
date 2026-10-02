@@ -1,4 +1,7 @@
-export type BedType = 'icu' | 'ventilator' | 'oxygen' | 'emergency' | 'general';
+export type BedType = 'icu' | 'ventilator' | 'oxygen' | 'cardiac' | 'burns' | 'emergency' | 'general';
+
+/** Emergency department status a hospital sets: on diversion, ambulances are not sent there. */
+export type EdStatus = 'open' | 'busy' | 'diversion';
 
 export type Urgency = 'critical' | 'urgent' | 'normal';
 
@@ -12,7 +15,10 @@ export type ReservationStatus =
   | 'cancelled' 
   | 'completed'
   | 'shadow'       // Edge Case 1: shadow fallback slot (pre-held, waiting to activate)
-  | 'auto_released'; // Edge Case 3: auto-released because a closer hospital was confirmed
+  | 'auto_released' // Edge Case 3: auto-released because a closer hospital was confirmed
+  | 'arrived'       // ambulance arrived and handed over
+  | 'released'      // accepted, but no arrival by ETA + 15 min: bed given back
+  | 'bed_lost';     // arrived, but the held bed was gone: patient must go elsewhere
 
 export type UserRole = 'dispatcher' | 'nurse' | 'coordinator' | 'admin';
 
@@ -38,6 +44,10 @@ export interface Hospital {
   is_active: boolean;
   phone?: string;
   created_at?: string;
+  /** Open / Busy / Diversion, set by the hospital coordinator */
+  ed_status?: EdStatus;
+  /** 0-100: drops on reject (-2), timeout (-5), bed lost on arrival (-15); +1 per arrival */
+  reliability?: number;
 }
 
 export interface HospitalCapability {
@@ -54,6 +64,8 @@ export interface BedInventory {
   available_beds: number;
   updated_at: string;
   updated_by?: string | null;
+  /** Name of the person who last changed or confirmed this count */
+  updated_by_name?: string | null;
 }
 
 export interface EmergencyRequest {
@@ -99,6 +111,7 @@ export interface Reservation {
   hospital_name?: string;
   patient_urgency?: Urgency;
   eta_minutes?: number;
+  arrived_at?: string | null;
   notes?: string | null;
 }
 
@@ -117,7 +130,10 @@ export interface ReservationEvent {
     | 'shadow_hold_released'   // Edge Case 1: shadow released (primary was accepted)
     | 'race_condition_blocked'  // Edge Case 2: second carrier lost the race
     | 'auto_released_distant'  // Edge Case 3: farthest hold auto-released
-    | 'reservation_cancelled'; // dispatcher withdrew a pending hold
+    | 'reservation_cancelled'  // dispatcher withdrew a pending hold
+    | 'reservation_arrived'    // ambulance arrived and handed over
+    | 'reservation_released'   // no arrival by ETA + 15 min
+    | 'reservation_bed_lost';  // bed was gone on arrival
   actor_id?: string | null;
   actor_name?: string | null;
   metadata: Record<string, unknown>;
@@ -129,6 +145,7 @@ export interface RankingWeights {
   travel: number;   // default 0.25
   freshness: number;// default 0.20
   load: number;     // default 0.10
+  reliability: number; // default 0.10
 }
 
 export interface ScoredHospital {
@@ -145,6 +162,8 @@ export interface ScoredHospital {
   isExactMatch: boolean;
   missingResources: string[];
   lastUpdated: string;
+  /** 0-1 from the hospital's reliability score */
+  reliabilityScore?: number;
 }
 
 export interface PatientLocation {

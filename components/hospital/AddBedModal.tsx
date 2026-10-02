@@ -31,6 +31,8 @@ export function AddBedModal({
     { type: 'icu', label: 'Intensive Care Unit (ICU)', desc: '1:1 nursing, full invasive monitoring' },
     { type: 'ventilator', label: 'Invasive Ventilator', desc: 'Mechanical ventilation life support' },
     { type: 'oxygen', label: 'High-Flow Oxygen Bed', desc: 'Central O2 manifold pipe delivery' },
+    { type: 'cardiac', label: 'Cardiac Care Bed (CCU)', desc: 'Coronary care, cath-lab ready' },
+    { type: 'burns', label: 'Burns Unit Bed', desc: 'Dedicated burns care' },
     { type: 'emergency', label: 'Emergency Resuscitation Bay', desc: 'Level 1 trauma triage bay' },
     { type: 'general', label: 'General / Step-Down Ward', desc: 'Post-acute step down monitoring' }
   ];

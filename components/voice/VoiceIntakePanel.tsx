@@ -32,6 +32,8 @@ const BED_LABELS: Record<BedType, string> = {
   icu: 'ICU',
   ventilator: 'Ventilator',
   oxygen: 'Oxygen',
+  cardiac: 'Cardiac',
+  burns: 'Burns',
   emergency: 'Emergency',
   general: 'General ward'
 };

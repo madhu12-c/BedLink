@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { BedType, Urgency } from '../types';
 import { VoiceLanguageCode } from './languages';
 
-export const BED_TYPE_VALUES = ['icu', 'ventilator', 'oxygen', 'emergency', 'general'] as const;
+export const BED_TYPE_VALUES = ['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general'] as const;
 export const SPECIALTY_VALUES = ['none', 'cardiac', 'burns', 'trauma', 'neuro', 'pediatric'] as const;
 export const URGENCY_VALUES = ['critical', 'urgent', 'normal'] as const;
 
@@ -68,6 +68,8 @@ const KEYWORDS = {
   ventilator: ['ventilator', 'वेंटिलेटर', 'व्हेंटिलेटर', 'वेंटीलेटर'],
   oxygen: ['oxygen', 'o2', 'ऑक्सीजन', 'ऑक्सिजन', 'आक्सीजन'],
   emergencyBed: ['emergency bed', 'resus', 'casualty', 'इमरजेंसी बेड', 'इमर्जन्सी बेड', 'कैजुअल्टी'],
+  cardiacBed: ['ccu', 'cardiac bed', 'cardiac care', 'coronary care', 'सीसीयू', 'कार्डियक बेड', 'कार्डियाक बेड'],
+  burnsBed: ['burns ward', 'burn ward', 'burns unit', 'burn unit', 'burns bed', 'बर्न वार्ड', 'बर्न्स वॉर्ड', 'बर्न यूनिट'],
   generalBed: ['general ward', 'general bed', 'जनरल वार्ड', 'जनरल वॉर्ड', 'जनरल बेड'],
   cardiac: ['cardiac', 'heart', 'stemi', 'chest pain', 'हार्ट', 'हृदय', 'दिल का', 'दिल की', 'छाती', 'हृदयविकार'],
   burns: ['burn', 'जला', 'जली', 'जले', 'झुलस', 'भाजल', 'भाजले', 'आग'],
@@ -90,6 +92,8 @@ export function parseIntakeKeywords(transcript: string): VoiceIntakeFields {
   const mentionsVentilator = includesAny(text, KEYWORDS.ventilator);
 
   if (includesAny(text, KEYWORDS.icu)) fields.bedType = 'icu';
+  else if (includesAny(text, KEYWORDS.cardiacBed)) fields.bedType = 'cardiac';
+  else if (includesAny(text, KEYWORDS.burnsBed)) fields.bedType = 'burns';
   else if (includesAny(text, KEYWORDS.oxygen)) fields.bedType = 'oxygen';
   else if (includesAny(text, KEYWORDS.emergencyBed)) fields.bedType = 'emergency';
   else if (includesAny(text, KEYWORDS.generalBed)) fields.bedType = 'general';

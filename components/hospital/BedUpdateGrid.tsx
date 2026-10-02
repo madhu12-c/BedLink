@@ -22,8 +22,8 @@ export function BedUpdateGrid({
   onUpdateTotalBeds,
   disabled = false
 }: BedUpdateGridProps) {
-  // Ordered per spec: ICU, Ventilator, Oxygen, Emergency, General
-  const order: BedType[] = ['icu', 'ventilator', 'oxygen', 'emergency', 'general'];
+  // Ordered per spec: ICU, Ventilator, Oxygen, Cardiac, Burns, then Emergency, General
+  const order: BedType[] = ['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general'];
   const sortedInventory = [...bedInventory].sort(
     (a, b) => order.indexOf(a.bed_type) - order.indexOf(b.bed_type)
   );
