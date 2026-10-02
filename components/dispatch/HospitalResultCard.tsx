@@ -5,14 +5,16 @@ import {
   CheckCircle2,
   XCircle,
   MapPin,
-  Clock,
   ShieldAlert,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
   Sparkles,
-  Bed,
   Check,
+  Lock,
   Navigation,
-  Phone
+  Phone,
+  ChevronDown
 } from 'lucide-react';
 import { BedType, Reservation, ScoredHospital } from '@/lib/types';
 import { FreshnessIndicator } from './FreshnessIndicator';
@@ -32,8 +34,15 @@ interface HospitalResultCardProps {
   onHoldBed: (hospitalId: string) => void;
   onSelectHospital?: (hospital: ScoredHospital) => void;
   isLoading?: boolean;
+  /** Places this card moved when road times replaced the quick estimate (+ = moved up). */
+  rankChange?: number;
 }
 
+/**
+ * One hospital in the dispatch list. The card shows only what the crew needs to decide
+ * (drive time, free beds, chance it is still free, data age) and a big Hold button;
+ * everything else sits behind "More details".
+ */
 export function HospitalResultCard({
   scoredHospital,
   rank,
@@ -44,7 +53,8 @@ export function HospitalResultCard({
   activeReservation = null,
   onHoldBed,
   onSelectHospital,
-  isLoading = false
+  isLoading = false,
+  rankChange = 0
 }: HospitalResultCardProps) {
   const { hospital, inventory, capabilities, isExactMatch, missingResources, distanceKm, etaMinutes } =
     scoredHospital;
@@ -76,6 +86,8 @@ export function HospitalResultCard({
   // Chance a bed is still free on arrival (data age + drive time)
   const likelyFree = availableBeds > 0 ? likelyFreeFor(scoredHospital, requiredBedType) : 0;
   const reliability = hospital.reliability ?? 100;
+  const likelyFreeColour =
+    likelyFree >= 70 ? 'text-emerald-700' : likelyFree >= 40 ? 'text-amber-700' : 'text-red-700';
 
   return (
     <article
@@ -91,11 +103,11 @@ export function HospitalResultCard({
       }`}
       aria-label={`Rank ${rank}: ${hospital.name}, ${etaMinutes} minutes ETA`}
     >
-      {/* Top Bar: Rank & Status */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2.5">
+      {/* Name + rank */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
           <span
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+            className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
               rank === 1 && isExactMatch
                 ? 'bg-amber-500 text-white shadow-sm'
                 : 'bg-slate-100 text-slate-700'
@@ -103,228 +115,106 @@ export function HospitalResultCard({
           >
             {rank}
           </span>
-          <img 
-            src="/icons/hospital-building.svg" 
-            alt="Hospital" 
-            className="w-7 h-7 object-contain shrink-0 drop-shadow-sm" 
-          />
-          <h3 className="font-semibold text-slate-900 text-base leading-snug">
+          <h3 className="font-bold text-slate-900 text-base leading-snug">
             {hospital.name}
           </h3>
         </div>
 
-        {rank === 1 && isExactMatch && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-            <Sparkles className="w-3 h-3 text-amber-600" />
-            Top Match
-          </span>
-        )}
-      </div>
-
-      {/* Hospital status: diversion / busy / reliability */}
-      {(onDiversion || hospital.ed_status === 'busy' || reliability < 90) && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {onDiversion && (
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
-              On diversion: not taking ambulances
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {rank === 1 && isExactMatch && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              Best match
             </span>
           )}
-          {hospital.ed_status === 'busy' && (
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+          {/* Shown for a few seconds after the road times arrive */}
+          {rankChange !== 0 && (
+            <span
+              className={`inline-flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full animate-fade-in ${
+                rankChange > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+              }`}
+              title="Moved after checking real road times"
+            >
+              {rankChange > 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+              {rankChange > 0 ? `Up ${rankChange}` : `Down ${-rankChange}`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Hospital says it can't take patients */}
+      {(onDiversion || hospital.ed_status === 'busy') && (
+        <div className="mb-3">
+          {onDiversion ? (
+            <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-800 border border-red-200">
+              On diversion: not taking ambulances
+            </span>
+          ) : (
+            <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
               Hospital says: busy
             </span>
           )}
-          {reliability < 90 && (
-            <span
-              className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200"
-              title="Drops when this hospital rejects, ignores, or loses a held bed"
-            >
-              Reliability {reliability}/100
-            </span>
-          )}
         </div>
       )}
 
-      {/* Distance, ETA, Address */}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3">
-        <span className="inline-flex items-center gap-1 font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-          <Clock className="w-3.5 h-3.5" />
-          {etaMinutes} min ETA
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-          {distanceKm} km
-        </span>
-        <span className="text-slate-400 truncate max-w-[200px]" title={hospital.address}>
-          {hospital.address}
-        </span>
-      </div>
-
-      {/* Chance the bed is still free when the ambulance arrives */}
-      {availableBeds > 0 && (
+      {/* The three numbers that decide it */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-2 text-center">
+          <span className="block text-xl font-extrabold text-slate-900 leading-none">{etaMinutes}<span className="text-sm font-bold"> min</span></span>
+          <span className="block text-xs text-slate-500 mt-1">Drive</span>
+        </div>
+        <div className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-2 text-center">
+          <span
+            className={`block text-xl font-extrabold leading-none ${availableBeds > 0 ? 'text-emerald-700' : 'text-red-700'}`}
+          >
+            {availableBeds}
+          </span>
+          <span className="block text-xs text-slate-500 mt-1 capitalize">{requiredBedType} free</span>
+        </div>
         <div
-          className={`mb-3 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between border ${
-            likelyFree >= 70
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : likelyFree >= 40
-                ? 'bg-amber-50 text-amber-800 border-amber-200'
-                : 'bg-red-50 text-red-800 border-red-200'
-          }`}
+          className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-2 text-center"
           title="Based on how old the bed count is and how long the drive takes"
         >
-          <span>Likely free when you arrive</span>
-          <span className="font-mono text-sm" suppressHydrationWarning>{likelyFree}%</span>
-        </div>
-      )}
-
-      {/* Requirements Matrix */}
-      <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 rounded-lg text-xs mb-3 border border-slate-100">
-        {/* Required Bed Availability */}
-        <div className="flex items-center justify-between">
-          <span className="text-slate-600 capitalize flex items-center gap-1">
-            <Bed className="w-3.5 h-3.5 text-slate-500" />
-            {requiredBedType}:
+          <span className={`block text-xl font-extrabold leading-none ${availableBeds > 0 ? likelyFreeColour : 'text-slate-400'}`} suppressHydrationWarning>
+            {availableBeds > 0 ? `${likelyFree}%` : '–'}
           </span>
-          <span className="font-mono font-semibold flex items-center gap-1">
-            {availableBeds > 0 ? (
-              <>
-                <span className="text-emerald-700">{availableBeds} avail</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              </>
-            ) : (
-              <>
-                <span className="text-rose-700">0 avail</span>
-                <XCircle className="w-3.5 h-3.5 text-rose-600" />
-              </>
-            )}
-          </span>
+          <span className="block text-xs text-slate-500 mt-1">Free on arrival</span>
         </div>
-
-        {/* Ventilator (if required or present) */}
-        {requiresVentilator && (
-          <div className="flex items-center justify-between">
-            <span className="text-slate-600">Ventilator:</span>
-            <span className="font-mono font-semibold flex items-center gap-1">
-              {hasVentilator ? (
-                <>
-                  <span className="text-emerald-700">{ventInv?.available_beds} avail</span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                </>
-              ) : (
-                <>
-                  <span className="text-rose-700">None</span>
-                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                </>
-              )}
-            </span>
-          </div>
-        )}
-
-        {/* Specialty (if requested) */}
-        {requiredSpecialty && requiredSpecialty !== 'none' && (
-          <div className="flex items-center justify-between col-span-2">
-            <span className="text-slate-600 capitalize">{requiredSpecialty} Specialty:</span>
-            <span className="font-medium flex items-center gap-1">
-              {hasSpecialty ? (
-                <span className="inline-flex items-center gap-1 text-emerald-700">
-                  Supported <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-rose-700">
-                  Not Supported <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                </span>
-              )}
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Partial Match Notice */}
-      {!isExactMatch && missingResources.length > 0 && (
-        <div className="mb-3 px-2.5 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 flex items-start gap-1.5">
-          <ShieldAlert className="w-3.5 h-3.5 text-rose-600 mt-0.5 shrink-0" />
-          <div>
-            <strong className="font-semibold">Missing Resource: </strong>
-            {missingResources.join(', ')}
-          </div>
-        </div>
-      )}
-
-      {/* Why this hospital: score breakdown */}
-      <details className="mb-3 text-xs group" onClick={(e) => e.stopPropagation()}>
-        <summary className="cursor-pointer select-none font-semibold text-slate-600 hover:text-slate-900 list-none flex items-center justify-between">
-          <span>Why this hospital?</span>
-          <span className="font-mono text-slate-800">Score {Math.round(scoredHospital.totalScore * 100)}/100</span>
-        </summary>
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {why.map((row) => (
-            <li key={row.label} className="flex items-center gap-2">
-              <span className="flex-1 text-slate-600">{row.label}</span>
-              <span className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-hidden="true">
-                <span className="block h-full bg-blue-500" style={{ width: `${row.max ? (row.pts / row.max) * 100 : 0}%` }} />
-              </span>
-              <span className="w-14 text-right font-mono text-slate-800">
-                {row.pts}/{row.max}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </details>
-
-      {/* Call / Navigate */}
-      <div className="flex gap-2 mb-3">
-        {hospital.phone && (
-          <a
-            href={callUrl(hospital.phone)}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[44px]"
-            aria-label={`Call ${hospital.name}`}
-          >
-            <Phone className="w-3.5 h-3.5" />
-            Call
-          </a>
-        )}
-        <a
-          href={navigateUrl(hospital.latitude, hospital.longitude)}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[44px]"
-          aria-label={`Directions to ${hospital.name}`}
-        >
-          <Navigation className="w-3.5 h-3.5" />
-          Navigate
-        </a>
-      </div>
-
-      {/* Freshness & Load Indicators */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 mb-3 text-xs">
+      {/* Data age: always visible, the whole point of the app */}
+      <div className="mb-3 text-sm">
         <FreshnessIndicator updatedAt={scoredHospital.lastUpdated} />
-        <LoadIndicator loadPercent={hospital.current_load} />
       </div>
 
-      {/* Action Area: Pending / Accepted / Hold Bed */}
-      <div>
+      {/* Something the patient needs is missing here */}
+      {!isExactMatch && missingResources.length > 0 && (
+        <div className="mb-3 px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-1.5">
+          <ShieldAlert className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+          <span>
+            <strong className="font-semibold">Missing: </strong>
+            {missingResources.join(', ')}
+          </span>
+        </div>
+      )}
+
+      {/* Action: Hold / waiting / confirmed */}
+      <div className="mb-2">
         {isAcceptedHere ? (
-          <div className="w-full py-3 sm:py-2.5 px-3 bg-emerald-600 text-white rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm flex items-center justify-center gap-2 shadow-md">
-            <Check className="w-5 h-5 sm:w-4 sm:h-4" />
-            BED CONFIRMED &amp; HELD
+          <div className="w-full py-3 px-3 bg-emerald-600 text-white rounded-xl font-extrabold text-base flex items-center justify-center gap-2 shadow-md min-h-[56px]">
+            <Check className="w-5 h-5" />
+            Bed confirmed and held
           </div>
         ) : isPendingHere ? (
-          <div className="p-3.5 sm:p-3 bg-blue-100/90 border border-blue-300 rounded-xl sm:rounded-lg flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                Holding · Awaiting Hospital
-              </span>
-              <ReservationTimer expiresAt={activeReservation.expires_at} size="sm" />
-            </div>
-            <div className="text-xs text-blue-800">
-              Hospital notified. Awaiting nurse acceptance.
-            </div>
+          <div className="p-3 bg-blue-100/90 border border-blue-300 rounded-xl flex items-center justify-between gap-2 min-h-[56px]">
+            <span className="text-sm font-semibold text-blue-900">
+              Waiting for the hospital to accept
+            </span>
+            <ReservationTimer expiresAt={activeReservation.expires_at} size="sm" />
           </div>
         ) : isRejectedHere ? (
-          <div className="p-3 sm:p-2.5 bg-rose-100 border border-rose-300 rounded-xl sm:rounded-lg text-xs text-rose-900 font-medium text-center">
-            Hospital declined. Auto-routed to next facility.
+          <div className="p-3 bg-red-100 border border-red-300 rounded-xl text-sm text-red-900 font-medium text-center">
+            Hospital said no. Moved on to the next hospital.
           </div>
         ) : (
           <button
@@ -334,18 +224,117 @@ export function HospitalResultCard({
               e.stopPropagation();
               onHoldBed(hospital.id);
             }}
-            className={`w-full py-3.5 sm:py-2.5 px-4 rounded-xl sm:rounded-lg font-extrabold sm:font-semibold text-base sm:text-sm transition-all duration-150 flex items-center justify-center gap-2 min-h-[56px] sm:min-h-[44px] ${
+            className={`w-full py-3.5 px-4 rounded-xl font-extrabold text-base transition-all duration-150 flex items-center justify-center gap-2 min-h-[56px] ${
               availableBeds > 0 && !onDiversion
                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl active:scale-[0.98]'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                : 'bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-200'
             }`}
             aria-label={`Hold bed at ${hospital.name}`}
           >
-            <span>{onDiversion ? 'ON DIVERSION' : availableBeds > 0 ? '🔒 HOLD BED (2 MIN)' : 'NO BEDS AVAILABLE'}</span>
-            {availableBeds > 0 && !onDiversion && <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4" />}
+            {availableBeds > 0 && !onDiversion && <Lock className="w-5 h-5" />}
+            <span>{onDiversion ? 'On diversion' : availableBeds > 0 ? 'Hold bed (2 min)' : 'No beds free'}</span>
+            {availableBeds > 0 && !onDiversion && <ArrowRight className="w-5 h-5" />}
           </button>
         )}
       </div>
+
+      {/* Everything else, one tap away */}
+      <details className="group text-sm" onClick={(e) => e.stopPropagation()}>
+        <summary className="cursor-pointer select-none list-none flex items-center justify-center gap-1 py-2 font-semibold text-slate-600 hover:text-slate-900 min-h-[44px]">
+          More details
+          <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+        </summary>
+
+        <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
+          {/* Where */}
+          <div className="flex items-start gap-1.5 text-slate-600">
+            <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+            <span>
+              {distanceKm} km · {hospital.address}
+            </span>
+          </div>
+
+          {/* Ventilator / specialty */}
+          {(requiresVentilator || (requiredSpecialty && requiredSpecialty !== 'none')) && (
+            <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+              {requiresVentilator && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Ventilator</span>
+                  <span className={`font-semibold flex items-center gap-1 ${hasVentilator ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {hasVentilator ? `${ventInv?.available_beds} free` : 'None'}
+                    {hasVentilator ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                  </span>
+                </div>
+              )}
+              {requiredSpecialty && requiredSpecialty !== 'none' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 capitalize">{requiredSpecialty}</span>
+                  <span className={`font-semibold flex items-center gap-1 ${hasSpecialty ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {hasSpecialty ? 'Available' : 'Not available'}
+                    {hasSpecialty ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* How full + how reliable */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <LoadIndicator loadPercent={hospital.current_load} />
+            <span
+              className={`font-semibold ${reliability < 90 ? 'text-amber-700' : 'text-slate-600'}`}
+              title="Drops when this hospital rejects, ignores, or loses a held bed"
+            >
+              Reliability {reliability}/100
+            </span>
+          </div>
+
+          {/* Why this hospital: score breakdown */}
+          <div>
+            <div className="flex items-center justify-between font-semibold text-slate-700 mb-1.5">
+              <span>Why this hospital?</span>
+              <span className="text-slate-900">Score {Math.round(scoredHospital.totalScore * 100)}/100</span>
+            </div>
+            <ul className="flex flex-col gap-1.5">
+              {why.map((row) => (
+                <li key={row.label} className="flex items-center gap-2">
+                  <span className="flex-1 text-slate-600">{row.label}</span>
+                  <span className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-hidden="true">
+                    <span className="block h-full bg-blue-500" style={{ width: `${row.max ? (row.pts / row.max) * 100 : 0}%` }} />
+                  </span>
+                  <span className="w-14 text-right font-mono text-slate-800">
+                    {row.pts}/{row.max}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Call / Navigate */}
+          <div className="flex gap-2">
+            {hospital.phone && (
+              <a
+                href={callUrl(hospital.phone)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[48px]"
+                aria-label={`Call ${hospital.name}`}
+              >
+                <Phone className="w-4 h-4" />
+                Call
+              </a>
+            )}
+            <a
+              href={navigateUrl(hospital.latitude, hospital.longitude)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg min-h-[48px]"
+              aria-label={`Directions to ${hospital.name}`}
+            >
+              <Navigation className="w-4 h-4" />
+              Navigate
+            </a>
+          </div>
+        </div>
+      </details>
     </article>
   );
 }
