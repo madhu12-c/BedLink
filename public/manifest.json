@@ -1,0 +1,16 @@
+{
+  "name": "BedLink — Emergency Bed Coordination",
+  "short_name": "BedLink",
+  "description": "Real-time emergency hospital bed and resource coordination platform for paramedics and dispatchers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
