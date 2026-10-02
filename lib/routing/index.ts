@@ -64,11 +64,14 @@ export class OSRMRoutingProvider implements RoutingProvider {
       return cached;
     }
 
-    const url = `https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson`;
+    // radiuses=50,50 snaps each waypoint to the nearest drivable road within 50m
+    // alternatives=false always picks the shortest road route (no long detours)
+    // overview=full returns complete turn-by-turn geometry
+    const url = `https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&alternatives=false&radiuses=50,50`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
@@ -76,15 +79,15 @@ export class OSRMRoutingProvider implements RoutingProvider {
       if (res.ok) {
         const data = await res.json();
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          // OSRM returns routes sorted by shortest duration — always take index 0
           const route = data.routes[0];
           const distanceKm = Number((route.distance / 1000).toFixed(1));
 
-          // Emergency vehicle driving duration calculation:
-          // Ambulances equipped with siren have ~25-35% faster clearance than standard traffic
+          // Emergency vehicle ETA: ambulances with siren clear traffic ~25% faster
           const standardMinutes = Math.round(route.duration / 60);
           const emergencyMinutes = Math.max(1, Math.round(standardMinutes * 0.75));
 
-          // Convert GeoJSON [lon, lat] coordinates into Leaflet [lat, lng] array
+          // Convert GeoJSON [lon, lat] → Leaflet [lat, lng]
           const polyline: [number, number][] = route.geometry.coordinates.map(
             ([lng, lat]: [number, number]) => [lat, lng]
           );
@@ -101,10 +104,9 @@ export class OSRMRoutingProvider implements RoutingProvider {
         }
       }
     } catch {
-      // Network timeout or offline fallback
+      // Network timeout or offline — use street-grid fallback
     }
 
-    // Fallback: Haversine distance with street-grid Manhattan style stepped path
     return fallbackStreetRoute(origin, destination);
   }
 }
