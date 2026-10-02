@@ -31,16 +31,20 @@ export interface IncomingAmbulanceItem {
 interface AmbulanceArrivalCountdownProps {
   incoming: IncomingAmbulanceItem[];
   onAdmitPatient: (reservationId: string, bedType: string, patientName: string) => void;
+  /** Ambulance arrived but the held bed was gone: dispatch re-routes the patient. */
+  onBedLost?: (reservationId: string) => void;
   onAcceptReservation?: (reservationId: string) => void;
 }
 
 export function AmbulanceArrivalCountdown({
   incoming,
   onAdmitPatient,
+  onBedLost,
   onAcceptReservation
 }: AmbulanceArrivalCountdownProps) {
   const [selectedHandover, setSelectedHandover] = useState<PatientHandoverRecord | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [confirmLostId, setConfirmLostId] = useState<string | null>(null);
 
   // Tick every second for live countdown only when ambulances are en-route
   // NOTE: dependency is hasIncoming (boolean) not incoming (array) — keeps the
@@ -221,6 +225,29 @@ export function AmbulanceArrivalCountdown({
                         </button>
                       ) : (
                         // Pop-in: spring-scale bounce when the Admit button appears after acceptance
+                        <>
+                        {onBedLost && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirmLostId !== item.reservation.id) {
+                                setConfirmLostId(item.reservation.id);
+                                window.setTimeout(() => setConfirmLostId(null), 4000);
+                                return;
+                              }
+                              setConfirmLostId(null);
+                              onBedLost(item.reservation.id);
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-colors ${
+                              confirmLostId === item.reservation.id
+                                ? 'bg-red-600 text-white border-red-600'
+                                : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
+                            }`}
+                            title="The ambulance arrived but the held bed was gone"
+                          >
+                            {confirmLostId === item.reservation.id ? 'Tap again: bed lost' : 'Bed lost on arrival'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onAdmitPatient(item.reservation.id, item.bedType, item.patientName)}
@@ -229,6 +256,7 @@ export function AmbulanceArrivalCountdown({
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Admit</span>
                         </button>
+                        </>
                       )}
                     </div>
                   </div>

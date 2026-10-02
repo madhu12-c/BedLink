@@ -12,7 +12,7 @@ import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArriva
 import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { bedLinkStore } from '@/lib/data/store';
-import { BedType, Reservation, PatientHandoverRecord } from '@/lib/types';
+import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import { persistBedHistoryLog, persistPatientHandover, persistReservationStatus, persistBedInventoryUpsert } from '@/lib/supabase/sync';
@@ -148,7 +148,13 @@ Bed Type: ${bed}
           setActiveReservation(payload.reservation);
           setToastMessage(`Reservation expired. Resource unheld.`);
         }
-      } else if (event.type === 'reservation_cancelled' || event.type === 'reservation_updated') {
+      } else if (
+        event.type === 'reservation_cancelled' ||
+        event.type === 'reservation_updated' ||
+        event.type === 'reservation_conflict' ||
+        event.type === 'reservation_bed_lost' ||
+        event.type === 'reservation_released'
+      ) {
         // Ambulance withdrew the hold (or the demo was reset): drop the request card
         const payload = event.payload as { reservation: Reservation };
         if (payload.reservation?.hospital_id === selectedHospitalId) {
@@ -207,7 +213,7 @@ Bed Type: ${bed}
     if (
       activeReservation &&
       activeReservation.hospital_id === selectedHospitalId &&
-      activeReservation.status !== 'cancelled'
+      ['pending', 'accepted', 'rejected', 'expired'].includes(activeReservation.status)
     ) {
       return activeReservation;
     }
@@ -348,6 +354,35 @@ Bed Type: ${bed}
     (oldest, b) => (!oldest || Date.parse(b.updated_at) < Date.parse(oldest) ? b.updated_at : oldest),
     null
   );
+
+  // Ambulance arrived but the bed was gone: reliability drops and dispatch re-routes the patient
+  const handleBedLost = (reservationId: string) => {
+    try {
+      bedLinkStore.markBedLost(reservationId, actorId, actorName('Bed Coordinator'));
+      setToastMessage('Marked "bed lost on arrival". Dispatch is re-routing the patient to the next hospital.');
+    } catch (err: unknown) {
+      setToastMessage(err instanceof Error ? err.message : 'Could not mark the bed as lost.');
+    }
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
+  // Open / Busy / Diversion (coordinator): on diversion, dispatch stops sending ambulances here
+  const handleEdStatus = (status: EdStatus) => {
+    if (!currentHospital) return;
+    try {
+      bedLinkStore.setEdStatus(currentHospital.id, status);
+      setToastMessage(
+        status === 'diversion'
+          ? 'On diversion: dispatch will not send ambulances here until you set Open.'
+          : status === 'busy'
+            ? 'Marked busy: dispatch will prefer other hospitals.'
+            : 'Open: taking ambulances.'
+      );
+    } catch (err: unknown) {
+      setToastMessage(err instanceof Error ? err.message : 'Could not change the status.');
+    }
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
 
   const handleConfirmCounts = () => {
     if (!currentHospital) return;
@@ -546,6 +581,52 @@ Bed Type: ${bed}
               {currentHospital.name}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">{currentHospital.address}</p>
+
+            {/* Emergency department status: coordinator switches it, everyone sees it */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">ED status</span>
+              {view === 'coordinator' ? (
+                <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden" role="group" aria-label="Emergency department status">
+                  {(['open', 'busy', 'diversion'] as const).map((status) => {
+                    const active = (currentHospital.ed_status ?? 'open') === status;
+                    const color =
+                      status === 'open'
+                        ? 'bg-emerald-600 text-white'
+                        : status === 'busy'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-red-600 text-white';
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => handleEdStatus(status)}
+                        className={`px-3 min-h-[40px] text-xs font-extrabold capitalize ${
+                          active ? color : 'bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span
+                  className={`text-xs font-extrabold capitalize px-2.5 py-1 rounded-full ${
+                    (currentHospital.ed_status ?? 'open') === 'open'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : currentHospital.ed_status === 'busy'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-red-100 text-red-800'
+                  }`}
+                >
+                  {currentHospital.ed_status ?? 'open'}
+                </span>
+              )}
+              <span className="text-[11px] text-slate-500">
+                Reliability <strong className="text-slate-700">{currentHospital.reliability ?? 100}/100</strong>
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-end gap-2.5 sm:justify-end">
@@ -669,6 +750,7 @@ Bed Type: ${bed}
                 <AmbulanceArrivalCountdown
                   incoming={incomingAmbulances}
                   onAdmitPatient={handleAdmitPatient}
+                  onBedLost={handleBedLost}
                   onAcceptReservation={handleAcceptReservation}
                 />
               </div>

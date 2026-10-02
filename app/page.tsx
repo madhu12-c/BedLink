@@ -158,6 +158,22 @@ export default function DispatcherPage() {
       setActiveReservation(own);
       return;
     }
+    if (event.type === 'reservation_conflict') {
+      const reason = (event.payload as { reason?: string }).reason ?? 'The bed was taken';
+      setActiveReservation(own);
+      setActionNotice(`${reason} at ${own.hospital_name ?? 'that hospital'}. Moving to the next hospital…`);
+      return;
+    }
+    if (event.type === 'reservation_bed_lost') {
+      setActiveReservation(own);
+      setActionNotice(`Bed lost on arrival at ${own.hospital_name ?? 'the hospital'}. Re-routing to the next hospital…`);
+      return;
+    }
+    if (event.type === 'reservation_released') {
+      setActiveReservation(own);
+      setActionNotice(`No arrival by ETA + 15 min, so ${own.hospital_name ?? 'the hospital'} released the bed.`);
+      return;
+    }
     if (event.type === 'reservation_created') {
       const payload = event.payload as { reservation: Reservation };
       playEmergencyAlertSound();
@@ -273,6 +289,9 @@ export default function DispatcherPage() {
     });
   };
 
+  // Drive time shown for this hospital, sent with the hold so the hospital knows when to expect us
+  const etaFor = (hospitalId: string) => allRanked.find((h) => h.hospital.id === hospitalId)?.etaMinutes;
+
   const handleHoldBed = async (hospitalId: string) => {
     setIsLoading(true);
     setActionNotice(null);
@@ -284,7 +303,8 @@ export default function DispatcherPage() {
         hospitalId,
         formData.bedType,
         dispatcherId,
-        dispatcherName
+        dispatcherName,
+        { urgency: formData.urgency, etaMinutes: etaFor(hospitalId) }
       );
       setActiveReservation(res);
       setSelectedHospitalId(hospitalId);
@@ -401,7 +421,8 @@ export default function DispatcherPage() {
         hospitalId,
         next.bedType,
         dispatcherId,
-        `${dispatcherName} (voice)`
+        `${dispatcherName} (voice)`,
+        { urgency: next.urgency, etaMinutes: etaFor(hospitalId) }
       );
       setActiveReservation(res);
       setActionNotice(`Bed hold sent to ${res.hospital_name ?? 'the hospital'} by voice. 2-minute timer started.`);
