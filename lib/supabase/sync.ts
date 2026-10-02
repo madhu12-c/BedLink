@@ -80,6 +80,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     },
     onReservationExpired: (reservationId, hospitalId, bedType) => {
       persistReservationExpired(reservationId, hospitalId, bedType);
+    },
+    onReservationStatus: (reservation) => {
+      persistReservationStatus(reservation);
     }
   });
 
@@ -335,12 +338,14 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
     const safeHospitalId = ensureUUID(reservation.hospital_id);
 
     // 1. Ensure emergency_request row exists (request_id FK must resolve)
+    const request = bedLinkStore.getActiveEmergencyRequests().find((r) => r.id === reservation.request_id);
     const { error: reqErr } = await supabase.from('emergency_requests').upsert({
       id: safeRequestId,
-      patient_latitude: 19.2158,
-      patient_longitude: 72.8623,
-      urgency: 'critical',
-      required_bed_type: reservation.bed_type,
+      patient_latitude: request?.patient_latitude ?? 19.2158,
+      patient_longitude: request?.patient_longitude ?? 72.8623,
+      urgency: request?.urgency ?? 'critical',
+      required_bed_type: request?.required_bed_type ?? reservation.bed_type,
+      required_specialty: request?.required_specialty ?? null,
       status: 'holding'
     }, { onConflict: 'id' });
 
@@ -497,6 +502,30 @@ export async function persistReservationExpired(reservationId: string, hospitalI
     }
   } catch (err) {
     console.warn('[BedLink] Failed to persist expired reservation to Supabase:', err);
+  }
+}
+
+/**
+ * Saves a status / deadline change on its own: a shadow pre-hold promoted to pending
+ * (the hospital then sees the request) or released after another hospital accepted.
+ */
+export async function persistReservationStatus(reservation: Reservation) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase
+      .from('reservations')
+      .update({
+        status: reservation.status,
+        expires_at: reservation.expires_at,
+        responded_at: reservation.responded_at ?? null
+      })
+      .eq('id', ensureUUID(reservation.id));
+    if (error) console.warn('[BedLink] reservation status update warning:', error.message);
+  } catch (err) {
+    console.warn('[BedLink] Failed to persist reservation status to Supabase:', err);
   }
 }
 
