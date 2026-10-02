@@ -228,6 +228,8 @@ export function Header({
                       ? 'dispatcher'
                       : currentRole === 'admin'
                       ? 'admin'
+                      : currentRole === 'coordinator'
+                      ? (selectedHospitalId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' ? 'coord-lifeline' : 'coord-aditi')
                       : selectedHospitalId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
                       ? 'nurse-lifeline'
                       : selectedHospitalId === 'cccccccc-cccc-cccc-cccc-cccccccccccc'
@@ -244,6 +246,10 @@ export function Header({
                       onRoleChange('dispatcher');
                     } else if (val === 'admin') {
                       onRoleChange('admin');
+                    } else if (val === 'coord-aditi') {
+                      onRoleChange('coordinator', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+                    } else if (val === 'coord-lifeline') {
+                      onRoleChange('coordinator', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
                     } else if (val === 'nurse-lifeline') {
                       onRoleChange('nurse', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
                     } else if (val === 'nurse-dna') {
@@ -258,13 +264,14 @@ export function Header({
                   }}
                   className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer py-1 max-w-[90px] sm:max-w-[150px] lg:max-w-[210px] truncate"
                 >
-                  <option value="dispatcher">🚑 Dispatcher</option>
-                  <option value="nurse-aditi">🏥 Aditi Hospital</option>
-                  <option value="nurse-lifeline">🏥 Lifeline Medicare</option>
-                  <option value="nurse-dna">🏥 DNA Multispeciality</option>
-                  <option value="nurse-apex">🏥 Apex Superspeciality</option>
-                  <option value="nurse-shatabdi">🏥 Shatabdi Hospital</option>
-                  <option value="admin">🛡️ EMS Admin</option>
+                  <option value="dispatcher">🚑 Dispatcher CAD</option>
+                  <option value="nurse-aditi">👩‍⚕️ Nurse (Aditi)</option>
+                  <option value="coord-aditi">🏢 Bed Coordinator (Aditi)</option>
+                  <option value="nurse-lifeline">👩‍⚕️ Nurse (Lifeline)</option>
+                  <option value="coord-lifeline">🏢 Bed Coordinator (Lifeline)</option>
+                  <option value="nurse-dna">👩‍⚕️ Nurse (DNA Hospital)</option>
+                  <option value="nurse-apex">👩‍⚕️ Nurse (Apex Hospital)</option>
+                  <option value="admin">🛡️ Regional EMS Command</option>
                 </select>
                 <ChevronDown className="w-3 h-3 text-slate-400 pointer-events-none shrink-0" />
               </div>

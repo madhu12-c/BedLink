@@ -41,15 +41,15 @@ export function AddBedModal({
         {/* Header */}
         <div className="bg-slate-900 text-white p-5 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-blue-400">
-              <Plus className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400">
+              <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-blue-400">
-                Hospital Capacity Expansion
+              <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 bg-indigo-950/80 border border-indigo-800 px-2 py-0.5 rounded">
+                Hospital Operations Operator
               </span>
-              <h2 className="text-lg font-black text-white">Add Hospital Beds</h2>
-              <p className="text-xs text-slate-400">{hospitalName}</p>
+              <h2 className="text-lg font-black text-white mt-1">Authorize & Add Hospital Beds</h2>
+              <p className="text-xs text-slate-400">{hospitalName} • Capacity Expansion Registry</p>
             </div>
           </div>
           <button
