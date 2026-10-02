@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PatientHandoverRecord } from '@/lib/types';
-import { verifyHandoverIntegrity } from '@/lib/crypto/handoverSha';
+import { isSealed, verifyHandoverIntegrity } from '@/lib/crypto/handoverSha';
 import { ModalPortal } from '@/components/shared/ModalPortal';
 import {
   ShieldCheck,
@@ -259,6 +259,8 @@ export function PatientHandoverModal({
   };
 
   const { vitals } = handover || {};
+  // Only a sheet the crew sent carries a real code that can be checked
+  const sealed = handover ? isSealed(handover) : false;
 
   return (
     <ModalPortal>
@@ -273,9 +275,15 @@ export function PatientHandoverModal({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase font-bold tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
-                    TAMPER-PROOF
-                  </span>
+                  {sealed ? (
+                    <span className="text-xs uppercase font-bold tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
+                      TAMPER-PROOF
+                    </span>
+                  ) : (
+                    <span className="text-xs uppercase font-bold tracking-widest bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">
+                      NOT SEALED
+                    </span>
+                  )}
                   <span className="text-xs text-slate-400 font-mono">
                     {handover?.ambulance_vehicle_id || 'EMS UNIT'}
                   </span>
@@ -294,7 +302,15 @@ export function PatientHandoverModal({
             </button>
           </div>
 
-          {/* Cryptographic Hash Bar */}
+          {!sealed && (
+            <div className="mt-4 p-3 rounded-xl border border-amber-500/60 bg-amber-950/60 text-amber-100 text-xs font-semibold flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+              <span>{handover?.unsealed_reason || 'This sheet has no tamper-proof code, so it cannot be checked.'}</span>
+            </div>
+          )}
+
+          {/* Cryptographic Hash Bar (only a sheet the crew sent has a real code) */}
+          {sealed && (
           <div className="mt-4 bg-slate-950/90 rounded-xl p-3 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 overflow-hidden">
               <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -328,6 +344,7 @@ export function PatientHandoverModal({
               </button>
             </div>
           </div>
+          )}
 
           {/* Verification Result Banner */}
           {verificationResult !== null && (
@@ -349,7 +366,7 @@ export function PatientHandoverModal({
                 <>
                   <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
                   <span>
-                    <strong>WARNING: CHECKSUM MISMATCH.</strong> Record was modified after paramedic dispatch.
+                    <strong>Changed after sending.</strong> These vitals do not match the code the crew sent. Do not trust this sheet; ask the crew.
                   </span>
                 </>
               )}

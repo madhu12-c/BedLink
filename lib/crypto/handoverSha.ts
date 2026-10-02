@@ -85,7 +85,8 @@ export async function createSignedHandoverRecord(
  * Validates whether a PatientHandoverRecord matches its cryptographic SHA-256 seal.
  */
 export async function verifyHandoverIntegrity(record: PatientHandoverRecord): Promise<boolean> {
-  const { sha256_hash, ...rest } = record;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- not part of the sealed content
+  const { sha256_hash, unsealed_reason, ...rest } = record;
   const canonical = canonicalizeHandoverPayload(rest);
   const computed = await computeSha256(canonical);
   return computed.toLowerCase() === sha256_hash.toLowerCase();
@@ -147,6 +148,13 @@ export function generateDefaultHandover(
     ambulance_vehicle_id: overrides?.ambulance_vehicle_id || 'MH-02-EMS-108',
     destination_hospital_id: hospitalId,
     timestamp: overrides?.timestamp || new Date().toISOString(),
-    sha256_hash: overrides?.sha256_hash || '7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069'
+    // A sample is never sealed: only a sheet the crew sends gets a real SHA-256 code
+    sha256_hash: overrides?.sha256_hash || '',
+    unsealed_reason: overrides?.unsealed_reason || 'Sample data: the crew did not send vitals for this patient.'
   };
+}
+
+/** True when the record carries a real 64-character SHA-256 code that can be checked. */
+export function isSealed(record: Pick<PatientHandoverRecord, 'sha256_hash' | 'unsealed_reason'>): boolean {
+  return !record.unsealed_reason && /^[0-9a-f]{64}$/i.test(record.sha256_hash);
 }

@@ -235,6 +235,11 @@ export interface PatientHandoverRecord {
   destination_hospital_id: string;
   timestamp: string;
   sha256_hash: string;
+  /**
+   * Set when this is not a sheet the crew sent (so its seal can't be checked): sample data,
+   * or a summary rebuilt from the bed history. Not part of the sealed content.
+   */
+  unsealed_reason?: string;
 }
 
 export interface BedHistoryLog {

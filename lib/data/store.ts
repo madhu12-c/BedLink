@@ -24,7 +24,7 @@ import {
   SEED_REFERENCE_MS
 } from '../demo/seed-data';
 import { INITIAL_BED_HISTORY_LOGS } from '../demo/bed-history-data';
-import { generateDefaultHandover } from '../crypto/handoverSha';
+import { caseLabel, generateDefaultHandover } from '../crypto/handoverSha';
 import { generateUUID, ensureUUID } from '../crypto/uuid';
 import { rankHospitals } from '../dispatch/ranking';
 
@@ -54,6 +54,8 @@ export type SyncHandler = {
   onEdStatus?: (hospitalId: string, status: EdStatus) => void;
   /** Quick message between crew and ER. */
   onMessage?: (message: QuickMessage) => void;
+  /** The crew sent (or updated) the sealed handover sheet with vitals. */
+  onHandover?: (record: PatientHandoverRecord) => void;
 };
 
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
@@ -244,6 +246,11 @@ class BedLinkDataStore {
     if (type === 'reservation_message') {
       const message = (payload as { message?: QuickMessage } | null)?.message;
       if (message && !this.messages.some((m) => m.id === message.id)) this.messages.push(message);
+      return undefined;
+    }
+    if (type === 'handover_updated') {
+      const record = (payload as { handover?: PatientHandoverRecord } | null)?.handover;
+      if (record?.reservation_id) this.patientHandovers.set(record.reservation_id, record);
       return undefined;
     }
     if (type === 'bed_updated' && data.inv) {
@@ -1489,18 +1496,40 @@ class BedLinkDataStore {
     this.broadcast('bed_history_logged', { log });
   }
 
+  /** The handover sheet the crew sent for this hold, or null if they haven't sent one. */
+  public findPatientHandover(reservationId: string): PatientHandoverRecord | null {
+    return this.patientHandovers.get(reservationId) ?? null;
+  }
+
+  /**
+   * The crew's sheet if there is one, else a clearly marked sample (never sealed, never
+   * stored) so admitting a patient still works when no vitals were sent.
+   */
   public getPatientHandover(reservationId: string, hospitalId?: string): PatientHandoverRecord {
     const existing = this.patientHandovers.get(reservationId);
     if (existing) return existing;
 
     const res = this.reservations.find((r) => r.id === reservationId);
     const targetHospId = hospitalId || res?.hospital_id || this.hospitals[0]?.id || '';
-    const generated = generateDefaultHandover(reservationId, targetHospId, {
-      chief_complaint: res?.notes || 'Severe chest discomfort and respiratory difficulty',
+    return generateDefaultHandover(reservationId, targetHospId, {
+      chief_complaint: res?.notes || 'No vitals sent by the crew',
       triage_level: res?.patient_urgency === 'critical' ? 'red' : 'yellow'
     });
-    this.patientHandovers.set(reservationId, generated);
-    return generated;
+  }
+
+  /** The crew sends the sealed sheet: kept here, shown on other tabs, saved for the hospital. */
+  public sendPatientHandover(record: PatientHandoverRecord) {
+    this.patientHandovers.set(record.reservation_id, record);
+    this.broadcast('handover_updated', { handover: record });
+    this.syncHandler?.onHandover?.(record);
+  }
+
+  /** A sheet that arrived from another device; the newest one per hold wins. */
+  public applyExternalHandover(record: PatientHandoverRecord) {
+    const current = this.patientHandovers.get(record.reservation_id);
+    if (current && Date.parse(current.timestamp) >= Date.parse(record.timestamp)) return;
+    this.patientHandovers.set(record.reservation_id, record);
+    this.broadcast('handover_updated', { handover: record });
   }
 
   public getPatientHandoverByHash(hash: string): PatientHandoverRecord | undefined {
@@ -1541,7 +1570,8 @@ class BedLinkDataStore {
       ambulance_vehicle_id: log.ambulance_vehicle_id || 'MH-02-EMS-108',
       destination_hospital_id: log.hospital_id,
       timestamp: log.admitted_at,
-      sha256_hash: log.handover_sha256 || 'RECORD_SEALED'
+      sha256_hash: log.handover_sha256 || '',
+      unsealed_reason: "Summary rebuilt from the bed history: the crew's original sealed sheet isn't on this device, so it can't be checked here."
     };
   }
 
@@ -1633,16 +1663,17 @@ class BedLinkDataStore {
       const requestedTime = new Date(res.requested_at).getTime();
       const etaMinutes = res.eta_minutes || (res.status === 'accepted' ? 6 : 8);
       const targetArrivalMs = requestedTime + etaMinutes * 60 * 1000;
-      const handover = this.getPatientHandover(res.id, hospitalId);
+      // Only what the crew actually sent; null until they send vitals
+      const handover = this.findPatientHandover(res.id);
 
       return {
         reservation: res,
         handover,
         etaMinutes,
         targetArrivalMs,
-        ambulanceId: handover.ambulance_vehicle_id || `MH-02-EMS-${108 + index * 4}`,
-        paramedicId: handover.paramedic_badge_id || 'Paramedic 108 CAD',
-        patientName: handover.patient_name || 'Emergency Patient',
+        ambulanceId: handover?.ambulance_vehicle_id || `MH-02-EMS-${108 + index * 4}`,
+        paramedicId: handover?.paramedic_badge_id || 'Paramedic 108 CAD',
+        patientName: caseLabel(res.id),
         patientUrgency: res.patient_urgency || 'critical',
         bedType: res.bed_type,
         distanceKm: Number(((etaMinutes * 0.45) + 0.3).toFixed(1))

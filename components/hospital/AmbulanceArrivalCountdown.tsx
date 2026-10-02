@@ -17,7 +17,8 @@ import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal
 
 export interface IncomingAmbulanceItem {
   reservation: Reservation;
-  handover: PatientHandoverRecord;
+  /** The sealed sheet the crew sent; null until they send vitals */
+  handover: PatientHandoverRecord | null;
   etaMinutes: number;
   targetArrivalMs: number;
   ambulanceId: string;
@@ -167,7 +168,11 @@ export function AmbulanceArrivalCountdown({
                         {item.patientName}
                       </h4>
                       <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                        <span>{item.handover.chief_complaint}</span>
+                        {item.handover ? (
+                          <span>{item.handover.chief_complaint}</span>
+                        ) : (
+                          <span className="font-semibold text-amber-700">Waiting for vitals from the crew</span>
+                        )}
                         <span>•</span>
                         <span>{item.distanceKm} km away</span>
                       </p>
@@ -199,9 +204,10 @@ export function AmbulanceArrivalCountdown({
                     <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
                       <button
                         type="button"
-                        onClick={() => setSelectedHandover(item.handover)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-                        title="Open the handover sheet"
+                        onClick={() => item.handover && setSelectedHandover(item.handover)}
+                        disabled={!item.handover}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={item.handover ? 'Open the handover sheet' : 'The crew has not sent vitals yet'}
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                         <span className="hidden md:inline">Handover sheet</span>
