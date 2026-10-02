@@ -8,12 +8,15 @@ import { HospitalMap } from '@/components/dispatch/HospitalMap';
 import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
 import { rankHospitals, rankHospitalsWithRealRoutes } from '@/lib/dispatch/ranking';
-import { ScoredHospital, Reservation } from '@/lib/types';
+import { BedType, ScoredHospital, Reservation } from '@/lib/types';
 import { generateUUID } from '@/lib/crypto/uuid';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
 import { ActiveHoldBar } from '@/components/dispatch/ActiveHoldBar';
-import { resetDemoInDatabase } from '@/lib/supabase/sync';
+import { HoldTimeline } from '@/components/dispatch/HoldTimeline';
+import { QuickMessages } from '@/components/shared/QuickMessages';
+import { StabiliseSuggestion } from '@/components/dispatch/StabiliseSuggestion';
+import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
 import { VoiceBestMatch, VoiceIntakePanel } from '@/components/voice/VoiceIntakePanel';
 import { VoiceSettingsBar } from '@/components/voice/VoiceSettingsBar';
 import { useVoiceAvailability, useVoicePlayer, useVoiceSettings } from '@/lib/voice/hooks';
@@ -21,7 +24,6 @@ import { IntakeFormValues } from '@/lib/voice/intake';
 import { VoiceLanguageCode } from '@/lib/voice/languages';
 import { DispatchVoiceEvent, dispatchEventPhrase } from '@/lib/voice/phrases';
 import {
-  ShieldAlert,
   Sparkles,
   CheckCircle2,
   AlertTriangle,
@@ -41,6 +43,18 @@ const DISPATCH_VOICE_EVENTS: Partial<Record<string, DispatchVoiceEvent['kind']>>
   reservation_accepted: 'accepted',
   reservation_rejected: 'rejected',
   reservation_expired: 'expired'
+};
+
+// The demo patient: critical cardiac case near Thakur College, needs ICU + ventilator
+const DEMO_SCENARIO: DispatchFormParams = {
+  latitude: 19.2158,
+  longitude: 72.8623,
+  address: '90 Feet Rd (near Thakur College Gate), Kandivali East, Mumbai 400101',
+  urgency: 'critical',
+  bedType: 'icu',
+  requiresVentilator: true,
+  specialty: 'cardiac',
+  notes: 'CODE RED: suspected STEMI. Immediate ICU + ventilator + cath lab required.'
 };
 
 // One emergency request per tab, kept across visits to this page (like the in-memory store),
@@ -289,19 +303,26 @@ export default function DispatcherPage() {
     });
   };
 
+  // Every hold for the current patient, for the timeline
+  const patientHolds = useMemo(() => {
+    void lastUpdateTrigger;
+    return bedLinkStore.getReservations().filter((r) => r.request_id === currentRequestId);
+  }, [currentRequestId, lastUpdateTrigger]);
+
   // Drive time shown for this hospital, sent with the hold so the hospital knows when to expect us
   const etaFor = (hospitalId: string) => allRanked.find((h) => h.hospital.id === hospitalId)?.etaMinutes;
 
-  const handleHoldBed = async (hospitalId: string) => {
+  const handleHoldBed = async (hospitalId: string, bedTypeOverride?: BedType) => {
     setIsLoading(true);
     setActionNotice(null);
     try {
       const requestId = requestIdForNewHold();
-      registerRequest(requestId, formData);
+      const bedType = bedTypeOverride ?? formData.bedType;
+      registerRequest(requestId, { ...formData, bedType });
       const res = bedLinkStore.holdBedAtomic(
         requestId,
         hospitalId,
-        formData.bedType,
+        bedType,
         dispatcherId,
         dispatcherName,
         { urgency: formData.urgency, etaMinutes: etaFor(hospitalId) }
@@ -340,17 +361,101 @@ export default function DispatcherPage() {
   };
 
   const handleQuickLoadCriticalScenario = () => {
-    setFormData({
-      latitude: 19.2158,
-      longitude: 72.8623,
-      address: '90 Feet Rd (near Thakur College Gate), Kandivali East, Mumbai 400101',
-      urgency: 'critical',
-      bedType: 'icu',
-      requiresVentilator: true,
-      specialty: 'cardiac',
-      notes: 'CODE RED: STEMI patient on 90 Feet Rd near Thakur College. Immediate ICU + Vent + Cath Lab required.'
-    });
+    setFormData(DEMO_SCENARIO);
     setActionNotice('Loaded demo: Critical STEMI patient on 90 Feet Rd — ICU + Ventilator + Cardiac.');
+  };
+
+  // ── One-click demo (admin): plays the whole story on this screen ─────────────────────────
+  const [demoStep, setDemoStep] = useState<string | null>(null);
+  const runDemo = async () => {
+    if (demoStep) return;
+    const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const step = (n: number, text: string) => {
+      setDemoStep(`${n}/5`);
+      setActionNotice(`Demo ${n}/5 · ${text}`);
+    };
+    try {
+      await handleResetDemo();
+      setFormData(DEMO_SCENARIO);
+      const ranked = rankHospitals(bedLinkStore.getHospitalCandidates(), {
+        patientLocation: { latitude: DEMO_SCENARIO.latitude, longitude: DEMO_SCENARIO.longitude },
+        requiredBedType: DEMO_SCENARIO.bedType,
+        requiresVentilator: DEMO_SCENARIO.requiresVentilator,
+        requiredSpecialty: DEMO_SCENARIO.specialty,
+        urgency: DEMO_SCENARIO.urgency
+      }).exactMatches;
+      if (ranked.length < 3) throw new Error('Demo needs at least 3 matching hospitals.');
+
+      // 1. Two ambulances race for the last ICU bed at a hospital with exactly one free
+      const lastBed = bedLinkStore
+        .getHospitalCandidates()
+        .find((c) => c.inventory.icu?.available_beds === 1 && !ranked.slice(0, 3).some((r) => r.hospital.id === c.hospital.id));
+      if (lastBed) {
+        step(1, `Two ambulances race for the last ICU bed at ${lastBed.hospital.name}…`);
+        const ambulances = ['A', 'B'].map((label) => {
+          const id = generateUUID();
+          registerRequest(id, DEMO_SCENARIO);
+          return { label, id };
+        });
+        const results = ambulances.map(({ label, id }) => {
+          try {
+            return { label, hold: bedLinkStore.holdBedAtomic(id, lastBed.hospital.id, 'icu', `demo-${label}`, `Ambulance ${label}`) };
+          } catch {
+            return { label, hold: null };
+          }
+        });
+        const winner = results.find((r) => r.hold);
+        const loser = results.find((r) => !r.hold);
+        setActionNotice(
+          `Demo 1/5 · Race: Ambulance ${winner?.label} got the last ICU bed; Ambulance ${loser?.label} was refused and sent elsewhere. Only one wins.`
+        );
+        await pause(4500);
+        if (winner?.hold) bedLinkStore.cancelHold(winner.hold.id, 'demo', 'Demo cleanup');
+      }
+
+      // 2. Our patient: hold the top hospital, which rejects -> automatic re-route
+      const requestId = requestIdForNewHold();
+      registerRequest(requestId, DEMO_SCENARIO);
+      step(2, `Holding a bed at ${ranked[0].hospital.name} (2-min timer)…`);
+      const first = bedLinkStore.holdBedAtomic(requestId, ranked[0].hospital.id, 'icu', dispatcherId, dispatcherName, {
+        urgency: DEMO_SCENARIO.urgency,
+        etaMinutes: ranked[0].etaMinutes
+      });
+      await pause(4000);
+      setActionNotice(`Demo 2/5 · ${ranked[0].hospital.name} rejects. BedLink offers the next hospital automatically…`);
+      bedLinkStore.respondReservationAtomic(first.id, 'reject', 'demo-hospital', `${ranked[0].hospital.name} (demo)`, 'Demo: ICU team busy');
+      await pause(4500);
+
+      // 3. Next hospital never answers -> timeout -> re-route again
+      const second = bedLinkStore.getReservations().find((r) => r.request_id === requestId && r.status === 'pending');
+      if (second) {
+        step(3, `${second.hospital_name ?? 'The next hospital'} does not answer. Skipping ahead to the 2-minute timeout…`);
+        await pause(3500);
+        bedLinkStore.expireNowForDemo(second.id);
+        await pause(4500);
+      }
+
+      // 4. Third hospital accepts
+      const third = bedLinkStore.getReservations().find((r) => r.request_id === requestId && r.status === 'pending');
+      if (third) {
+        step(4, `${third.hospital_name ?? 'The next hospital'} accepts. The bed is held for the ambulance.`);
+        bedLinkStore.respondReservationAtomic(third.id, 'accept', 'demo-hospital', `${third.hospital_name ?? 'Hospital'} (demo)`);
+        await pause(6000);
+        setShowConfirmedAlert(false);
+
+        // 5. Ambulance arrives
+        step(5, 'Ambulance arrived and handed over. Hospital reliability goes up.');
+        const arrived = bedLinkStore.updateReservationStatus(third.id, 'completed', 'demo-hospital', 'Demo hospital');
+        if (arrived) void persistReservationStatus(arrived);
+        await pause(3500);
+      }
+      setActionNotice('Demo finished: race → reject → timeout → accepted → arrived. Press Reset Demo to start again.');
+    } catch (err: unknown) {
+      setActionNotice(err instanceof Error ? `Demo stopped: ${err.message}` : 'Demo stopped.');
+    } finally {
+      setDemoStep(null);
+      setLastUpdateTrigger((prev) => prev + 1);
+    }
   };
 
   const handleResetDemo = async () => {
@@ -485,6 +590,19 @@ export default function DispatcherPage() {
       {activeReservation && (
         <ActiveHoldBar reservation={activeReservation} onCancel={handleCancelHold} />
       )}
+      {/* Every hospital tried for this patient: shows the automatic fallback */}
+      <HoldTimeline reservations={patientHolds} />
+      {activeReservation && (activeReservation.status === 'pending' || activeReservation.status === 'accepted') && (
+        <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+          <QuickMessages
+            key={activeReservation.id}
+            reservationId={activeReservation.id}
+            from="crew"
+            author={dispatcherName}
+            className="max-w-[1700px] mx-auto"
+          />
+        </div>
+      )}
 
       {/* Action Notice Banner */}
       {actionNotice && (
@@ -521,7 +639,16 @@ export default function DispatcherPage() {
           {showDemoControls && (
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider block">Demo Controls</span>
-            <p className="text-slate-500 text-[11px]">Test rejection, 2-min timeout, and auto-fallback.</p>
+            <p className="text-slate-500 text-[11px]">Race for the last bed, reject, 2-min timeout and auto-fallback.</p>
+            <button
+              type="button"
+              onClick={() => void runDemo()}
+              disabled={demoStep !== null}
+              className="flex-1 py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-lg flex items-center justify-center gap-1.5 min-h-[44px] disabled:opacity-70"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{demoStep ? `Demo running… ${demoStep}` : '▶ Run demo'}</span>
+            </button>
             <button
               type="button"
               onClick={handleResetDemo}
@@ -555,7 +682,7 @@ export default function DispatcherPage() {
                   {allRanked.length} Found
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Ranked: Bed(45%) · ETA(25%) · Fresh(20%) · Load(10%)</p>
+              <p className="text-xs text-slate-500 mt-0.5">Ranked by: bed match 40 · drive 25 · fresh data 15 · load 10 · reliability 10</p>
             </div>
             {activeReservation && (
               <div className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
@@ -574,11 +701,11 @@ export default function DispatcherPage() {
               </span>
             </div>
             {exactMatches.length === 0 ? (
-              <div className="p-6 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
-                <ShieldAlert className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
-                <strong className="text-slate-800 font-semibold block text-sm">No Exact Match Found</strong>
-                <span>No facility has all requested resources.</span>
-              </div>
+              <StabiliseSuggestion
+                hospitals={allRanked}
+                onHoldEmergencyBed={(id) => void handleHoldBed(id, 'emergency')}
+                isLoading={isLoading}
+              />
             ) : (
               exactMatches.map((scored, idx) => (
                 <HospitalResultCard
@@ -641,6 +768,16 @@ export default function DispatcherPage() {
               onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
             />
             {/* Demo actions (admin only) */}
+            {showDemoControls && (
+            <button
+              type="button"
+              onClick={() => void runDemo()}
+              disabled={demoStep !== null}
+              className="py-3 px-4 bg-red-700 hover:bg-red-800 text-white font-extrabold rounded-xl flex items-center justify-center gap-2 min-h-[52px] shadow-md text-sm disabled:opacity-70"
+            >
+              {demoStep ? `Demo running… ${demoStep}` : '▶ Run demo'}
+            </button>
+            )}
             {showDemoControls && (
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -734,11 +871,11 @@ export default function DispatcherPage() {
 
               {/* No exact matches */}
               {exactMatches.length === 0 && (
-                <div className="p-6 bg-white rounded-2xl border border-dashed border-slate-300 text-center">
-                  <ShieldAlert className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-60" />
-                  <strong className="text-slate-800 font-semibold block">No Exact Match</strong>
-                  <span className="text-xs text-slate-500">Check partial matches below.</span>
-                </div>
+                <StabiliseSuggestion
+                  hospitals={allRanked}
+                  onHoldEmergencyBed={(id) => void handleHoldBed(id, 'emergency')}
+                  isLoading={isLoading}
+                />
               )}
 
               {/* Partial Matches */}
