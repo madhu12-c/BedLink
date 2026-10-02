@@ -66,14 +66,14 @@ export default function DispatcherPage() {
 
   // Form State
   const [formData, setFormData] = useState<DispatchFormParams>({
-    latitude: 19.2084,
-    longitude: 72.8624,
-    address: 'Near Shree Sai Hospital, Asha Nagar Rd, Thakur Complex, Kandivali East, Mumbai 400101',
+    latitude: 19.2085,
+    longitude: 72.8580,
+    address: 'Near Ear Nose Throat Hospital, Thakur Road, Thakur Complex, Kandivali East, Mumbai 400101',
     urgency: 'critical',
     bedType: 'icu',
     requiresVentilator: true,
     specialty: 'cardiac',
-    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route near Shree Sai Hospital, Kandivali East'
+    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route near ENT Hospital on Thakur Road, Kandivali East'
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
@@ -291,9 +291,9 @@ export default function DispatcherPage() {
         () => {
           setFormData((prev) => ({
             ...prev,
-            latitude: 19.2084,
-            longitude: 72.8624,
-            address: 'Near Shree Sai Hospital, Asha Nagar Rd, Kandivali East, Mumbai 400101'
+            latitude: 19.2085,
+            longitude: 72.8580,
+            address: 'Near ENT Hospital, Thakur Road, Kandivali East, Mumbai 400101'
           }));
         }
       );
@@ -302,16 +302,16 @@ export default function DispatcherPage() {
 
   const handleQuickLoadCriticalScenario = () => {
     setFormData({
-      latitude: 19.2084,
-      longitude: 72.8624,
-      address: 'Near Shree Sai Hospital, Asha Nagar Rd, Thakur Complex, Kandivali East, Mumbai 400101',
+      latitude: 19.2085,
+      longitude: 72.8580,
+      address: 'Near Ear Nose Throat Hospital, Thakur Road, Thakur Complex, Kandivali East, Mumbai 400101',
       urgency: 'critical',
       bedType: 'icu',
       requiresVentilator: true,
       specialty: 'cardiac',
-      notes: 'CODE RED: STEMI patient near Shree Sai Hospital, Kandivali East. Immediate ICU + Vent + Cath Lab required.'
+      notes: 'CODE RED: STEMI patient near ENT Hospital on Thakur Road, Kandivali East. Immediate ICU + Vent + Cath Lab required.'
     });
-    setActionNotice('Loaded demo: Critical STEMI patient near Shree Sai Hospital, Kandivali East — ICU + Ventilator + Cardiac.');
+    setActionNotice('Loaded demo: Critical STEMI patient near ENT Hospital, Thakur Road — ICU + Ventilator + Cardiac.');
   };
 
   const handleResetDemo = () => {
