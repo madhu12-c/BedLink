@@ -40,7 +40,6 @@ const ACCESS_RULES: readonly AccessRule[] = [
   { path: '/api/voice/intake', exact: false, roles: ['dispatcher', 'admin'] },
   { path: '/api/voice/confirm', exact: false, roles: ['dispatcher', 'admin'] },
   { path: '/hospital', exact: false, roles: ['nurse', 'coordinator', 'admin'] },
-  { path: '/dashboard', exact: false, roles: ['dispatcher', 'admin'] },
   { path: '/history', exact: false, roles: ['admin'] },
   { path: '/', exact: true, roles: ['dispatcher', 'admin'] }
 ];

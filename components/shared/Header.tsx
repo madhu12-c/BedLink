@@ -8,7 +8,6 @@ import {
   Ambulance,
   Building2,
   History,
-  BarChart3,
   WifiOff,
   Radio,
   Clock,
@@ -50,6 +49,8 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
   const [currentTime, setCurrentTime] = useState<string | null>(null);
 
   useEffect(() => {
+    // Demo ages count from now (after hydration, so server and browser render the same page)
+    bedLinkStore.startDemoClock();
     initSupabaseSync();
     const unsub = subscribeSupabaseStatus((status) => {
       setSupabaseState(status);
@@ -85,7 +86,6 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
   const navLinks = [
     { href: '/', label: 'Dispatch CAD', icon: Ambulance, badge: 'LIVE' },
     { href: '/hospital', label: role === 'nurse' ? 'Nurse Portal' : 'Hospital Desk', icon: Building2 },
-    { href: '/dashboard', label: 'EMS Analytics', icon: BarChart3 },
     { href: '/history', label: 'Audit Trail', icon: History }
   ].filter((link) => role !== null && canAccess(role, link.href));
 
