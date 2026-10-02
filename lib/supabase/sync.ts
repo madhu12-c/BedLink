@@ -1,6 +1,6 @@
 import { getBrowserSupabaseClient, isSupabaseConfigured } from './client';
 import { bedLinkStore } from '../data/store';
-import { BedHistoryLog, BedInventory, BedType, EdStatus, Hospital, HospitalCapability, Reservation, ReservationEvent } from '../types';
+import { BedHistoryLog, BedInventory, BedType, EdStatus, Hospital, HospitalCapability, QuickMessage, Reservation, ReservationEvent } from '../types';
 import { isUUID, ensureUUID, generateUUID } from '../crypto/uuid';
 
 let initPromise: Promise<boolean> | null = null;
@@ -99,6 +99,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     },
     onEdStatus: (hospitalId, status) => {
       persistEdStatus(hospitalId, status);
+    },
+    onMessage: (message) => {
+      persistMessage(message);
     }
   });
 
@@ -163,6 +166,11 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         eta_minutes: typeof r.eta_minutes === 'number' ? r.eta_minutes : undefined,
         arrived_at: r.arrived_at || undefined
       }));
+
+      for (const row of eventsRes.data || []) {
+        const message = messageFromEventRow(row as Record<string, unknown>);
+        if (message) bedLinkStore.applyExternalMessage(message);
+      }
 
       const liveEvents: ReservationEvent[] = (eventsRes.data || []).map((e) => ({
         id: e.id,
@@ -262,6 +270,14 @@ async function runSupabaseSyncInit(): Promise<boolean> {
             lastSyncTime = new Date().toLocaleTimeString();
             notifyConnectionChange();
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'reservation_events' },
+        (payload) => {
+          const message = messageFromEventRow(payload.new as Record<string, unknown>);
+          if (message) bedLinkStore.applyExternalMessage(message);
         }
       )
       .on(
@@ -580,6 +596,42 @@ export async function persistReservationExpired(reservationId: string, hospitalI
     }
   } catch (err) {
     console.warn('[BedLink] Failed to persist expired reservation to Supabase:', err);
+  }
+}
+
+/** A quick message stored as a reservation_events row (event_type 'message'), or null. */
+function messageFromEventRow(row: Record<string, unknown> | null | undefined): QuickMessage | null {
+  if (!row || row.event_type !== 'message') return null;
+  const meta = (row.metadata ?? {}) as Record<string, unknown>;
+  if (typeof meta.text !== 'string') return null;
+  return {
+    id: String(row.id),
+    reservation_id: String(row.reservation_id),
+    from: meta.from === 'hospital' ? 'hospital' : 'crew',
+    text: meta.text,
+    author: typeof meta.author === 'string' ? meta.author : '',
+    created_at: String(row.created_at ?? new Date().toISOString())
+  };
+}
+
+/** Saves a quick message so the other side's screen gets it through realtime. */
+export async function persistMessage(message: QuickMessage) {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase.from('reservation_events').insert({
+      id: message.id,
+      reservation_id: ensureUUID(message.reservation_id),
+      event_type: 'message',
+      actor_id: null,
+      metadata: { from: message.from, text: message.text, author: message.author },
+      created_at: message.created_at
+    });
+    if (error) console.warn('[BedLink] message not saved:', error.message);
+  } catch (err) {
+    console.warn('[BedLink] Failed to save message:', err);
   }
 }
 

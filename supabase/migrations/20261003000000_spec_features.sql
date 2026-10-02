@@ -345,6 +345,17 @@ GRANT EXECUTE ON FUNCTION public.cancel_hold(UUID) TO authenticated, service_rol
 GRANT EXECUTE ON FUNCTION public.tick_holds() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.set_ed_status(UUID, TEXT) TO authenticated, service_role;
 
+-- Quick messages between crew and ER are reservation_events rows: other screens need them live
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'reservation_events'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.reservation_events;
+  END IF;
+END $$;
+
 -- ---------------------------------------------------------------------------
 -- 10. Run the clock every 10 seconds (pg_cron). If pg_cron is not available, open
 --     BedLink screens call tick_holds() themselves.

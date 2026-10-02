@@ -133,10 +133,21 @@ export interface ReservationEvent {
     | 'reservation_cancelled'  // dispatcher withdrew a pending hold
     | 'reservation_arrived'    // ambulance arrived and handed over
     | 'reservation_released'   // no arrival by ETA + 15 min
-    | 'reservation_bed_lost';  // bed was gone on arrival
+    | 'reservation_bed_lost'   // bed was gone on arrival
+    | 'message';               // quick message between ambulance crew and ER
   actor_id?: string | null;
   actor_name?: string | null;
   metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+/** Short message between the ambulance crew and the hospital about one request. */
+export interface QuickMessage {
+  id: string;
+  reservation_id: string;
+  from: 'crew' | 'hospital';
+  text: string;
+  author: string;
   created_at: string;
 }
 

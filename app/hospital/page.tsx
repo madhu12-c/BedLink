@@ -8,6 +8,7 @@ import { hospitalAllottedPhrase, hospitalIncomingPhrase } from '@/lib/voice/phra
 import { BedUpdateGrid } from '@/components/hospital/BedUpdateGrid';
 import { ConfirmCountsCard } from '@/components/hospital/ConfirmCountsCard';
 import { IncomingReservationAlert } from '@/components/hospital/IncomingReservationAlert';
+import { QuickMessages } from '@/components/shared/QuickMessages';
 import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArrivalCountdown';
 import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
@@ -669,6 +670,16 @@ Bed Type: ${bed}
            ========================================================================= */}
         {view === 'nurse' && (
           <div className="space-y-6">
+            {/* Messages from the crew also show on the ward screen */}
+            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+              <QuickMessages
+                key={`nurse-${displayReservation.id}`}
+                reservationId={displayReservation.id}
+                from="hospital"
+                author={currentHospital.name}
+              />
+            )}
+
             {/* Incoming request heads-up (read-only: the coordinator accepts or rejects) */}
             {displayReservation &&
               (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
@@ -739,6 +750,16 @@ Bed Type: ${bed}
                 onAccept={handleAcceptReservation}
                 onReject={handleRejectReservation}
                 onDismiss={() => setAlertDismissed(true)}
+              />
+            )}
+
+            {/* Quick messages with the ambulance crew for this request */}
+            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+              <QuickMessages
+                key={displayReservation.id}
+                reservationId={displayReservation.id}
+                from="hospital"
+                author={currentHospital.name}
               />
             )}
 

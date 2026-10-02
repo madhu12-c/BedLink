@@ -14,7 +14,8 @@ import {
   ReservationStatus,
   ScoredHospital,
   EdStatus,
-  Urgency
+  Urgency,
+  QuickMessage
 } from '../types';
 import {
   INITIAL_BED_INVENTORY,
@@ -51,6 +52,8 @@ export type SyncHandler = {
   onReservationReleased?: (reservation: Reservation) => void;
   /** Open / Busy / Diversion changed. */
   onEdStatus?: (hospitalId: string, status: EdStatus) => void;
+  /** Quick message between crew and ER. */
+  onMessage?: (message: QuickMessage) => void;
 };
 
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
@@ -63,6 +66,7 @@ class BedLinkDataStore {
   private emergencyRequests: EmergencyRequest[] = [];
   private bedHistoryLogs: BedHistoryLog[] = [];
   private patientHandovers: Map<string, PatientHandoverRecord> = new Map();
+  private messages: QuickMessage[] = [];
   private broadcastChannel: BroadcastChannel | null = null;
   private listeners: Set<(event: { type: string; payload: unknown }) => void> = new Set();
   private expirationInterval: NodeJS.Timeout | null = null;
@@ -237,6 +241,11 @@ class BedLinkDataStore {
       shadow?: Reservation;
       inv?: BedInventory;
     };
+    if (type === 'reservation_message') {
+      const message = (payload as { message?: QuickMessage } | null)?.message;
+      if (message && !this.messages.some((m) => m.id === message.id)) this.messages.push(message);
+      return undefined;
+    }
     if (type === 'bed_updated' && data.inv) {
       const inv = data.inv;
       const idx = this.bedInventories.findIndex(
@@ -321,6 +330,40 @@ class BedLinkDataStore {
     this.broadcast('hospital_updated', hosp);
     this.syncHandler?.onEdStatus?.(hospitalId, status);
     return hosp;
+  }
+
+  /** Messages for one request, oldest first. */
+  public getMessages(reservationId: string): QuickMessage[] {
+    return this.messages.filter((m) => m.reservation_id === reservationId);
+  }
+
+  /**
+   * Quick message between the ambulance crew and the ER ("patient unconscious", "use gate 2").
+   * Short, no patient names.
+   */
+  public sendMessage(reservationId: string, from: QuickMessage['from'], text: string, author: string): QuickMessage {
+    const clean = text.trim().slice(0, 140);
+    if (!clean) throw new Error('Type a message first.');
+    const message: QuickMessage = {
+      id: generateUUID(),
+      reservation_id: reservationId,
+      from,
+      text: clean,
+      author,
+      created_at: new Date().toISOString()
+    };
+    this.messages.push(message);
+    this.broadcast('reservation_message', { message });
+    this.syncHandler?.onMessage?.(message);
+    return message;
+  }
+
+  /** A message that arrived from another device. */
+  public applyExternalMessage(message: QuickMessage) {
+    if (this.messages.some((m) => m.id === message.id)) return;
+    this.messages.push(message);
+    this.messages.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+    this.broadcast('reservation_message', { message });
   }
 
   /** True while hospitals and beds are the built-in demo set (not loaded from Supabase). */
@@ -1110,6 +1153,14 @@ class BedLinkDataStore {
 
     // EC-1: shadow hold first, else full fallback + new shadow slots (owner screen only)
     this.runFallback(reservation);
+  }
+
+  /** Demo only: run the 2-minute timeout for this hold now instead of waiting. */
+  public expireNowForDemo(reservationId: string) {
+    const reservation = this.reservations.find((r) => r.id === reservationId && r.status === 'pending');
+    if (!reservation) return;
+    reservation.expires_at = new Date(Date.now() - 1000).toISOString();
+    this.expireReservationInternal(reservation, 'Demo: skipped ahead to the 2-minute timeout');
   }
 
   /**
