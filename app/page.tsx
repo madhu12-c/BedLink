@@ -7,7 +7,7 @@ import { PatientNeedForm, DispatchFormParams } from '@/components/dispatch/Patie
 import { HospitalMap } from '@/components/dispatch/HospitalMap';
 import { HospitalResultCard } from '@/components/dispatch/HospitalResultCard';
 import { bedLinkStore } from '@/lib/data/store';
-import { rankHospitals, rankHospitalsWithRealRoutes, RankingResult } from '@/lib/dispatch/ranking';
+import { fetchRoadRoutes, rankHospitals, RankingResult, RoadRoute } from '@/lib/dispatch/ranking';
 import { BedType, ScoredHospital, Reservation } from '@/lib/types';
 import { generateUUID } from '@/lib/crypto/uuid';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
@@ -105,11 +105,13 @@ export default function DispatcherPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
-  // Real road-ranked results (updated async from OSRM)
-  // Road-distance ranking, tagged with the quick ranking it replaces (stale results are ignored)
-  const [realRanked, setRealRanked] = useState<{
-    forRanking: RankingResult;
-    result: RankingResult;
+  // Real road routes (OSRM) for the current ambulance location. Kept across bed updates so the
+  // list doesn't jump back to the estimate every time a count changes. `moved` = places each
+  // hospital moved when the road times arrived (shown on the cards for a few seconds).
+  const [roads, setRoads] = useState<{
+    originKey: string;
+    routes: Record<string, RoadRoute>;
+    moved: Record<string, number>;
   } | null>(null);
 
   // Voice assistant (Sarvam): spoken intake + spoken status updates for the crew
@@ -237,36 +239,65 @@ export default function DispatcherPage() {
     return bedLinkStore.getHospitalCandidates();
   }, [lastUpdateTrigger]);
 
-  // Sync initial estimate ranking (instant)
-  const syncRanked = useMemo(() => {
-    return rankHospitals(candidates, {
-      patientLocation: { latitude: formData.latitude, longitude: formData.longitude },
-      requiredBedType: formData.bedType,
-      requiresVentilator: formData.requiresVentilator,
-      requiredSpecialty: formData.specialty,
-      urgency: formData.urgency
+  const rankingOptions = useMemo(() => ({
+    patientLocation: { latitude: formData.latitude, longitude: formData.longitude },
+    requiredBedType: formData.bedType,
+    requiresVentilator: formData.requiresVentilator,
+    requiredSpecialty: formData.specialty,
+    urgency: formData.urgency
+  }), [formData]);
+
+  // Road routes only depend on where the ambulance is and which hospitals exist
+  const originKey = `${formData.latitude},${formData.longitude}`;
+  const routesForOrigin = roads?.originKey === originKey ? roads.routes : undefined;
+  const movedBy = roads?.originKey === originKey ? roads.moved : undefined;
+  const hospitalIdsKey = candidates.map((c) => c.hospital.id).join(',');
+  const checkingRoads = candidates.some((c) => !routesForOrigin?.[c.hospital.id]);
+
+  // Ranked list: real road times where we have them, else the instant estimate
+  const { exactMatches, partialMatches } = useMemo(
+    () => rankHospitals(candidates, rankingOptions, routesForOrigin),
+    [candidates, rankingOptions, routesForOrigin]
+  );
+
+  // Road routes arrived: keep them and note which hospitals moved up or down
+  const onRoadRoutes = useEffectEvent((forOrigin: string, fetched: Record<string, RoadRoute>) => {
+    if (forOrigin !== originKey) return;
+    const routes = { ...routesForOrigin, ...fetched };
+    const order = (r: RankingResult) => [...r.exactMatches, ...r.partialMatches].map((h) => h.hospital.id);
+    const before = order(rankHospitals(candidates, rankingOptions, routesForOrigin));
+    const after = order(rankHospitals(candidates, rankingOptions, routes));
+    const moved: Record<string, number> = {};
+    after.forEach((id, i) => {
+      const from = before.indexOf(id);
+      if (from !== -1 && from !== i) moved[id] = from - i;
     });
-  }, [candidates, formData]);
+    setRoads({ originKey: forOrigin, routes, moved });
+  });
+  const hospitalsWithoutRoute = useEffectEvent(() =>
+    candidates.filter((c) => !routesForOrigin?.[c.hospital.id])
+  );
 
-  // Async re-ranking with real OSRM road distances — updates list to match actual road route
+  // Fetch road routes once per ambulance location (and for newly added hospitals)
   useEffect(() => {
+    const missing = hospitalsWithoutRoute();
+    if (missing.length === 0) return;
     let cancelled = false;
-    const opts = {
-      patientLocation: { latitude: formData.latitude, longitude: formData.longitude },
-      requiredBedType: formData.bedType,
-      requiresVentilator: formData.requiresVentilator,
-      requiredSpecialty: formData.specialty,
-      urgency: formData.urgency
-    };
-    rankHospitalsWithRealRoutes(candidates, opts).then((result) => {
-      if (!cancelled) setRealRanked({ forRanking: syncRanked, result });
-    }).catch(() => { /* keep sync estimate */ });
+    const origin = { latitude: formData.latitude, longitude: formData.longitude };
+    fetchRoadRoutes(missing, origin)
+      .then((fetched) => {
+        if (!cancelled) onRoadRoutes(`${origin.latitude},${origin.longitude}`, fetched);
+      })
+      .catch(() => { /* keep the estimate */ });
     return () => { cancelled = true; };
-  }, [candidates, formData, syncRanked]);
+  }, [formData.latitude, formData.longitude, hospitalIdsKey]);
 
-  // Use the road ranking once it matches the current inputs, else the instant estimate
-  const { exactMatches, partialMatches } =
-    realRanked && realRanked.forRanking === syncRanked ? realRanked.result : syncRanked;
+  // The "moved up / down" chips show for 5 seconds
+  useEffect(() => {
+    if (!roads || Object.keys(roads.moved).length === 0) return;
+    const timer = setTimeout(() => setRoads((r) => (r ? { ...r, moved: {} } : r)), 5000);
+    return () => clearTimeout(timer);
+  }, [roads]);
 
   const allRanked = useMemo(() => [...exactMatches, ...partialMatches], [exactMatches, partialMatches]);
 
@@ -686,7 +717,11 @@ export default function DispatcherPage() {
                   {allRanked.length} Found
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Ranked by: bed match 40 · drive 25 · fresh data 15 · load 10 · reliability 10</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {checkingRoads
+                  ? 'Checking real road times… order may change'
+                  : 'Best first: right bed, short drive, fresh data'}
+              </p>
             </div>
             {activeReservation && (
               <div className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
@@ -724,6 +759,7 @@ export default function DispatcherPage() {
                   onHoldBed={handleHoldBed}
                   onSelectHospital={(h) => setSelectedHospitalId(h.hospital.id)}
                   isLoading={isLoading}
+                  rankChange={movedBy?.[scored.hospital.id] ?? 0}
                 />
               ))
             )}
@@ -751,6 +787,7 @@ export default function DispatcherPage() {
                   onHoldBed={handleHoldBed}
                   onSelectHospital={(h) => setSelectedHospitalId(h.hospital.id)}
                   isLoading={isLoading}
+                  rankChange={movedBy?.[scored.hospital.id] ?? 0}
                 />
               ))}
             </div>
@@ -826,8 +863,10 @@ export default function DispatcherPage() {
                     {allRanked.length}
                   </span>
                 </h2>
-                <p className="text-[11px] text-slate-500">
-                  {formData.bedType.toUpperCase()} · {formData.urgency} · {formData.requiresVentilator ? '+vent' : 'no vent'}
+                <p className="text-xs text-slate-500">
+                  {checkingRoads
+                    ? 'Checking real road times…'
+                    : `${formData.bedType.toUpperCase()} · ${formData.urgency} · ${formData.requiresVentilator ? '+vent' : 'no vent'}`}
                 </p>
               </div>
               {activeReservation && (
@@ -868,6 +907,7 @@ export default function DispatcherPage() {
                         setMobileTab('map');
                       }}
                       isLoading={isLoading}
+                      rankChange={movedBy?.[scored.hospital.id] ?? 0}
                     />
                   ))}
                 </>
@@ -907,6 +947,7 @@ export default function DispatcherPage() {
                         setMobileTab('map');
                       }}
                       isLoading={isLoading}
+                      rankChange={movedBy?.[scored.hospital.id] ?? 0}
                     />
                   ))}
                 </>

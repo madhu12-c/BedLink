@@ -180,25 +180,40 @@ function scoreCandidate(
   };
 }
 
+/** Road distance and drive time from the patient to one hospital. */
+export interface RoadRoute {
+  distanceKm: number;
+  etaMinutes: number;
+}
+
+/** Quick straight-line estimate of the road route (haversine × 1.32 at 40 km/h). */
+function estimateRoute(
+  origin: { latitude: number; longitude: number },
+  hospital: { latitude: number; longitude: number }
+): RoadRoute {
+  const direct = calculateHaversineDistanceKm(
+    origin.latitude, origin.longitude,
+    hospital.latitude, hospital.longitude
+  );
+  const road = Number((direct * 1.32).toFixed(1));
+  return { distanceKm: road, etaMinutes: Math.max(2, Math.round((road / 40) * 60 + 1.5)) };
+}
+
 /**
- * SYNCHRONOUS ranking using estimated road distance (haversine × 1.32).
- * Used for instant initial render — replaced by real routes once OSRM responds.
+ * SYNCHRONOUS ranking. Uses the real road route for a hospital when `roads` has one
+ * (fetched earlier with fetchRoadRoutes), else the quick estimate.
  */
 export function rankHospitals(
   candidates: HospitalCandidate[],
-  options: RankingOptions
+  options: RankingOptions,
+  roads?: Record<string, RoadRoute>
 ): RankingResult {
   const exactMatches: ScoredHospital[] = [];
   const partialMatches: ScoredHospital[] = [];
 
   for (const candidate of candidates) {
-    const direct = calculateHaversineDistanceKm(
-      options.patientLocation.latitude, options.patientLocation.longitude,
-      candidate.hospital.latitude, candidate.hospital.longitude
-    );
-    const road = Number((direct * 1.32).toFixed(1));
-    const eta = Math.max(2, Math.round((road / 40) * 60 + 1.5));
-    const scored = scoreCandidate(candidate, options, road, eta);
+    const route = roads?.[candidate.hospital.id] ?? estimateRoute(options.patientLocation, candidate.hospital);
+    const scored = scoreCandidate(candidate, options, route.distanceKm, route.etaMinutes);
     if (scored.isExactMatch) exactMatches.push(scored);
     else partialMatches.push(scored);
   }
@@ -209,51 +224,36 @@ export function rankHospitals(
 }
 
 /**
- * ASYNC ranking using REAL OSRM road distances fetched in parallel.
- * Hospital list order will exactly match the road route shown on the map.
- * Falls back to haversine estimate per-hospital if OSRM is unavailable.
+ * Real OSRM road routes from the patient to each hospital, fetched in parallel and keyed by
+ * hospital id. A hospital whose route fails gets the quick estimate.
  */
-export async function rankHospitalsWithRealRoutes(
+export async function fetchRoadRoutes(
   candidates: HospitalCandidate[],
-  options: RankingOptions
-): Promise<RankingResult> {
-  const origin = {
-    latitude: options.patientLocation.latitude,
-    longitude: options.patientLocation.longitude
-  };
-
-  // Fire all OSRM requests in parallel — no waiting one by one
-  const routeResults = await Promise.all(
-    candidates.map(async (c) => {
+  origin: { latitude: number; longitude: number }
+): Promise<Record<string, RoadRoute>> {
+  const routes = await Promise.all(
+    candidates.map(async (c): Promise<[string, RoadRoute]> => {
       try {
         const r = await calculateEmergencyETA(origin, {
           latitude: c.hospital.latitude,
           longitude: c.hospital.longitude
         });
-        return { distanceKm: r.distanceKm, etaMinutes: r.etaMinutes };
+        return [c.hospital.id, { distanceKm: r.distanceKm, etaMinutes: r.etaMinutes }];
       } catch {
-        // Per-hospital fallback
-        const direct = calculateHaversineDistanceKm(
-          origin.latitude, origin.longitude,
-          c.hospital.latitude, c.hospital.longitude
-        );
-        const road = Number((direct * 1.32).toFixed(1));
-        return { distanceKm: road, etaMinutes: Math.max(2, Math.round((road / 40) * 60 + 1.5)) };
+        return [c.hospital.id, estimateRoute(origin, c.hospital)];
       }
     })
   );
+  return Object.fromEntries(routes);
+}
 
-  const exactMatches: ScoredHospital[] = [];
-  const partialMatches: ScoredHospital[] = [];
-
-  for (let i = 0; i < candidates.length; i++) {
-    const { distanceKm, etaMinutes } = routeResults[i];
-    const scored = scoreCandidate(candidates[i], options, distanceKm, etaMinutes);
-    if (scored.isExactMatch) exactMatches.push(scored);
-    else partialMatches.push(scored);
-  }
-
-  exactMatches.sort((a, b) => b.totalScore - a.totalScore);
-  partialMatches.sort((a, b) => b.totalScore - a.totalScore);
-  return { exactMatches, partialMatches };
+/**
+ * ASYNC ranking using REAL OSRM road distances fetched in parallel.
+ * Hospital list order will exactly match the road route shown on the map.
+ */
+export async function rankHospitalsWithRealRoutes(
+  candidates: HospitalCandidate[],
+  options: RankingOptions
+): Promise<RankingResult> {
+  return rankHospitals(candidates, options, await fetchRoadRoutes(candidates, options.patientLocation));
 }
