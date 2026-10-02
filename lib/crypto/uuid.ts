@@ -3,9 +3,12 @@
  * (including non-HTTPS mobile browser sessions where crypto.randomUUID is undefined).
  */
 
+// Any 8-4-4-4-12 hex id that Postgres accepts as a uuid. Not limited to RFC 4122 v1-5:
+// the seeded hospital ids ('aaaaaaaa-aaaa-...') are valid in the database, and treating them
+// as invalid made ensureUUID() swap in a random id, so every hold failed its hospital FK.
 export function isUUID(val?: string | null): boolean {
   if (!val || typeof val !== 'string') return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 }
 
 export function generateUUID(): string {
