@@ -21,14 +21,29 @@ export function getFreshnessInfo(updatedAtIso: string, currentTimeMs = Date.now(
 
   if (minutesAgo < 1) {
     return { label: 'Updated just now', category: 'fresh', minutesAgo: 0 };
-  } else if (minutesAgo <= 5) {
-    return { label: `Updated ${minutesAgo} min ago`, category: 'fresh', minutesAgo };
-  } else if (minutesAgo <= 15) {
-    return { label: `Updated ${minutesAgo} min ago`, category: 'recent', minutesAgo };
-  } else if (minutesAgo <= 30) {
-    return { label: `Updated ${minutesAgo} min ago`, category: 'aging', minutesAgo };
+  }
+
+  let timeAgoText = '';
+  if (minutesAgo < 60) {
+    timeAgoText = `${minutesAgo} min ago`;
+  } else if (minutesAgo < 1440) {
+    const hours = Math.floor(minutesAgo / 60);
+    const mins = minutesAgo % 60;
+    timeAgoText = mins > 0 ? `${hours} hr ${mins} min ago` : `${hours} ${hours === 1 ? 'hr' : 'hrs'} ago`;
   } else {
-    return { label: `Stale · ${minutesAgo} min ago`, category: 'stale', minutesAgo };
+    const days = Math.floor(minutesAgo / 1440);
+    const remHours = Math.floor((minutesAgo % 1440) / 60);
+    timeAgoText = remHours > 0 ? `${days} ${days === 1 ? 'day' : 'days'} ${remHours} hr ago` : `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  }
+
+  if (minutesAgo <= 5) {
+    return { label: `Updated ${timeAgoText}`, category: 'fresh', minutesAgo };
+  } else if (minutesAgo <= 15) {
+    return { label: `Updated ${timeAgoText}`, category: 'recent', minutesAgo };
+  } else if (minutesAgo <= 30) {
+    return { label: `Updated ${timeAgoText}`, category: 'aging', minutesAgo };
+  } else {
+    return { label: `Stale · ${timeAgoText}`, category: 'stale', minutesAgo };
   }
 }
 
