@@ -1,162 +1,293 @@
 # BedLink
 
-**Find the nearest hospital with the right free bed, hold it for the ambulance, and move on to the next hospital automatically if the first one says no.**
+> **Find the nearest hospital with the right free bed, hold it for the ambulance, and move on to the next hospital automatically if the first one says no.**
 
-Built for **Techforge 2026 (Healthtech track)**. Mumbai pilot data: 19 real hospitals.
-
-> An ambulance crew with a critical patient needs the nearest hospital that has the right bed (ICU, ventilator, oxygen, or a specialty such as cardiac or burns) right now. Build BedLink with three parts: a 10-second bed-update screen for hospital nurses (one tap per bed type, works on a cheap phone); a dispatch screen that takes the patient's needs and ranks hospitals by bed match, estimated travel time, data freshness and current load; and a reservation step where the chosen hospital accepts or rejects within 2 minutes, the bed is held for the ambulance, and the next-best hospital is offered automatically on rejection or timeout. Every listing shows how many minutes old its data is.
->
-> *(Problem statement)*
+Built for **Techforge 2026 (Healthtech Track)**. Mumbai pilot dataset: 19 real hospitals.
 
 ---
 
-## How BedLink answers the brief
+## Project Overview
 
-| The brief asks for | BedLink |
+Emergency medical services face a critical bottleneck: ambulance crews spending precious minutes calling hospitals or driving to facilities that lack available ICU, ventilator, or specialized emergency beds. BedLink solves this emergency triage challenge by providing:
+
+1. **A 10-Second Bed-Update Screen for Ward Staff**: Nurses update free bed counts with single-tap controls on standard mobile web browsers or directly via Telegram text/voice notes.
+2. **Intelligent Multi-Factor Dispatch Ranking**: Ranks hospitals by real road driving times, bed match capabilities, data freshness (showing exact age in minutes), and emergency room load.
+3. **Atomic 2-Minute Reservation & Auto-Fallback**: Holds a matching bed atomically in the database (preventing double-booking across ambulances). If a hospital coordinator rejects or doesn't respond within 2 minutes, BedLink automatically holds the next-best hospital.
+4. **Privacy-First Design**: Operates entirely with anonymized case IDs without storing or transmitting patient PII (personally identifiable information).
+
+### Problem Statement & Brief Alignment
+
+| Brief Requirement | BedLink Implementation |
 | --- | --- |
-| The right bed: ICU, ventilator, oxygen, cardiac, burns | All five bed types, plus specialties (cardiac, burns, trauma, neuro, pediatric) |
-| **10-second nurse screen**, one tap per bed type, cheap phone | "Free beds right now": every bed type on one phone screen with big − / + buttons and "Saved in 0.3 s" after each tap. One tap on "All counts still correct" when nothing changed. Or update from **Telegram** by text or voice note. |
-| **Dispatch ranking** by bed match, travel time, freshness, load | Ranks by bed match 40 % · drive time 25 % (real road routes) · data freshness 15 % · hospital load 10 % · reliability 10 %. Each card explains its score. |
-| Hospital **accepts or rejects within 2 minutes** | A request with a big countdown on the hospital screen (and on Telegram, with Accept / Reject buttons) |
-| **Bed is held** for the ambulance | One atomic database update (`available_beds - 1 WHERE available_beds > 0`): two ambulances can never get the same last bed. `npm run race-test` proves it with 20 at once. |
-| **Next-best offered automatically** on reject or timeout | The 2-minute clock runs in the database every 10 seconds (pg_cron); the dispatcher's screen then holds the next-best hospital by itself and shows every step on a timeline. |
-| **Every listing shows how old its data is** | Every hospital card and every bed type shows "Updated 4 min ago", green / amber / red. Old data also lowers the ranking. |
+| **Right Bed Match**: ICU, ventilator, oxygen, cardiac, burns | Supports 5 core bed types (ICU, Ventilator, Oxygen, Emergency Resus, General) + 5 medical specialties (Cardiac, Burns, Trauma, Neuro, Pediatric). |
+| **10-Second Nurse Screen**: 1 tap per bed type on cheap phones | "Free beds right now" UI: every bed count on a single phone screen with large `−` / `+` buttons, instant `Saved in 0.3 s` toast feedback, and one-tap "All counts still correct" confirmation. Telegram text/voice updates included. |
+| **Dispatch Ranking**: Bed match, travel time, freshness, load | Multi-factor weighting: 40% Bed Match, 25% Drive Time (real road routes via OSRM), 15% Data Freshness, 10% Hospital Load, 10% Hospital Reliability Score. |
+| **2-Minute Hospital Response Window** | Request alert with live 2-minute countdown timer on coordinator screen and Telegram bot with inline Accept / Reject action buttons. |
+| **Atomic Bed Hold** | Concurrency-safe atomic database transaction (`available_beds - 1 WHERE available_beds > 0`). Verified with 20 simultaneous concurrent hold requests (`npm run race-test`). |
+| **Automated Fallback on Reject/Timeout** | Server/database clock (`pg_cron` / client tick fallback) handles expiration; dispatcher screen automatically transitions to hold the next-ranked hospital and records audit steps on a timeline. |
+| **Data Freshness Indicators** | Every listing displays data freshness ("Updated 4 min ago") with color-coded badges (Green / Amber / Red). Freshness score decays over time to discourage stale listings. |
 
-## Beyond the brief
+---
 
-- **Telegram bot for ward staff.** Nurses send "ICU 3, O2 5" or a voice note in Hindi, Marathi or English; counts 30+ minutes old get a "still right?" reminder with a one-tap ✅. Coordinators get ambulance requests with Accept / Reject buttons. Free, no app to install.
-- **Voice for the crew.** Describe the patient in any Indian language ("ICU chahiye, ventilator bhi"); BedLink reads back the best match and holds it on a spoken "haan". Status updates are spoken back. (Sarvam AI)
-- **"Free on arrival" %.** The chance a bed is still free when the ambulance arrives, from the number of free beds, how old the count is, the drive time, how full the hospital is and how many other ambulances took that bed type there in the last hour.
-- **Live ambulance map** on the hospital screen after Accept, moving along the real road with minutes and km left. *(Position is simulated from the route and expected arrival until the crew's phone shares GPS.)*
-- **Sealed vitals handover.** The crew sends vitals before arrival; the sheet is sealed with a SHA-256 code made from its content, and the hospital can check nothing changed on the way.
-- **Hospital reliability and diversion.** Reliability drops on reject (−2), timeout (−5) or a lost bed (−15) and rises on arrival (+1). Hospitals can set Open / Busy / Diversion; hospitals on diversion are skipped.
-- **"Patient can't pay".** Government hospitals (free) and charitable trust hospitals (10 % of beds free for poor patients by Maharashtra law) come first.
-- **Mass casualty mode.** Many patients from one place are spread across hospitals, most serious first, at most N per hospital, so no single emergency room is flooded; one tap holds every bed.
-- **Quick messages** between crew and hospital, **sunlight mode** for outdoor phones, and a stabilise-first suggestion when no hospital has everything.
+## Setup & Installation Instructions
 
-**Privacy:** no patient names, ages or sex are stored or sent. A patient is a case number.
+### Prerequisites
+- **Node.js**: `v20.x` or higher
+- **npm**: `v10.x` or higher
+- **Supabase Account / Database**: Local PostgreSQL or cloud Supabase project instance
 
-## Screens and roles
-
-| Role | Screen | Can do |
-| --- | --- | --- |
-| Dispatcher / ambulance crew | `/` | Enter patient needs (form or voice), see ranked hospitals and the map, hold a bed, send vitals, mass casualty |
-| Ward nurse | `/hospital` | Update free beds (one tap per type), confirm counts, see incoming requests (read-only), connect Telegram |
-| Hospital coordinator | `/hospital` | Accept / reject requests, see ambulances coming on the map, mark arrivals or "bed lost", set Open / Busy / Diversion, add beds |
-| Admin | everything | Switch hospital, preview nurse and coordinator screens, run the one-click demo, audit trail at `/history` |
-
-Roles are enforced three times: in `proxy.ts` (pages and APIs), in every API route, and in the database (row-level security). A user's role and hospital live in Supabase Auth `app_metadata`, which only the server can change.
-
-## How it works
-
-```
- Nurse / Coordinator (phone or Telegram)          Dispatcher / ambulance crew
-            │  bed counts, accept/reject                 │  patient needs, hold
-            ▼                                            ▼
-   ┌──────────────────────── Supabase (Postgres) ────────────────────────┐
-   │  hold_bed()  atomic hold          tick_holds()  2-min clock (pg_cron) │
-   │  adjust_bed_count()  set_ed_status()  cancel_hold()  RLS by role      │
-   │  Realtime: every change reaches every open screen in about a second   │
-   └──────────────────────────────────────────────────────────────────────┘
-            ▲                                            ▲
-     Telegram bot (webhook)                    OSRM road routes · Sarvam AI voice
-```
-
-- **Next.js 16** (App Router, React 19, Turbopack), **Tailwind CSS 4**, **Leaflet** + OpenStreetMap.
-- **Supabase**: Postgres is the single source of truth; database functions do every write that must not race; Realtime pushes changes to all screens.
-- **Routing**: real road distance and drive time from OSRM, saved per ambulance location so the list doesn't reshuffle on every bed update.
-- **Voice**: Sarvam AI speech-to-text, translation and text-to-speech (server-side key).
-- **Telegram**: Bot API via a webhook (deployed) or long polling (local); requests are checked with a shared secret, and chats are linked to a hospital with a signed link from the hospital screen.
-
-## Getting started
-
-### 1. Install
+### 1. Repository Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/swayamgode/T39-BedLink.git
+cd T39-BedLink
+
+# Install dependencies
 npm install
-cp .env.example .env.local   # then fill it in
+
+# Prepare environment variables
+cp .env.example .env.local
 ```
 
-| Variable | Needed for |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Live data across devices (without them BedLink runs in single-browser demo mode) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Creating demo accounts and the Telegram bot (server only) |
-| `DEMO_USER_PASSWORD` | Password for the demo accounts (8+ characters) |
-| `SARVAM_API_KEY` | Voice (optional) |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | Telegram bot (optional; create the bot with @BotFather) |
+### Environment Configuration (`.env.local`)
 
-Server-only keys must never start with `NEXT_PUBLIC_` and must never be committed.
+| Variable | Description | Required |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Required for live data |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Anonymous Key | Required for client auth & subscriptions |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Secret Key | Server-only (used for account seeding & Telegram API) |
+| `DEMO_USER_PASSWORD` | Password for generated demo accounts (min 8 chars) | Required for `npm run seed:users` |
+| `SARVAM_API_KEY` | Sarvam AI API Key | Optional (enables voice intake & TTS) |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot API Token from `@BotFather` | Optional (enables Telegram bot) |
+| `TELEGRAM_BOT_USERNAME` | Telegram Bot Username | Optional (enables Telegram bot) |
 
-### 2. Database (Supabase SQL editor, in this order)
+> ⚠️ **Security Note**: Never expose `SUPABASE_SERVICE_ROLE_KEY` or `SARVAM_API_KEY` with a `NEXT_PUBLIC_` prefix or commit them to version control.
 
-1. `supabase/migrations/20261002000000_bedlink_schema.sql`: tables
-2. `supabase/seed.sql`: the first 5 hospitals (**clears existing data**)
-3. `supabase/setup_and_seed.sql`: bed history and handover tables
-4. `supabase/migrations/20261002130000_role_based_access.sql`: row-level security (re-run it whenever step 3 is run)
-5. `supabase/migrations/20261002140000_add_procedures_performed.sql`
-6. `supabase/migrations/20261003000000_spec_features.sql`: atomic hold, server clock, reliability, diversion
-7. `supabase/migrations/20261003000100_more_mumbai_hospitals.sql`: 14 more hospitals (19 in total)
-8. `supabase/migrations/20261003000200_free_care.sql`: government and charity hospitals
-9. `supabase/migrations/20261003000300_telegram_bot.sql`: Telegram chat links
+### 2. Database Migration & Schema Setup
 
-Steps 5 to 9 only add things and are safe to run again. Step 6 needs the **pg_cron** extension for the server-side clock (Database → Extensions); without it, open screens run the clock instead. In Authentication → Providers, turn off "Allow new users to sign up" so only accounts you create can sign in.
+Run the SQL migration files in your Supabase SQL Editor in the exact sequence specified below:
 
-### 3. Accounts and run
+1. `supabase/migrations/20261002000000_bedlink_schema.sql`: Core schema (tables, enums, initial functions)
+2. `supabase/seed.sql`: Initial seed data (**clears existing records**)
+3. `supabase/setup_and_seed.sql`: Bed history and patient vitals handover schema
+4. `supabase/migrations/20261002130000_role_based_access.sql`: Row-Level Security (RLS) policies (re-run whenever step 3 is run)
+5. `supabase/migrations/20261002140000_add_procedures_performed.sql`: Medical procedure logging
+6. `supabase/migrations/20261003000000_spec_features.sql`: Atomic hold (`hold_bed`), server clock (`tick_holds`), reliability scoring, diversion status
+7. `supabase/migrations/20261003000100_more_mumbai_hospitals.sql`: Mumbai hospitals dataset expansion (19 hospitals total)
+8. `supabase/migrations/20261003000200_free_care.sql`: Government & Maharashtrian 10% poor-patient quota classifications
+9. `supabase/migrations/20261003000300_telegram_bot.sql`: Telegram integration schema & chat linkage
+
+> 💡 **Background Server Clock Note**: Enable the `pg_cron` extension in Supabase (*Database → Extensions → pg_cron*) for server-side automatic hold expirations. If `pg_cron` is disabled, open client screens act as fallback clock runners.
+
+### 3. Demo Account Provisioning & Server Launch
 
 ```bash
-npm run seed:users   # admin, dispatcher, and a nurse + coordinator per hospital (lib/auth/demo-users.json)
-npm run dev          # http://localhost:3000
+# Seed demo accounts (Admin, Dispatcher, Hospital Nurses & Coordinators)
+npm run seed:users
+
+# Start Next.js development server
+npm run dev
 ```
+Open `http://localhost:3000` in your web browser. 
 
-Sign in as e.g. `dispatcher@bedlink.test`, `coordinator.aditi@bedlink.test` or `nurse.aditi@bedlink.test` with `DEMO_USER_PASSWORD`. The microphone needs `localhost` or HTTPS; for phones on the same Wi-Fi use `npx next dev --experimental-https`.
+> 🎤 **Voice Microphone Note**: Web Speech API / microphone access requires `localhost` or HTTPS. For testing mobile devices on local Wi-Fi, run `npx next dev --experimental-https`.
 
-### 4. Telegram bot (optional)
+### 4. Optional Telegram Bot Setup
 
-1. Create a bot with **@BotFather**; put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` in `.env.local`.
-2. Local: run `npm run telegram` next to `npm run dev` (no public URL needed).
-   Deployed: `npm run telegram:webhook -- https://your-app.example.com`, and have a cron job POST to `/api/telegram/nudge` every minute with the header `X-BedLink-Cron` (the webhook secret) for "still right?" reminders.
-3. On the hospital screen tap **Connect Telegram**, then **Start** in Telegram.
+1. Request a bot token from `@BotFather` on Telegram and set `TELEGRAM_BOT_TOKEN` & `TELEGRAM_BOT_USERNAME` in `.env.local`.
+2. **Local Environment**: Run long-polling alongside dev server:
+   ```bash
+   npm run telegram
+   ```
+3. **Production Deployment**: Configure webhook endpoint:
+   ```bash
+   npm run telegram:webhook -- https://your-deployment-domain.com
+   ```
+   Set up a scheduled cron worker to `POST` to `/api/telegram/nudge` every 60 seconds with header `X-BedLink-Cron` for automated "still right?" freshness checks.
 
-## Scripts
+---
 
-| Command | What it does |
+## Key Features
+
+- ⚡ **10-Second Mobile Nurse Workflow**: Designed for low-end mobile devices and rapid hospital ward updates. Instant save feedback with sub-second response times.
+- 🎯 **Multi-Factor Dispatch Ranking**: Custom scoring algorithm balancing distance, drive time, capability match, load, data age, and hospital reliability.
+- 🔒 **Atomic Concurrency-Safe Bed Locking**: Database-level stored procedure (`hold_bed`) guarantees zero double-booking when multiple ambulances request the last bed simultaneously.
+- 🤖 **Telegram Bot for Ward Staff & Coordinators**: Staff can view/update bed counts via text or Hindi/Marathi/English voice messages. Coordinators receive interactive ambulance reservation alerts with inline Accept/Reject buttons.
+- 🎙️ **Multilingual Voice Triage (Sarvam AI)**: Dispatchers can speak patient requirements ("ICU chahiye, ventilator bhi"); BedLink parses the prompt, filters hospitals, and responds audibly in Indian languages.
+- 📊 **"Free on Arrival" Probability Estimation**: Statistical model estimating the likelihood of a bed remaining available upon ambulance arrival based on traffic, load, historical updates, and pending holds.
+- 🔐 **Cryptographically Sealed Vitals Handover**: Pre-hospital vitals documentation signed with a SHA-256 integrity hash, enabling receiving hospitals to verify data wasn't tampered with en route.
+- 🚨 **Mass Casualty / Disaster Dispatch Mode**: Distributes multiple casualties across nearby hospitals automatically based on capacity limits to prevent ER flooding.
+- 🏥 **Free Care & Financial Triage Support**: Highlights public government hospitals and private hospitals offering 10% free bed quotas under Maharashtrian Healthcare regulations for low-income patients.
+- 🗺️ **Live Road Distance & Ambulance Tracking**: Turn-by-turn road route generation via OSRM with live ETA and distance simulation on Leaflet maps.
+
+---
+
+## Technology Stack
+
+| Layer | Technologies Used |
 | --- | --- |
-| `npm run dev` | Development server |
-| `npm run build` / `npm start` | Production build / server |
-| `npm run lint` | ESLint |
-| `npm run seed:users` | Create or reset the demo accounts |
-| `npm run race-test` | 20 ambulances try to hold the same last bed at once; exactly one must win (uses the live database, cleans up after) |
-| `npm run telegram` | Run the Telegram bot locally |
-| `npm run telegram:webhook -- <url>` | Point the Telegram bot at a deployed app |
+| **Framework & Engine** | Next.js 16 (App Router), Turbopack, React 19, TypeScript |
+| **Styling & Icons** | Tailwind CSS 4, Lucide React Icons |
+| **Database & Auth** | Supabase PostgreSQL, Supabase Auth (RBAC via `app_metadata`), Supabase Realtime (WebSockets), Row-Level Security (RLS) |
+| **Routing & GIS Maps** | OSRM (Open Source Routing Machine) API, Leaflet, React-Leaflet, OpenStreetMap |
+| **Voice & AI** | Sarvam AI API (Speech-to-Text, Translation, Text-to-Speech) |
+| **Messaging Bot** | Telegram Bot API (Webhooks / Node.js polling) |
+| **Form Handling & Validation** | React Hook Form, Zod |
 
-## Demo in 3 minutes (3 phones)
+---
 
-1. **Nurse** (`nurse.aditi@…`): tap + on ICU; the dispatcher's list updates within a second and the card says "Updated just now".
-2. **Dispatcher**: pick ICU + ventilator, see the ranked list with drive times, data age and "free on arrival"; tap **Hold bed (2 min)**.
-3. **Coordinator** (`coordinator.aditi@…`): the request appears with a countdown; **Reject**, and the dispatcher's screen moves to the next-best hospital by itself. Let the next one time out; it moves on again.
-4. Accept the third; the hospital watches the ambulance on the map, and the crew's sealed vitals arrive. **Verify Seal** shows the sheet was not changed.
-5. Run `npm run race-test`: 20 holds on one last bed, exactly 1 winner.
-
-Admins also have a one-click **Run demo** on the dispatch screen.
-
-## Known limits
-
-- The ambulance position on the hospital map is simulated from the route and expected arrival; real crew GPS is the next step.
-- After a reject or timeout, the next hospital is offered by the dispatcher's open screen (the database still expires the hold on time if that screen is closed).
-- Hospital locations, bed counts and free-care status are demo data based on public information; only 10 hospitals have free-care status set.
-- Telegram connect links do not expire; share them only with hospital staff.
-
-## Project layout
+## Architecture / Workflow
 
 ```
-app/                 pages (/, /hospital, /history, /login) and API routes (beds, reservations, voice, telegram)
-components/          dispatch, hospital, handover, voice, shared UI
-lib/data/store.ts    in-browser data store kept in sync with Supabase
-lib/dispatch/        ranking, "free on arrival", mass casualty planner
-lib/supabase/        browser sync, server and admin clients
-lib/telegram/        Telegram bot (messages, buttons, reminders)
-lib/voice/           Sarvam AI client and voice intake
-lib/routing/         OSRM road routes
-supabase/            schema, seed data and migrations
-scripts/             demo accounts, race test, Telegram runner
+ Nurse / Coordinator (Phone / Telegram)          Dispatcher / Ambulance Crew
+            │                                                 │
+            │ Bed updates, Accept/Reject                      │ Patient triage intake, Hold bed
+            ▼                                                 ▼
+   ┌────────────────────────────── Supabase (PostgreSQL) ──────────────────────────────┐
+   │                                                                                    │
+   │  • hold_bed()  (Atomic row lock procedure)                                          │
+   │  • tick_holds() (2-minute clock runner / pg_cron)                                  │
+   │  • Row-Level Security (RLS) policies by user role                                  │
+   │  • Realtime Engine: Broadcasts bed & reservation changes via WebSockets              │
+   │                                                                                    │
+   └────────────────────────────────────────────────────────────────────────────────────┘
+            ▲                                                 ▲
+            │                                                 │
+   Telegram Bot Webhook                             OSRM Road Routing Engine
+   & Cron Scheduler                                 & Sarvam AI Multilingual Voice
 ```
+
+### Core Emergency Workflow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Crew as Dispatcher / Ambulance Crew
+    participant System as BedLink Ranking Engine
+    participant DB as Supabase PostgreSQL
+    actor Hosp as Hospital Coordinator
+
+    Crew->>System: Enter Patient Location & Required Bed Type (or Voice Prompt)
+    System->>DB: Query Hospitals, Capabilities & Live Bed Inventories
+    System->>System: Calculate Scores (Match, Drive Time, Freshness, Load, Reliability)
+    System-->>Crew: Display Ranked Hospital List & Map Route
+    Crew->>DB: Request Bed Reservation (Calls hold_bed())
+    DB->>DB: Atomic Bed Hold (available_beds - 1, status = pending, expires in 2 min)
+    DB-->>Hosp: Broadcast Realtime Alert (Screen & Telegram Bot)
+    alt Coordinator Accepts
+        Hosp->>DB: Accept Reservation
+        DB-->>Crew: Reservation Confirmed, Bed Held & Live Ambulance Map Shared
+    else Coordinator Rejects / 2-Min Timeout
+        Hosp->>DB: Reject (or tick_holds() expires hold)
+        DB->>DB: Release Bed Hold (available_beds + 1)
+        DB-->>Crew: Auto-Hold Next Best Hospital on Ranked List
+    end
+```
+
+### Security & Role-Based Access Control (RBAC)
+
+Security is enforced at three distinct layers:
+1. **Next.js Proxy Middleware (`proxy.ts`)**: Validates session tokens and routes users according to role (`admin`, `dispatcher`, `nurse`, `coordinator`).
+2. **API Route Handlers (`app/api/`)**: Verifies identity and hospital association prior to processing requests.
+3. **Database Row-Level Security (RLS)**: Enforces access control in PostgreSQL policies using custom JWT claims stored in Supabase Auth `app_metadata`.
+
+---
+
+## Dataset / API Information
+
+### Mumbai Hospital Dataset
+The application includes a curated pilot dataset of **19 Mumbai hospitals**, covering real geographic coordinates, emergency contact information, bed capacities, medical capabilities, and financial care tiering.
+
+- **Sample Hospitals Included**:
+  - KEM Hospital (Parel) - *Public / Government*
+  - Sion Hospital (Lokmanya Tilak Municipal General) - *Public / Government*
+  - BYL Nair Charitable Hospital (Mumbai Central) - *Public / Government*
+  - Lilavati Hospital (Bandra West) - *Private (10% Charity Quota)*
+  - Sir H. N. Reliance Foundation Hospital (Girgaon) - *Private (10% Charity Quota)*
+  - Bombay Hospital (Marine Lines) - *Private (10% Charity Quota)*
+  - Nanavati Max Super Speciality Hospital (Vile Parle)
+  - Fortis Hospital (Mulund)
+  - Kokilaben Dhirubhai Ambani Hospital (Andheri West)
+  - Additional regional hospitals across Dadar, Kurla, Chembur, and Thane.
+
+### Application API Routes
+
+| Endpoint | Method | Purpose | Access |
+| --- | --- | --- | --- |
+| `/api/beds/update` | `POST` | Update hospital bed inventory counts | Hospital Nurse / Coordinator |
+| `/api/reservations/hold` | `POST` | Execute atomic bed reservation request | Dispatcher |
+| `/api/reservations/respond` | `POST` | Accept or reject pending ambulance hold | Hospital Coordinator |
+| `/api/hospitals` | `GET` | Fetch hospital listings and ranking calculations | Authenticated Users |
+| `/api/voice/intake` | `POST` | Process Sarvam AI speech-to-text intake | Dispatcher |
+| `/api/voice/speak` | `POST` | Generate text-to-speech audio for status updates | Dispatcher |
+| `/api/telegram/webhook` | `POST` | Telegram Bot Webhook handler | Telegram Service |
+| `/api/telegram/nudge` | `POST` | Trigger "Still right?" bed freshness notifications | Scheduled Cron |
+
+### External APIs Integrated
+- **OSRM Routing Engine (`router.project-osrm.org`)**: Driving route computation, travel distance (km), and real-time travel duration (mins).
+- **Sarvam AI (`api.sarvam.ai`)**: Speech recognition (STT), translation, and voice synthesis (TTS) for Indian languages.
+- **Telegram Bot API (`api.telegram.org`)**: Webhook delivery, push notifications, and inline button callback queries.
+
+---
+
+## Screenshots / Demo Information
+
+### Application Screens & User Roles
+
+| Role | Route | Primary Functions |
+| --- | --- | --- |
+| **Dispatcher / Crew** | `/` | Enter patient requirements, view ranked hospitals on map, hold beds, send sealed vitals, activate mass casualty mode |
+| **Ward Nurse** | `/hospital` | Single-tap bed count management ("Free beds right now"), one-tap verification, Telegram pairing |
+| **Hospital Coordinator** | `/hospital` | Receive reservation alerts, view 2-minute countdown timer, accept/reject requests, track incoming ambulance map |
+| **Administrator** | `/` & `/history` | Switch hospital perspectives, test all screens, trigger automated demo flows, inspect audit log history |
+
+### 3-Minute 3-Device Demo Walkthrough
+
+To demonstrate BedLink in a live demo setting (e.g., using 3 mobile devices or browser tabs):
+
+1. **Step 1 (Nurse Screen - `nurse.aditi@bedlink.test`)**: Tap `+` on ICU beds. The dispatcher's screen updates in real-time (< 1s) showing "Updated just now".
+2. **Step 2 (Dispatcher Screen - `dispatcher@bedlink.test`)**: Select ICU + Ventilator requirements. Review the ranked hospital recommendations, drive times, and "Free on arrival" percentage. Tap **Hold bed (2 min)**.
+3. **Step 3 (Coordinator Screen - `coordinator.aditi@bedlink.test`)**: The incoming reservation card appears with an active 2-minute countdown timer. Tap **Reject**. The dispatcher screen instantly updates and transitions to hold the next-best hospital automatically.
+4. **Step 4 (Acceptance & Vitals Handover)**: Accept the subsequent request on the next hospital screen. Observe the live ambulance tracking map and open the sealed vitals card. Click **Verify Seal** to validate SHA-256 cryptographic integrity.
+5. **Step 5 (Concurrency Verification)**: Run `npm run race-test` in the terminal to execute 20 simultaneous reservation attempts against a single remaining bed to demonstrate atomic locking.
+
+### Executable Test Commands
+
+```bash
+# Development & Quality Assurance Scripts
+npm run dev                  # Start Next.js development server
+npm run build                # Run Next.js Turbopack production build
+npm run lint                 # Run ESLint compliance check
+npm run seed:users           # Reset & populate demo user accounts
+npm run race-test            # Run concurrent stress test on bed locking logic
+npm run telegram             # Run Telegram bot in local long-polling mode
+npm run telegram:webhook     # Configure remote Telegram webhook URL
+```
+
+---
+
+## Limitations & Future Scope
+
+### Current Limitations
+- **Simulated Ambulance Telemetry**: Live map movement currently simulates GPS positioning along the OSRM road route prior to active mobile GPS stream connection.
+- **Browser Clock Fallback**: If Supabase `pg_cron` is not enabled on a custom host, automated hold expiration relies on active client browser sessions.
+- **Demo Dataset Scope**: The pilot dataset covers 19 hospitals in Mumbai; full production deployment requires integration with local municipal healthcare APIs.
+- **Static Telegram Link Tokens**: Telegram onboarding links generated on hospital screens use persistent tokens that should be restricted to authorized hospital staff.
+
+### Future Scope
+- 📱 **Native Mobile App for Paramedics**: Dedicated Android/iOS application with background location streaming and offline voice triage capability.
+- 🏥 **ABDM & Hospital EHR Integration**: Direct integration with Ayushman Bharat Digital Mission (ABDM) and hospital electronic health record systems for automated bed status sync.
+- 🔮 **Predictive AI Bed Availability**: Machine learning models to forecast bed availability based on historic emergency room traffic, time of day, and seasonal trends.
+- 🌐 **Multi-Region Scaling**: Expanding coverage to additional metropolitan centers across India with multi-language dialect support.
+
+---
+
+## Team Members
+
+**Team T39 - Techforge 2026 (Healthtech Track)**
+
+- **Madhavan Chanda** (`madhu12-c`) — Full Stack Lead & System Architect
+- **Swayam Gode** (`swayamgode`) — Frontend Engineer & Database Specialist
+
+---
