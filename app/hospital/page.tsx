@@ -148,6 +148,15 @@ Bed Type: ${bed}
           setActiveReservation(payload.reservation);
           setToastMessage(`Reservation expired. Resource unheld.`);
         }
+      } else if (event.type === 'reservation_cancelled' || event.type === 'reservation_updated') {
+        // Ambulance withdrew the hold (or the demo was reset): drop the request card
+        const payload = event.payload as { reservation: Reservation };
+        if (payload.reservation?.hospital_id === selectedHospitalId) {
+          setActiveReservation(payload.reservation);
+          if (payload.reservation.status === 'cancelled') {
+            setToastMessage('The ambulance cancelled its request. The bed is free again.');
+          }
+        }
       } else if (event.type === 'fallback_triggered') {
         const payload = event.payload as { newReservation: Reservation };
         const fallbackHospitalId = payload.newReservation?.hospital_id;
@@ -195,7 +204,11 @@ Bed Type: ${bed}
   // Derive active pending reservation from store
   const displayReservation = useMemo(() => {
     void lastUpdateTrigger;
-    if (activeReservation && activeReservation.hospital_id === selectedHospitalId) {
+    if (
+      activeReservation &&
+      activeReservation.hospital_id === selectedHospitalId &&
+      activeReservation.status !== 'cancelled'
+    ) {
       return activeReservation;
     }
     const list = bedLinkStore.getReservations(selectedHospitalId);
@@ -732,8 +745,8 @@ Bed Type: ${bed}
           </div>
         )}
 
-        {/* Demo Helper Action (coordinator screen only: it creates a request to decide on) */}
-        {view === 'coordinator' && (
+        {/* Demo Helper Action (admin running the demo, coordinator screen: it creates a request) */}
+        {view === 'coordinator' && (role === 'admin' || demoMode) && (
         <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
           <div>
             <strong className="text-slate-800 font-semibold block">Need to test incoming emergency alert & countdown?</strong>
