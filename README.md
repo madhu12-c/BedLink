@@ -26,7 +26,7 @@ BedLink has a multilingual voice assistant built on [Sarvam AI](https://docs.sar
 
 - **Dispatch screen:** tap "Tap and speak" and describe the patient in any Indian language or English. BedLink shows what it understood, reads back the best hospital match and asks "hold this bed?". Saying "haan" / "hoy" / "yes" holds that exact hospital; "nahin" / "nako" / "no" holds nothing. A "Hold bed at …" button does the same with a tap.
 - **Dispatch screen:** request status (sent, accepted, rejected, timed out) is spoken to the crew in their language. A confirmation that arrives while the crew is on another page is announced when they come back.
-- **Hospital page:** new ambulance requests are read aloud, and "Bed allotted" is spoken when the hospital accepts (default Hindi; change it in the language picker).
+- **Hospital page:** new ambulance requests are read aloud to the coordinator, and "Bed allotted" is spoken when the hospital accepts (default Hindi; change it in the language picker).
 
 Setup:
 
@@ -41,6 +41,33 @@ Notes:
 - Without a key, voice controls show "not set up" and the rest of the app works as before.
 
 Code: `lib/voice/` (Sarvam client, parsing, phrases, recorder, player), `app/api/voice/` (routes), `components/voice/` (UI).
+
+## Login and roles
+
+When Supabase is configured, everyone signs in at `/login` and only sees the screens for their role:
+
+| Role | Lands on | Can open | Can do |
+| --- | --- | --- | --- |
+| Dispatcher | `/` | Dispatch, EMS Analytics | Find hospitals, hold beds (incl. by voice) |
+| Ward Nurse | `/hospital` | Their own hospital only | Update free bed counts. No accept/reject |
+| Hospital Coordinator | `/hospital` | Their own hospital only | Accept/reject requests, mark arrivals, add beds, see bed history |
+| Admin | `/` | Everything, incl. Audit Trail | Everything; can switch hospital and preview the nurse or coordinator screen |
+
+The same rules are enforced in three places: `proxy.ts` (pages and API redirects), each API route (`requireApiUser`), and the database (row-level security). A user's role and hospital live in Supabase Auth `app_metadata`, which only the service role can change.
+
+Setup (once per Supabase project):
+
+1. In the Supabase SQL editor, run `supabase/migrations/20261002130000_role_based_access.sql` (after the schema and seed). It turns row-level security on and removes the old open demo policies.
+2. Add to `.env.local`: `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API keys) and `DEMO_USER_PASSWORD` (8+ characters). Never commit these and never prefix them with `NEXT_PUBLIC_`.
+3. Run `npm run seed:users`. It creates the accounts in `lib/auth/demo-users.json`: `admin@bedlink.test`, `dispatcher@bedlink.test`, and a `nurse.<hospital>@bedlink.test` and `coordinator.<hospital>@bedlink.test` for each of the 5 hospitals (aditi, lifeline, dna, apex, shatabdi). All use `DEMO_USER_PASSWORD`. Run it again any time to reset them.
+4. In Supabase → Authentication → Sign In / Providers, turn off "Allow new users to sign up", so only accounts you create can sign in.
+5. Restart `npm run dev`.
+
+To add a real person, add them to `lib/auth/demo-users.json` (email, name, role, hospitalId) and run `npm run seed:users`, or set `role` / `hospital_id` in their `app_metadata` from the Supabase dashboard. Role changes apply on their next sign-in.
+
+Without Supabase configured, there is no login: the app runs in demo mode with every screen open, as before.
+
+Code: `proxy.ts`, `lib/auth/` (roles, session), `components/auth/` (login form, auth context), `app/login/`, `scripts/create-demo-users.mjs`.
 
 ## Learn More
 
