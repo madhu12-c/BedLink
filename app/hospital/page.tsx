@@ -214,18 +214,23 @@ Bed Type: ${bed}
   // Derive active pending reservation from store
   const voicePanelOpen = showVoiceSettings || (voiceSettings.announce && voicePlayer.status === 'blocked');
 
-  const displayReservation = useMemo(() => {
+  // Requests still waiting for an answer here (a mass casualty can send several at once)
+  const pendingHere = useMemo(() => {
     void lastUpdateTrigger;
-    if (
-      activeReservation &&
-      activeReservation.hospital_id === selectedHospitalId &&
-      ['pending', 'accepted', 'rejected', 'expired'].includes(activeReservation.status)
-    ) {
+    return bedLinkStore.getReservations(selectedHospitalId).filter((r) => r.status === 'pending');
+  }, [selectedHospitalId, lastUpdateTrigger]);
+
+  const displayReservation = useMemo(() => {
+    const isActiveHere = activeReservation && activeReservation.hospital_id === selectedHospitalId;
+    if (isActiveHere && activeReservation.status === 'pending') return activeReservation;
+    // The shown one was answered: go straight to the next waiting request, if any
+    const nextPending = pendingHere.find((r) => r.id !== activeReservation?.id);
+    if (nextPending) return nextPending;
+    if (isActiveHere && ['accepted', 'rejected', 'expired'].includes(activeReservation.status)) {
       return activeReservation;
     }
-    const list = bedLinkStore.getReservations(selectedHospitalId);
-    return list.find((r) => r.status === 'pending') || null;
-  }, [activeReservation, selectedHospitalId, lastUpdateTrigger]);
+    return null;
+  }, [activeReservation, selectedHospitalId, pendingHere]);
 
   const incomingAmbulances = useMemo(() => {
     void lastUpdateTrigger;
@@ -524,8 +529,15 @@ Bed Type: ${bed}
             {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes.
                 Rendered first (top of stack) so the coordinator sees it immediately.
                 Once it auto-dismisses, AmbulanceArrivalCountdown slides in below. */}
+            {pendingHere.length > 1 && (
+              <div className="p-3 rounded-xl bg-red-600 text-white font-extrabold text-sm flex items-center gap-2" role="status">
+                <Ambulance className="w-5 h-5 shrink-0" />
+                {pendingHere.length} ambulance requests waiting: answer each one (2 minutes each)
+              </div>
+            )}
             {displayReservation && (
               <IncomingReservationAlert
+                key={displayReservation.id}
                 reservation={displayReservation}
                 currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
                 onAccept={handleAcceptReservation}
