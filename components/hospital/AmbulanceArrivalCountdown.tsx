@@ -68,16 +68,13 @@ export function AmbulanceArrivalCountdown({
           </div>
           <div>
             <h3 className="font-bold text-sm text-slate-800">
-              No Ambulances Currently En Route
+              No ambulance on the way right now
             </h3>
             <p className="text-xs text-slate-500">
-              Hospital trauma bay is clear. Emergency CAD standby active.
+              New requests appear here with a 2-minute timer.
             </p>
           </div>
         </div>
-        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">
-          STANDBY
-        </span>
       </div>
     );
   }
@@ -89,7 +86,7 @@ export function AmbulanceArrivalCountdown({
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
             <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">
-              Incoming Ambulance Live Countdowns ({incoming.length})
+              Ambulances coming ({incoming.length})
             </h2>
           </div>
           <span className="text-xs text-slate-400 font-semibold">

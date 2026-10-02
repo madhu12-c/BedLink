@@ -106,7 +106,7 @@ export function BedHistoryLogTable({
               <History className="w-4 h-4" />
             </div>
             <h3 className="font-black text-sm text-slate-900">
-              Patient Bed Occupancy & Handover Audit Trail
+              Past admissions
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">

@@ -93,7 +93,7 @@ export default function DispatcherPage() {
     bedType: 'icu',
     requiresVentilator: true,
     specialty: 'cardiac',
-    notes: '58yo male acute STEMI, shock index 1.2, ambulance en route near Aditi Hospital, 90 Feet Rd, Kandivali East'
+    notes: 'Suspected heart attack (STEMI), BP falling, needs ICU and a ventilator'
   });
 
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);

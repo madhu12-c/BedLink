@@ -191,7 +191,9 @@ export function HospitalResultCard({
           >
             {availableBeds}
           </span>
-          <span className="block text-xs text-slate-500 mt-1 capitalize">{requiredBedType} free</span>
+          <span className="block text-xs text-slate-500 mt-1">
+            {requiredBedType === 'icu' ? 'ICU' : requiredBedType.charAt(0).toUpperCase() + requiredBedType.slice(1)} free
+          </span>
         </div>
         <div
           className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-2 text-center"

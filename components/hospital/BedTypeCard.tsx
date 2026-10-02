@@ -330,7 +330,7 @@ export function BedTypeCard({
               </span>
             </div>
             <span className="text-xs text-slate-500 font-medium">
-              Available Seats of <strong className="text-slate-700">{inventory.total_beds}</strong> total
+              free of <strong className="text-slate-700">{inventory.total_beds}</strong> beds
             </span>
           </div>
 

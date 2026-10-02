@@ -37,7 +37,7 @@ export function BedUpdateGrid({
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-            Verified Hospital Specialties
+            Specialties
           </span>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span
@@ -48,7 +48,7 @@ export function BedUpdateGrid({
               }`}
             >
               <HeartPulse className="w-3.5 h-3.5" />
-              Cardiac Specialty {hasCardiac ? 'Active' : 'N/A'}
+              Cardiac {hasCardiac ? '' : '(no)'}
             </span>
 
             <span
@@ -59,7 +59,7 @@ export function BedUpdateGrid({
               }`}
             >
               <Flame className="w-3.5 h-3.5" />
-              Burns Unit {hasBurns ? 'Active' : 'N/A'}
+              Burns {hasBurns ? '' : '(no)'}
             </span>
 
             {capabilities
@@ -78,7 +78,7 @@ export function BedUpdateGrid({
 
         <div className="flex items-center gap-2 text-xs text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
           <Activity className="w-4 h-4 text-blue-600" />
-          <span>Occupancy Load: </span>
+          <span>How full: </span>
           <strong className="font-mono text-slate-900">{hospital.current_load}%</strong>
         </div>
       </div>

@@ -331,12 +331,12 @@ export function HospitalMap({
           {isRouteLoading ? (
             <span className="flex items-center gap-1.5 text-slate-500">
               <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping inline-block" />
-              Loading Road Route...
+              Finding the road route…
             </span>
           ) : routeFailed ? (
-            <span className="text-amber-600">⚠️ Road route unavailable</span>
+            <span className="text-amber-600">Road route unavailable: straight line shown</span>
           ) : (
-            <span>🛣️ Road Route (Turn-by-Turn)</span>
+            <span>Road route</span>
           )}
         </div>
         {selectedHospital && !isRouteLoading && (
@@ -370,9 +370,9 @@ export function HospitalMap({
       <div className="bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between z-10">
         <span className="flex items-center gap-1">
           <Navigation className="w-3 h-3 text-blue-600" />
-          Leaflet + OpenStreetMap
+          Drive times use real roads
         </span>
-        <span className="font-mono text-slate-400">LIVE MAP</span>
+        <span className="text-slate-400">Tap a hospital to see its route</span>
       </div>
     </div>
   );

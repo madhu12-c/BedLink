@@ -77,7 +77,7 @@ export function PatientNeedForm({
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div>
           <h2 className="text-base font-bold text-slate-900">Patient details</h2>
-          <p className="text-xs text-slate-500">Configure triage resources for hospital matching</p>
+          <p className="text-xs text-slate-500">What the patient needs. No names.</p>
         </div>
         {onQuickLoadCriticalScenario && (
         <button
@@ -101,13 +101,13 @@ export function PatientNeedForm({
           <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
           <div className="text-xs">
             <span className="font-bold uppercase tracking-wider block text-red-900 text-xs">
-              CRITICAL PATIENT TRIAGE
+              Critical patient
             </span>
             <span>
-              Priority routing enabled. Requesting{' '}
+              Looking for{' '}
               <strong className="font-semibold text-red-900">{formData.bedType.toUpperCase()}</strong>
-              {formData.requiresVentilator ? ' with Ventilator support' : ''}
-              {formData.specialty !== 'none' ? ` and ${formData.specialty} specialty` : ''}.
+              {formData.requiresVentilator ? ' with a ventilator' : ''}
+              {formData.specialty !== 'none' ? ` and ${formData.specialty} care` : ''}.
             </span>
           </div>
         </div>
@@ -118,15 +118,15 @@ export function PatientNeedForm({
         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
           <span className="flex items-center gap-1.5">
             <img src="/icons/ambulance-top.svg" alt="Ambulance" className="w-5 h-2.5 object-contain" />
-            <span>Patient / Ambulance Origin</span>
+            <span>Pickup location</span>
           </span>
           <button
             type="button"
             onClick={onUseCurrentLocation}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 lowercase"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 normal-case tracking-normal"
           >
             <Crosshair className="w-3 h-3" />
-            <span>current gps</span>
+            <span>Use my location</span>
           </button>
         </label>
         <div className="relative">
@@ -135,7 +135,7 @@ export function PatientNeedForm({
             type="text"
             value={formData.address}
             onChange={(e) => updateField('address', e.target.value)}
-            placeholder="e.g. 750 Market St, Financial District"
+            placeholder="e.g. Near Kandivali station, Mumbai"
             className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
           />
         </div>
@@ -180,7 +180,7 @@ export function PatientNeedForm({
 
       {/* Required Bed Type */}
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-xs font-bold text-slate-700 uppercase tracking-wider">Required Bed Resource</legend>
+        <legend className="text-xs font-bold text-slate-700 uppercase tracking-wider">Bed needed</legend>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {BED_TYPES.map((b) => {
             const isSelected = formData.bedType === b.type;
@@ -207,8 +207,8 @@ export function PatientNeedForm({
       {/* Add-on: Ventilator Support Checkbox */}
       <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
         <div>
-          <span className="text-xs font-bold text-slate-900 block">Mechanical Ventilator Required</span>
-          <span className="text-xs text-slate-500">Filters hospitals with verified available ventilators</span>
+          <span className="text-sm font-bold text-slate-900 block">Needs a ventilator</span>
+          <span className="text-xs text-slate-500">Only hospitals with a free ventilator count as a full match</span>
         </div>
         <input
           type="checkbox"
@@ -241,7 +241,7 @@ export function PatientNeedForm({
 
       {/* Specialty Requirement */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Specialty Capability Required</label>
+        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Specialty needed</label>
         <select
           value={formData.specialty}
           onChange={(e) => updateField('specialty', e.target.value)}
@@ -257,12 +257,12 @@ export function PatientNeedForm({
 
       {/* Optional Dispatch Notes */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Emergency Dispatch Notes</label>
+        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Notes for the hospital (no names)</label>
         <textarea
           rows={2}
           value={formData.notes}
           onChange={(e) => updateField('notes', e.target.value)}
-          placeholder="e.g. 58yo male acute STEMI, shock index 1.2, en route"
+          placeholder="e.g. Chest pain, sweating, BP falling"
           className="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 resize-none"
         />
       </div>
