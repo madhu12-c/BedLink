@@ -1,0 +1,469 @@
+import 'server-only';
+import { BedType } from '../types';
+import { getAdminSupabase } from '../supabase/admin';
+import {
+  BED_COUNT_KEYTERMS,
+  extractBedCounts,
+  isVoiceConfigured,
+  transcribeAudio
+} from '../voice/sarvam';
+import { answerCallback, downloadFile, editMessage, esc, sendMessage } from './api';
+import { LinkRole, readLinkCode } from './link';
+import { BED_LABELS, isYes, parseBedCounts } from './parse';
+
+/**
+ * BedLink on Telegram, so ward staff never have to open a web page:
+ * - Nurse: send "ICU 3, O2 5" or a voice note (Hindi / Marathi / English) to update free beds.
+ * - Every linked nurse gets a "still right?" reminder when the counts are 30+ minutes old.
+ * - Coordinator: new ambulance requests arrive with Accept / Reject buttons (same 2-minute
+ *   rule; the dispatcher's screen moves on to the next hospital on reject or timeout).
+ * A chat is linked to a hospital by the signed link from the hospital screen.
+ */
+
+interface TgUser {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+}
+
+interface TgMessage {
+  message_id: number;
+  chat: { id: number; type: string };
+  from?: TgUser;
+  text?: string;
+  voice?: { file_id: string; duration?: number };
+  audio?: { file_id: string; duration?: number };
+}
+
+interface TgCallbackQuery {
+  id: string;
+  from: TgUser;
+  data?: string;
+  message?: { message_id: number; chat: { id: number }; text?: string };
+}
+
+export interface TgUpdate {
+  update_id: number;
+  message?: TgMessage;
+  callback_query?: TgCallbackQuery;
+}
+
+interface ChatLink {
+  chat_id: number;
+  hospital_id: string;
+  role: LinkRole;
+}
+
+interface InventoryRow {
+  bed_type: BedType;
+  available_beds: number;
+  total_beds: number;
+  updated_at: string;
+}
+
+type BedCounts = Partial<Record<BedType, number>>;
+
+const STALE_MINUTES = 30;
+const MAX_VOICE_SECONDS = 30;
+const BED_ORDER: BedType[] = ['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general'];
+const EXAMPLE = '<code>ICU 3, O2 5, Vent 1</code>';
+
+function db() {
+  const client = getAdminSupabase();
+  if (!client) throw new Error('SUPABASE_SERVICE_ROLE_KEY is missing: the Telegram bot needs it.');
+  return client;
+}
+
+function displayName(user?: TgUser): string {
+  const name = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim().slice(0, 40);
+  return name || 'Telegram user';
+}
+
+function timeNow(): string {
+  return new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' });
+}
+
+// ── Database ──
+
+async function getLink(chatId: number): Promise<ChatLink | null> {
+  const { data } = await db()
+    .from('telegram_links')
+    .select('chat_id, hospital_id, role')
+    .eq('chat_id', chatId)
+    .maybeSingle();
+  return (data as ChatLink | null) ?? null;
+}
+
+async function hospitalName(hospitalId: string): Promise<string> {
+  const { data } = await db().from('hospitals').select('name').eq('id', hospitalId).maybeSingle();
+  return typeof data?.name === 'string' ? data.name : 'your hospital';
+}
+
+async function getInventory(hospitalId: string): Promise<InventoryRow[]> {
+  const { data } = await db()
+    .from('bed_inventory')
+    .select('bed_type, available_beds, total_beds, updated_at')
+    .eq('hospital_id', hospitalId);
+  return ((data ?? []) as InventoryRow[]).sort(
+    (a, b) => BED_ORDER.indexOf(a.bed_type) - BED_ORDER.indexOf(b.bed_type)
+  );
+}
+
+function countsText(rows: InventoryRow[]): string {
+  return rows.map((r) => `${BED_LABELS[r.bed_type] ?? r.bed_type}: <b>${r.available_beds}</b> free of ${r.total_beds}`).join('\n');
+}
+
+/** Updates bed rows; retries without updated_by_name when that column isn't there yet. */
+async function updateInventory(hospitalId: string, bedType: BedType | null, fields: Record<string, unknown>) {
+  const run = (values: Record<string, unknown>) => {
+    let query = db().from('bed_inventory').update(values).eq('hospital_id', hospitalId);
+    if (bedType) query = query.eq('bed_type', bedType);
+    return query;
+  };
+  const { error } = await run(fields);
+  if (error && /updated_by_name/.test(error.message)) {
+    const withoutName = Object.fromEntries(Object.entries(fields).filter(([key]) => key !== 'updated_by_name'));
+    await run(withoutName);
+  } else if (error) {
+    console.warn('[telegram] bed update failed:', error.message);
+  }
+}
+
+/** Sets free-bed numbers (never above the total) and says what was saved. */
+async function saveCounts(link: ChatLink, who: string, counts: BedCounts): Promise<string> {
+  const rows = await getInventory(link.hospital_id);
+  const now = new Date().toISOString();
+  const saved: string[] = [];
+  const unknown: string[] = [];
+
+  for (const type of BED_ORDER) {
+    const wanted = counts[type];
+    if (wanted === undefined) continue;
+    const row = rows.find((r) => r.bed_type === type);
+    if (!row) {
+      unknown.push(BED_LABELS[type]);
+      continue;
+    }
+    const value = Math.max(0, Math.min(row.total_beds, wanted));
+    await updateInventory(link.hospital_id, type, { available_beds: value, updated_at: now, updated_by_name: `${who} (Telegram)` });
+    saved.push(`${BED_LABELS[type]}: <b>${value}</b> free${value !== wanted ? ` (only ${row.total_beds} beds in total)` : ''}`);
+  }
+
+  const lines: string[] = [];
+  if (saved.length) lines.push(`✅ Saved at ${timeNow()}`, ...saved, '', 'Ambulances see this now.');
+  if (unknown.length) lines.push(`No ${unknown.join(', ')} beds are set up for this hospital, so I skipped them.`);
+  return lines.join('\n') || `I couldn't find bed numbers in that. Try ${EXAMPLE}`;
+}
+
+/** "Nothing changed": refresh the time on every count so dispatch sees fresh data. */
+async function confirmCounts(link: ChatLink, who: string): Promise<string> {
+  await updateInventory(link.hospital_id, null, { updated_at: new Date().toISOString(), updated_by_name: `${who} (Telegram)` });
+  return `✅ Confirmed at ${timeNow()}: all counts still right.\n\n${countsText(await getInventory(link.hospital_id))}`;
+}
+
+/** Gives a held bed back (+1) after a reject. */
+async function giveBedBack(hospitalId: string, bedType: BedType, who: string) {
+  const { error } = await db().rpc('adjust_bed_count', {
+    p_hospital_id: hospitalId,
+    p_bed_type: bedType,
+    p_delta: 1,
+    p_actor_name: `${who} (Telegram)`
+  });
+  if (!error) return;
+  // Database function not installed yet: read and write the number
+  const row = (await getInventory(hospitalId)).find((r) => r.bed_type === bedType);
+  if (row) {
+    await updateInventory(hospitalId, bedType, {
+      available_beds: Math.min(row.total_beds, row.available_beds + 1),
+      updated_at: new Date().toISOString()
+    });
+  }
+}
+
+/**
+ * Accept / reject a pending hold. Only succeeds while it is still pending and inside its
+ * 2 minutes (one conditional update, so a late tap or a double tap can't win).
+ */
+async function respondToHold(link: ChatLink, who: string, reservationId: string, action: 'accept' | 'reject'): Promise<string> {
+  if (link.role !== 'coordinator') return 'Only the hospital coordinator can accept or reject.';
+  const supabase = db();
+  const { data: hold } = await supabase
+    .from('reservations')
+    .select('id, hospital_id, bed_type, status, expires_at')
+    .eq('id', reservationId)
+    .maybeSingle();
+  if (!hold || hold.hospital_id !== link.hospital_id) return 'This request is not for your hospital.';
+  if (hold.status !== 'pending') return `Already answered (${hold.status}).`;
+
+  const now = new Date().toISOString();
+  const { data: changed } = await supabase
+    .from('reservations')
+    .update({
+      status: action === 'accept' ? 'accepted' : 'rejected',
+      responded_at: now,
+      ...(action === 'reject' ? { rejection_reason: `Rejected on Telegram by ${who}` } : {})
+    })
+    .eq('id', reservationId)
+    .eq('status', 'pending')
+    .gt('expires_at', now)
+    .select('id');
+  if (!changed?.length) return 'Too late: the 2 minutes are over, so the ambulance was sent to the next hospital.';
+
+  const bed = BED_LABELS[hold.bed_type as BedType] ?? hold.bed_type;
+  if (action === 'reject') await giveBedBack(hold.hospital_id, hold.bed_type as BedType, who);
+  await supabase.from('reservation_events').insert({
+    reservation_id: reservationId,
+    event_type: action === 'accept' ? 'reservation_accepted' : 'reservation_rejected',
+    metadata: { via: 'telegram', by: who }
+  });
+  return action === 'accept'
+    ? `✅ Accepted by ${esc(who)} at ${timeNow()}. The ambulance is told. Get the ${bed} bed ready.`
+    : `❌ Rejected by ${esc(who)}. BedLink is sending the ambulance to the next hospital.`;
+}
+
+// ── Messages from staff ──
+
+const HELP = [
+  '<b>BedLink bot</b>',
+  '',
+  `• Send free-bed numbers any time, e.g. ${EXAMPLE}`,
+  '• Or send a voice note: "ICU mein do bed khaali hain"',
+  '• Reply <b>1</b> if nothing changed',
+  '• /status shows your hospital\'s counts',
+  '• /stop disconnects this chat',
+  '',
+  'Coordinators also get ambulance requests here with Accept / Reject buttons.'
+].join('\n');
+
+async function handleStart(chatId: number, who: string, code: string) {
+  if (!code) {
+    await sendMessage(chatId, 'Welcome to BedLink. To connect, open BedLink → hospital screen → <b>Connect Telegram</b> and tap the link there.');
+    return;
+  }
+  const target = readLinkCode(code);
+  if (!target) {
+    await sendMessage(chatId, 'This connect link is not valid. Get a new one from the BedLink hospital screen.');
+    return;
+  }
+  const { error } = await db().from('telegram_links').upsert(
+    { chat_id: chatId, hospital_id: target.hospitalId, role: target.role, display_name: who, linked_at: new Date().toISOString() },
+    { onConflict: 'chat_id' }
+  );
+  if (error) {
+    console.warn('[telegram] link failed:', error.message);
+    await sendMessage(chatId, 'Could not connect right now (has the Telegram SQL been run on Supabase?). Please try again.');
+    return;
+  }
+  const name = esc(await hospitalName(target.hospitalId));
+  const rows = await getInventory(target.hospitalId);
+  const intro =
+    target.role === 'coordinator'
+      ? `✅ Connected as <b>coordinator</b> of <b>${name}</b>.\n\nAmbulance requests will arrive here with Accept / Reject buttons. You have 2 minutes to answer each one.`
+      : `✅ Connected as <b>nurse</b> at <b>${name}</b>.\n\nSend free-bed numbers any time (${EXAMPLE}) or a voice note in Hindi, Marathi or English. I'll remind you when the counts are ${STALE_MINUTES}+ minutes old.`;
+  await sendMessage(chatId, `${intro}\n\n<b>Right now</b>\n${countsText(rows)}`);
+}
+
+async function handleVoice(link: ChatLink, who: string, chatId: number, fileId: string, seconds: number) {
+  if (!isVoiceConfigured()) {
+    await sendMessage(chatId, `Voice notes need Sarvam set up on the server. Please type the numbers, e.g. ${EXAMPLE}`);
+    return;
+  }
+  if (seconds > MAX_VOICE_SECONDS) {
+    await sendMessage(chatId, `Please keep voice notes under ${MAX_VOICE_SECONDS} seconds.`);
+    return;
+  }
+  const audio = await downloadFile(fileId);
+  if (!audio) {
+    await sendMessage(chatId, 'Could not download that voice note. Please try again.');
+    return;
+  }
+  try {
+    const { transcript, languageCode } = await transcribeAudio(
+      new Blob([audio], { type: 'audio/ogg' }),
+      BED_COUNT_KEYTERMS,
+      'voice.ogg'
+    );
+    if (!transcript) {
+      await sendMessage(chatId, `I couldn't hear anything. Try again, or type ${EXAMPLE}`);
+      return;
+    }
+    const counts = await extractBedCounts(transcript, languageCode);
+    const heard = `🎙 Heard: "${esc(transcript)}"`;
+    if (!Object.keys(counts).length) {
+      await sendMessage(chatId, `${heard}\n\nBut no bed numbers. Try "ICU mein do bed khaali hain" or type ${EXAMPLE}`);
+      return;
+    }
+    await sendMessage(chatId, `${heard}\n\n${await saveCounts(link, who, counts)}`);
+  } catch (err) {
+    console.warn('[telegram] voice failed:', err instanceof Error ? err.message : err);
+    await sendMessage(chatId, `Sorry, the voice service didn't answer. Please type the numbers, e.g. ${EXAMPLE}`);
+  }
+}
+
+async function handleMessage(message: TgMessage) {
+  const chatId = message.chat.id;
+  if (message.chat.type !== 'private') {
+    await sendMessage(chatId, 'Please message me directly, not in a group.');
+    return;
+  }
+  const who = displayName(message.from);
+  const text = message.text?.trim() ?? '';
+
+  if (text.startsWith('/start')) {
+    await handleStart(chatId, who, text.slice('/start'.length).trim());
+    return;
+  }
+  if (text === '/help') {
+    await sendMessage(chatId, HELP);
+    return;
+  }
+
+  const link = await getLink(chatId);
+  if (!link) {
+    await sendMessage(chatId, 'This chat is not connected to a hospital yet. Open BedLink → hospital screen → <b>Connect Telegram</b>.');
+    return;
+  }
+  if (text === '/status') {
+    const name = esc(await hospitalName(link.hospital_id));
+    await sendMessage(chatId, `<b>${name}</b>\n${countsText(await getInventory(link.hospital_id))}`);
+    return;
+  }
+  if (text === '/stop') {
+    await db().from('telegram_links').delete().eq('chat_id', chatId);
+    await sendMessage(chatId, 'Disconnected. You will get no more BedLink messages here.');
+    return;
+  }
+
+  const voice = message.voice ?? message.audio;
+  if (voice) {
+    await handleVoice(link, who, chatId, voice.file_id, voice.duration ?? 0);
+    return;
+  }
+  if (!text) {
+    await sendMessage(chatId, `Send bed numbers like ${EXAMPLE}, or a voice note.`);
+    return;
+  }
+  if (isYes(text)) {
+    await sendMessage(chatId, await confirmCounts(link, who));
+    return;
+  }
+
+  let counts: BedCounts = parseBedCounts(text);
+  if (!Object.keys(counts).length && isVoiceConfigured()) {
+    // Not the short format: let Sarvam read it ("ICU mein 2 khaali hai")
+    counts = await extractBedCounts(text, null).catch(() => ({}));
+  }
+  if (!Object.keys(counts).length) {
+    await sendMessage(chatId, `I couldn't find bed numbers in that. Try ${EXAMPLE}\nSend /help for more.`);
+    return;
+  }
+  await sendMessage(chatId, await saveCounts(link, who, counts));
+}
+
+async function handleButton(query: TgCallbackQuery) {
+  const chatId = query.message?.chat.id ?? query.from.id;
+  const who = displayName(query.from);
+  const [action, id] = (query.data ?? '').split(':');
+  const link = await getLink(chatId);
+  if (!link || !id) {
+    await answerCallback(query.id, 'This chat is not connected to a hospital.');
+    return;
+  }
+
+  let result: string;
+  if (action === 'ok') {
+    result = id === link.hospital_id ? await confirmCounts(link, who) : 'Not your hospital.';
+  } else if (action === 'acc' || action === 'rej') {
+    result = await respondToHold(link, who, id, action === 'acc' ? 'accept' : 'reject');
+  } else {
+    await answerCallback(query.id);
+    return;
+  }
+
+  await answerCallback(query.id, result.replace(/<[^>]+>/g, '').split('\n')[0].slice(0, 190));
+  if (query.message) {
+    // Replace the buttons with the outcome so nobody taps them again
+    const original = query.message.text ? `${esc(query.message.text)}\n\n` : '';
+    await editMessage(chatId, query.message.message_id, `${original}<b>${result.split('\n')[0]}</b>`);
+    if (action === 'ok') await sendMessage(chatId, result);
+  }
+}
+
+/** Entry point for every Telegram update (webhook or the local poller). */
+export async function handleUpdate(update: TgUpdate): Promise<void> {
+  if (update.callback_query) {
+    await handleButton(update.callback_query);
+  } else if (update.message) {
+    await handleMessage(update.message);
+  }
+}
+
+// ── Messages BedLink starts ──
+
+/** A new hold: coordinators get Accept / Reject buttons, nurses a heads-up. Returns chats told. */
+export async function notifyNewHold(reservationId: string): Promise<number> {
+  const supabase = db();
+  const { data: hold } = await supabase.from('reservations').select('*').eq('id', reservationId).maybeSingle();
+  if (!hold || hold.status !== 'pending') return 0;
+  const { data: links } = await supabase
+    .from('telegram_links')
+    .select('chat_id, role')
+    .eq('hospital_id', hold.hospital_id);
+  if (!links?.length) return 0;
+
+  const bed = BED_LABELS[hold.bed_type as BedType] ?? hold.bed_type;
+  const minutesLeft = Math.max(1, Math.ceil((new Date(hold.expires_at).getTime() - Date.now()) / 60_000));
+  const details = [
+    `🚑 <b>Ambulance needs a ${bed} bed</b>`,
+    hold.patient_urgency ? `Patient: ${esc(String(hold.patient_urgency))}` : null,
+    hold.eta_minutes ? `Arriving in about ${hold.eta_minutes} min` : null
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  for (const link of links as { chat_id: number; role: LinkRole }[]) {
+    if (link.role === 'coordinator') {
+      await sendMessage(
+        link.chat_id,
+        `${details}\n\nOne bed is held for this patient. Answer within ${minutesLeft} min, or the ambulance goes to the next hospital.`,
+        [[
+          { text: '✅ Accept', callback_data: `acc:${hold.id}` },
+          { text: '❌ Reject', callback_data: `rej:${hold.id}` }
+        ]]
+      );
+    } else {
+      await sendMessage(link.chat_id, `${details}\n\nThe coordinator is deciding. Get the bed ready in case it is accepted.`);
+    }
+  }
+  return links.length;
+}
+
+/** Reminds nurses whose counts are 30+ minutes old (at most once per 30 minutes each). */
+export async function nudgeStaleHospitals(): Promise<number> {
+  const supabase = db();
+  const { data: links } = await supabase
+    .from('telegram_links')
+    .select('chat_id, hospital_id, last_nudged_at')
+    .eq('role', 'nurse');
+  const cutoff = Date.now() - STALE_MINUTES * 60_000;
+  let sent = 0;
+
+  for (const link of (links ?? []) as { chat_id: number; hospital_id: string; last_nudged_at: string | null }[]) {
+    if (link.last_nudged_at && new Date(link.last_nudged_at).getTime() > cutoff) continue;
+    const rows = await getInventory(link.hospital_id);
+    if (!rows.length) continue;
+    const oldest = Math.min(...rows.map((r) => new Date(r.updated_at).getTime()));
+    if (oldest > cutoff) continue;
+
+    const minutesOld = Math.round((Date.now() - oldest) / 60_000);
+    const name = esc(await hospitalName(link.hospital_id));
+    await sendMessage(
+      link.chat_id,
+      `⏰ Bed counts at <b>${name}</b> are ${minutesOld} min old. Still right?\n\n${countsText(rows)}\n\nTap ✅ if nothing changed, or send the new numbers (${EXAMPLE}).`,
+      [[{ text: '✅ All still correct', callback_data: `ok:${link.hospital_id}` }]]
+    );
+    await supabase.from('telegram_links').update({ last_nudged_at: new Date().toISOString() }).eq('chat_id', link.chat_id);
+    sent++;
+  }
+  return sent;
+}

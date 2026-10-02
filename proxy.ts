@@ -13,6 +13,8 @@ import { AppUser, userFromClaims } from '@/lib/auth/user';
  */
 
 const PUBLIC_PATHS = ['/login'];
+// Called by Telegram / a cron job, not a signed-in browser: each route checks a shared secret
+const SECRET_CHECKED_API_PATHS = ['/api/telegram/webhook', '/api/telegram/nudge'];
 
 async function readSession(request: NextRequest, env: { url: string; anonKey: string }) {
   let response = NextResponse.next({ request });
@@ -51,6 +53,7 @@ export async function proxy(request: NextRequest) {
   if (!env) return NextResponse.next();
 
   const { pathname, search } = request.nextUrl;
+  if (SECRET_CHECKED_API_PATHS.includes(pathname)) return NextResponse.next();
   const isApi = pathname.startsWith('/api/');
   const { response, user } = await readSession(request, env);
 
