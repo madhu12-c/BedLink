@@ -88,6 +88,13 @@ export async function verifyHandoverIntegrity(record: PatientHandoverRecord): Pr
 }
 
 /**
+ * Short case label used instead of patient names: BedLink keeps no patient personal data.
+ */
+export function caseLabel(reservationId: string): string {
+  return `Case ${reservationId.replace(/[^a-z0-9]/gi, '').slice(0, 4).toUpperCase() || '0000'}`;
+}
+
+/**
  * Factory for creating default sample clinical handover for testing
  */
 export function generateDefaultHandover(
@@ -111,10 +118,11 @@ export function generateDefaultHandover(
   return {
     id: `ho-${reservationId.slice(0, 8)}`,
     reservation_id: reservationId,
-    patient_id: overrides?.patient_id || 'PT-108-MH02-9421',
-    patient_name: overrides?.patient_name || 'Rameshwar K. Sharma',
-    patient_age: overrides?.patient_age || 58,
-    patient_gender: overrides?.patient_gender || 'Male',
+    // No personal data: a case label, never a name; age and sex are not recorded
+    patient_id: overrides?.patient_id || `CASE-${reservationId.slice(0, 8).toUpperCase()}`,
+    patient_name: overrides?.patient_name || caseLabel(reservationId),
+    patient_age: overrides?.patient_age,
+    patient_gender: overrides?.patient_gender,
     chief_complaint: overrides?.chief_complaint || 'Acute crushing retrosternal chest pain with diaphoresis (Suspected STEMI)',
     triage_level: overrides?.triage_level || 'red',
     vitals: baseVitals,

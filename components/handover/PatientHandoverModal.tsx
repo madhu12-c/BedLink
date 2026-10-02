@@ -165,12 +165,12 @@ export function PatientHandoverModal({
 
           <div class="grid">
             <div class="card">
-              <div class="label">Patient Name</div>
-              <div class="value">${handover?.patient_name || 'Emergency Patient'}</div>
+              <div class="label">Case ID</div>
+              <div class="value">${handover?.patient_name || 'Case'}</div>
             </div>
             <div class="card">
-              <div class="label">Age / Gender</div>
-              <div class="value">${handover?.patient_age || 45} yrs / ${handover?.patient_gender || 'M'}</div>
+              <div class="label">Age / Sex</div>
+              <div class="value">${handover?.patient_age ? `${handover.patient_age} yrs` : 'Not recorded'}${handover?.patient_gender ? ` / ${handover.patient_gender}` : ''}</div>
             </div>
             <div class="card">
               <div class="label">Paramedic Badge</div>
@@ -339,13 +339,14 @@ export function PatientHandoverModal({
           {/* Patient Overview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Patient Name</span>
-              <span className="text-sm font-black text-slate-900">{handover?.patient_name || 'Emergency Patient'}</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Case ID</span>
+              <span className="text-sm font-black text-slate-900">{handover?.patient_name || 'Case'}</span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Age / Gender</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Age / Sex</span>
               <span className="text-sm font-bold text-slate-800">
-                {handover?.patient_age || 45} yrs / {handover?.patient_gender || 'M'}
+                {handover?.patient_age ? `${handover.patient_age} yrs` : 'Not recorded'}
+                {handover?.patient_gender ? ` / ${handover.patient_gender}` : ''}
               </span>
             </div>
             <div>
