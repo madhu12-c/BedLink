@@ -10,6 +10,7 @@ interface BedUpdateGridProps {
   bedInventory: BedInventory[];
   capabilities: string[];
   onUpdateCount: (bedType: BedType, delta: number) => Promise<void>;
+  onUpdateTotalBeds?: (bedType: BedType, delta: number) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -18,6 +19,7 @@ export function BedUpdateGrid({
   bedInventory,
   capabilities,
   onUpdateCount,
+  onUpdateTotalBeds,
   disabled = false
 }: BedUpdateGridProps) {
   // Ordered per spec: ICU, Ventilator, Oxygen, Emergency, General
@@ -82,12 +84,13 @@ export function BedUpdateGrid({
       </div>
 
       {/* Grid of Bed Type Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 items-stretch">
         {sortedInventory.map((item) => (
           <BedTypeCard
             key={item.id}
             inventory={item}
             onUpdateCount={onUpdateCount}
+            onUpdateTotalBeds={onUpdateTotalBeds}
             disabled={disabled}
           />
         ))}

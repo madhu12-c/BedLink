@@ -102,6 +102,18 @@ export default function HospitalNursePage() {
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
+  const handleUpdateTotalBeds = async (bedType: BedType, delta: number) => {
+    if (!currentHospital) return;
+    bedLinkStore.updateTotalBeds(
+      currentHospital.id,
+      bedType,
+      delta,
+      'nurse-active',
+      `Staff Coordinator (${currentHospital.name})`
+    );
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
   const handleAcceptReservation = async (reservationId: string) => {
     bedLinkStore.respondReservationAtomic(
       reservationId,
@@ -175,7 +187,7 @@ export default function HospitalNursePage() {
         </div>
       )}
 
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+      <main className="flex-1 max-w-5xl xl:max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
         {/* Hospital Selector & Header */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -229,6 +241,7 @@ export default function HospitalNursePage() {
             bedInventory={bedInventories}
             capabilities={capabilities}
             onUpdateCount={handleUpdateCount}
+            onUpdateTotalBeds={handleUpdateTotalBeds}
           />
         )}
 
