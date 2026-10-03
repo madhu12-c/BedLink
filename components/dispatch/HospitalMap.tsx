@@ -20,7 +20,7 @@ function liveIconHtml(a: LivePosition): string {
     <div style="position: relative; width: 120px; height: 120px;">
       <div style="position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(220,38,38,0.16); border: 2px solid rgba(220,38,38,0.45);"></div>
       <div data-heading style="position: absolute; inset: 0; transition: transform 0.35s ease-out; transform: rotate(${a.heading ?? 0}deg);">
-        <div style="position: absolute; left: 50%; top: 0; width: 70px; height: 34px; margin-left: -35px; clip-path: polygon(50% 100%, 0 0, 100% 0); background: linear-gradient(to top, rgba(220,38,38,0.75), rgba(220,38,38,0.05));"></div>
+        <div style="position: absolute; left: 50%; top: 0; width: 76px; height: 40px; margin-left: -38px; top: -4px; clip-path: polygon(50% 100%, 0 0, 100% 0); background: linear-gradient(to top, rgba(220,38,38,0.95), rgba(220,38,38,0.15));"></div>
         <img src="/icons/ambulance-top.svg" alt="" style="position: absolute; left: 50%; top: 50%; width: 72px; height: 36px; transform: translate(-50%, -50%) rotate(90deg); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.45));" />
       </div>
       <div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #dc2626; color: #fff; font-size: 11px; font-weight: 900; padding: 2px 7px; border-radius: 6px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3); white-space: nowrap;">● LIVE · ${name}</div>
