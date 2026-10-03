@@ -6,6 +6,8 @@ import { notifyCrew } from '@/lib/telegram/bot';
 
 const CrewSchema = z.object({
   reservationId: z.string().uuid(),
+  /** What the dispatcher's screen saw: a hospital being asked, or accepting. */
+  status: z.enum(['pending', 'accepted']).optional(),
   /** The dispatcher's screen found no other hospital after this hold fell through. */
   noHospitalLeft: z.boolean().optional()
 });
@@ -25,8 +27,9 @@ export async function POST(req: NextRequest) {
   if (!isTelegramConfigured()) return NextResponse.json({ success: true, sent: 0 });
 
   try {
-    const { reservationId, noHospitalLeft } = parsed.data;
-    return NextResponse.json({ success: true, sent: await notifyCrew(auth.user.id, reservationId, noHospitalLeft) });
+    const { reservationId, status, noHospitalLeft } = parsed.data;
+    const sent = await notifyCrew(auth.user.id, reservationId, { status, noHospitalLeft });
+    return NextResponse.json({ success: true, sent });
   } catch (err) {
     console.error('[telegram] crew update failed:', err instanceof Error ? err.message : err);
     return NextResponse.json({ success: false, error: 'Telegram crew update failed' }, { status: 500 });

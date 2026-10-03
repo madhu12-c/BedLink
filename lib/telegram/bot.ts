@@ -662,19 +662,39 @@ async function crewMessage(kind: CrewNotice, hold: HoldRow): Promise<string | nu
     .join('\n');
 }
 
+const HOLD_WAIT_MS = 500;
+const HOLD_WAIT_TRIES = 8;
+
+async function readHold(reservationId: string): Promise<HoldRow | null> {
+  const { data } = await db().from('reservations').select(HOLD_FIELDS).eq('id', reservationId).maybeSingle();
+  return (data as HoldRow | null) ?? null;
+}
+
 /**
  * Tells the dispatcher's linked Telegram chats what happened to one of their holds: which
  * hospital is being asked (and why the one before fell through), that it accepted, or that
- * no hospital is left. The step is read from the database, and each one is sent once per chat
- * even if several screens report it. Returns the number of chats told.
+ * no hospital is left. `step.status` is what the screen saw; the screen can see it a moment
+ * before the write reaches the database, so this waits up to 4 s for it. What is sent is read
+ * from the database, and each step goes once per chat even if several screens report it.
+ * Returns the number of chats told.
  */
-export async function notifyCrew(userId: string, reservationId: string, noHospitalLeft = false): Promise<number> {
+export async function notifyCrew(
+  userId: string,
+  reservationId: string,
+  step: { status?: 'pending' | 'accepted'; noHospitalLeft?: boolean } = {}
+): Promise<number> {
   const supabase = db();
   const { data: chats } = await supabase.from('telegram_crew_links').select('chat_id').eq('user_id', userId);
   if (!chats?.length) return 0;
-  const { data } = await supabase.from('reservations').select(HOLD_FIELDS).eq('id', reservationId).maybeSingle();
-  const hold = data as HoldRow | null;
+
+  let hold = await readHold(reservationId);
+  // Not saved yet, or still pending when the screen already saw it accepted
+  for (let i = 0; i < HOLD_WAIT_TRIES && (!hold || (step.status === 'accepted' && hold.status === 'pending')); i++) {
+    await new Promise((resolve) => setTimeout(resolve, HOLD_WAIT_MS));
+    hold = await readHold(reservationId);
+  }
   if (!hold) return 0;
+  const noHospitalLeft = step.noHospitalLeft === true;
 
   const kind: CrewNotice | null = noHospitalLeft
     ? 'none_left'

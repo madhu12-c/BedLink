@@ -111,8 +111,22 @@ async function runSupabaseSyncInit(): Promise<boolean> {
       persistHandoverSent(record);
     },
     onNoHospitalLeft: (failed) => {
-      notifyCrew(failed.id, true);
+      notifyCrew(failed.id, { noHospitalLeft: true });
     }
+  });
+
+  // This crew's Telegram hears every step of their own holds, however the change reached this
+  // screen: its own hold, another tab in this browser, or another phone / Telegram via realtime.
+  const toldCrew = new Set<string>();
+  bedLinkStore.subscribe(({ payload }) => {
+    const data = (payload ?? {}) as { reservation?: Reservation; newReservation?: Reservation };
+    const hold = data.reservation ?? data.newReservation;
+    if (!hold?.id || (hold.status !== 'pending' && hold.status !== 'accepted')) return;
+    if (!bedLinkStore.ownsRequest(hold.request_id)) return;
+    const key = `${hold.id}:${hold.status}`;
+    if (toldCrew.has(key)) return;
+    toldCrew.add(key);
+    notifyCrew(hold.id, { status: hold.status });
   });
 
   try {
@@ -280,11 +294,7 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               eta_minutes: typeof row.eta_minutes === 'number' ? row.eta_minutes : undefined,
               arrived_at: row.arrived_at ? String(row.arrived_at) : undefined
             });
-            // The hospital accepted on its phone or on Telegram: tell this crew's Telegram too
-            if (changed && row.status === 'accepted' && bedLinkStore.ownsRequest(String(row.request_id || ''))) {
-              notifyCrew(String(row.id));
-            }
-            lastSyncTime = new Date().toLocaleTimeString();
+            lastSyncTime = serverDate().toLocaleTimeString();
             notifyConnectionChange();
           }
         }
@@ -452,7 +462,6 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
         );
       } else if (!result.duplicate) {
         notifyTelegram(safeReservationId);
-        if (bedLinkStore.ownsRequest(reservation.request_id)) notifyCrew(safeReservationId);
       }
       return;
     }
@@ -509,10 +518,7 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
         expires_at: reservation.expires_at
       }
     });
-    if (safeStatus === 'pending') {
-      notifyTelegram(safeReservationId);
-      if (bedLinkStore.ownsRequest(reservation.request_id)) notifyCrew(safeReservationId);
-    }
+    if (safeStatus === 'pending') notifyTelegram(safeReservationId);
   } catch (err) {
     console.warn('[BedLink] Failed to persist reservation hold to Supabase:', err);
   }
@@ -583,10 +589,6 @@ export async function persistReservationResponse(
         rejection_reason: rejectionReason || null
       }
     });
-
-    // Accepted on this same screen (e.g. an admin playing both sides): its echo won't count as new
-    const requestId = bedLinkStore.getReservations().find((r) => r.id === reservationId)?.request_id;
-    if (action === 'accept' && requestId && bedLinkStore.ownsRequest(requestId)) notifyCrew(safeResId);
   } catch (err) {
     console.warn('[BedLink] Failed to persist reservation response to Supabase:', err);
   }
@@ -732,14 +734,14 @@ function notifyTelegram(reservationId: string) {
 }
 
 /**
- * Tells this dispatcher's own Telegram (if connected) about one of their holds; the server
- * reads what happened from the database and sends each step only once.
+ * Tells this dispatcher's own Telegram (if connected) about one of their holds. `status` is what
+ * this screen saw; the server waits for the database to show it, then sends each step only once.
  */
-function notifyCrew(reservationId: string, noHospitalLeft = false) {
+function notifyCrew(reservationId: string, step: { status?: 'pending' | 'accepted'; noHospitalLeft?: boolean }) {
   void fetch('/api/telegram/crew', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reservationId: ensureUUID(reservationId), ...(noHospitalLeft ? { noHospitalLeft } : {}) })
+    body: JSON.stringify({ reservationId: ensureUUID(reservationId), ...step })
   }).catch(() => {
     // Telegram is extra: the dispatch screen still shows every step
   });
