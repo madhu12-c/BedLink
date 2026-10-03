@@ -23,6 +23,7 @@ import { executeAutoBedAssignment, BedNeedEvaluation } from '@/lib/utils/bedAuto
 import { BedAutoAssignedModal } from '@/components/hospital/BedAutoAssignedModal';
 import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
+import { useWakeLock } from '@/lib/utils/useWakeLock';
 import {
   Sparkles,
   Bell,
@@ -237,6 +238,9 @@ Bed Type: ${bed}
     void lastUpdateTrigger;
     return bedLinkStore.getIncomingAmbulances(selectedHospitalId);
   }, [selectedHospitalId, lastUpdateTrigger]);
+
+  // Screen stays on while a request is counting down or an ambulance is on its way
+  useWakeLock(pendingHere.length > 0 || incomingAmbulances.length > 0);
 
   const bedHistoryLogs = useMemo(() => {
     void lastUpdateTrigger;

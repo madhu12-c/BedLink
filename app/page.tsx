@@ -11,6 +11,7 @@ import { fetchRoadRoutes, rankHospitals, RankingResult, RoadRoute } from '@/lib/
 import { BedType, ScoredHospital, Reservation } from '@/lib/types';
 import { generateUUID } from '@/lib/crypto/uuid';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
+import { useWakeLock } from '@/lib/utils/useWakeLock';
 import { BedConfirmedAlert } from '@/components/dispatch/BedConfirmedAlert';
 import { ActiveHoldBar } from '@/components/dispatch/ActiveHoldBar';
 import { HoldTimeline } from '@/components/dispatch/HoldTimeline';
@@ -108,6 +109,8 @@ export default function DispatcherPage() {
   const [activeReservation, setActiveReservation] = useState<Reservation | null>(() =>
     latestReservationFor(getTabRequestId())
   );
+  // Screen stays on while the hospital decides and while the bed is held for this crew
+  useWakeLock(activeReservation?.status === 'pending' || activeReservation?.status === 'accepted');
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
