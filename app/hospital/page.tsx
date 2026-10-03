@@ -12,7 +12,7 @@ import { QuickMessages } from '@/components/shared/QuickMessages';
 import { AmbulanceArrivalCountdown } from '@/components/hospital/AmbulanceArrivalCountdown';
 import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
-import { TelegramConnectButton } from '@/components/hospital/TelegramConnectButton';
+import { TelegramConnectButton } from '@/components/shared/TelegramConnectButton';
 import { IncomingAmbulanceMap } from '@/components/hospital/IncomingAmbulanceMap';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
