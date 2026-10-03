@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Navigation, Radio, Square } from 'lucide-react';
+import { Navigation2, Radio, Square } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { fleetForEmail } from '@/lib/data/ambulanceFleets';
 import { SharingState, startSharing } from '@/lib/tracking/liveTracking';
@@ -84,10 +84,13 @@ export function LiveTrackingCard({ reservationId }: { reservationId: string | nu
       {state?.on && (
         <div className="flex items-center gap-3">
           {/* Compass: the arrow points where the phone faces */}
-          <div className="relative w-16 h-16 shrink-0 rounded-full border-2 border-slate-300 bg-slate-50" aria-label={heading !== null ? `Facing ${heading} degrees` : 'No compass yet'}>
-            <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] font-black text-red-600">N</span>
-            <Navigation
-              className="absolute inset-0 m-auto w-7 h-7 text-blue-700 fill-blue-600 transition-transform duration-300"
+          <div className="relative w-20 h-20 shrink-0 rounded-full border-2 border-slate-300 bg-slate-50" aria-label={heading !== null ? `Facing ${heading} degrees` : 'No compass yet'}>
+            <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[10px] font-black text-red-600">N</span>
+            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">E</span>
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">S</span>
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">W</span>
+            <Navigation2
+              className="absolute inset-0 m-auto w-9 h-9 text-red-700 fill-red-600 transition-transform duration-300"
               style={{ transform: `rotate(${heading ?? 0}deg)` }}
             />
           </div>

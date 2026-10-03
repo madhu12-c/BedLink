@@ -2,25 +2,29 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { ScoredHospital } from '@/lib/types';
-import { Navigation, Layers, Compass } from 'lucide-react';
+import { Navigation, Navigation2, Layers, Compass } from 'lucide-react';
 import type * as LeafletType from 'leaflet';
 import { fetchRoadPolyline } from '@/lib/routing';
 import { DIRECTORY_HOSPITALS } from '@/lib/data/directoryHospitals';
 import { useLiveAmbulances } from '@/lib/tracking/useLiveAmbulances';
 import type { LivePosition } from '@/lib/tracking/liveTracking';
 
-/** Live ambulance pin: arrow turned to the phone's compass, MOVING / STOPPED tag. */
+/**
+ * Live ambulance pin: the whole ambulance turns with the phone's compass, with a red beam in
+ * front showing where it is heading; MOVING / STOPPED tag below. (The ambulance picture faces
+ * left, so it gets a fixed quarter turn to face north before the heading is applied.)
+ */
 function liveIconHtml(a: LivePosition): string {
   const name = a.name.replace(/[&<>"']/g, '');
   return `
-    <div style="position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
-      <div style="position: absolute; width: 56px; height: 56px; border-radius: 50%; background: rgba(220,38,38,0.18); animation: ping 1.6s cubic-bezier(0,0,0.2,1) infinite;"></div>
-      <div data-heading style="position: absolute; inset: 0; transition: transform 0.3s ease-out; transform: rotate(${a.heading ?? 0}deg);">
-        <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid #dc2626;"></div>
+    <div style="position: relative; width: 120px; height: 120px;">
+      <div style="position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(220,38,38,0.16); border: 2px solid rgba(220,38,38,0.45);"></div>
+      <div data-heading style="position: absolute; inset: 0; transition: transform 0.35s ease-out; transform: rotate(${a.heading ?? 0}deg);">
+        <div style="position: absolute; left: 50%; top: 0; width: 70px; height: 34px; margin-left: -35px; clip-path: polygon(50% 100%, 0 0, 100% 0); background: linear-gradient(to top, rgba(220,38,38,0.75), rgba(220,38,38,0.05));"></div>
+        <img src="/icons/ambulance-top.svg" alt="" style="position: absolute; left: 50%; top: 50%; width: 72px; height: 36px; transform: translate(-50%, -50%) rotate(90deg); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.45));" />
       </div>
-      <div style="width: 34px; height: 34px; border-radius: 50%; background: #ffffff; border: 3px solid #dc2626; box-shadow: 0 3px 10px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 18px;">🚑</div>
-      <div data-moving style="position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 9px; font-weight: 900; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 4px; border: 1.5px solid #fff; white-space: nowrap; background: ${a.moving ? '#16a34a' : '#64748b'};">${a.moving ? 'MOVING' : 'STOPPED'}</div>
-      <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #dc2626; color: #fff; font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 4px; border: 1.5px solid #fff; white-space: nowrap;">LIVE · ${name}</div>
+      <div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #dc2626; color: #fff; font-size: 11px; font-weight: 900; padding: 2px 7px; border-radius: 6px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3); white-space: nowrap;">● LIVE · ${name}</div>
+      <div data-moving style="position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.3); white-space: nowrap; background: ${a.moving ? '#16a34a' : '#64748b'};">${a.moving ? '● MOVING' : '■ STOPPED'}</div>
     </div>`;
 }
 
@@ -380,10 +384,10 @@ export function HospitalMap({
       let marker = markers.get(a.id);
       if (!marker) {
         marker = L.marker([a.lat, a.lng], {
-          icon: L.divIcon({ className: 'leaflet-live-ambulance', html: liveIconHtml(a), iconSize: [64, 64], iconAnchor: [32, 32] }),
+          icon: L.divIcon({ className: 'leaflet-live-ambulance', html: liveIconHtml(a), iconSize: [120, 120], iconAnchor: [60, 60] }),
           zIndexOffset: 3000
         }).addTo(layer);
-        marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -30] });
+        marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -56] });
         markers.set(a.id, marker);
       } else {
         marker.setLatLng([a.lat, a.lng]);
@@ -393,7 +397,7 @@ export function HospitalMap({
         if (arrow) arrow.style.transform = `rotate(${a.heading ?? 0}deg)`;
         const tag = el?.querySelector<HTMLElement>('[data-moving]');
         if (tag) {
-          tag.textContent = a.moving ? 'MOVING' : 'STOPPED';
+          tag.textContent = a.moving ? '● MOVING' : '■ STOPPED';
           tag.style.background = a.moving ? '#16a34a' : '#64748b';
         }
       }
@@ -501,13 +505,12 @@ export function HospitalMap({
             >
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" aria-hidden="true" />
               <span className="truncate">LIVE · {a.name}</span>
-              <span
-                className="inline-block transition-transform duration-300"
+              <Navigation2
+                className={`w-4 h-4 shrink-0 transition-transform duration-300 ${followId === a.id ? 'fill-white' : 'fill-red-600 text-red-600'}`}
                 style={{ transform: `rotate(${a.heading ?? 0}deg)` }}
                 aria-label={a.heading !== null ? `facing ${a.heading} degrees` : 'no compass'}
-              >
-                ↑
-              </span>
+              />
+              {a.heading !== null && <span className="font-mono">{a.heading}°</span>}
               <span className={`px-1 rounded text-[10px] ${a.moving ? 'bg-emerald-600 text-white' : 'bg-slate-500 text-white'}`}>
                 {a.moving ? 'MOVING' : 'STOPPED'}
               </span>
