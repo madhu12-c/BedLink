@@ -12,7 +12,7 @@ import {
   VoiceIntakeResult
 } from '@/lib/voice/intake';
 import { VoiceConfirmResult } from '@/lib/voice/confirm';
-import { getLanguageLabel, VoiceLanguageCode } from '@/lib/voice/languages';
+import { getLanguageLabel, VOICE_LANGUAGES, VoiceLanguageCode } from '@/lib/voice/languages';
 import { dispatchEventPhrase, intakeReadbackPhrase, SpokenPhrase } from '@/lib/voice/phrases';
 import {
   ActiveRecording,
@@ -408,14 +408,17 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
       className={`bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col gap-3 ${className}`}
       aria-label="Voice patient intake"
     >
-      <div>
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
           <Mic className="w-4 h-4 text-blue-600" />
           Speak patient needs
         </h2>
-        <p className="text-xs text-slate-500">
-          Any Indian language or English. Say the bed, ventilator, condition and how serious it is. No names.
-        </p>
+        <span
+          className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-full px-2 py-0.5"
+          title="Any Indian language or English"
+        >
+          अ · A · {VOICE_LANGUAGES.length} languages
+        </span>
       </div>
 
       {settingsSlot}
@@ -442,10 +445,14 @@ export function VoiceIntakePanel(props: VoiceIntakePanelProps) {
                 : 'Voice input is not set up'}
           </button>
           {ready && phase === 'idle' && (
-            <p className="text-xs text-slate-400 italic">
-              e.g. &ldquo;ICU chahiye, ventilator bhi, heart attack, patient critical hai&rdquo;. Then say
-              &ldquo;haan&rdquo; to hold the best bed.
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5" aria-label="Say for example">
+              {['🛏️ ICU', '🫁 Ventilator', '❤️ Heart attack', '🔴 Critical'].map((chip) => (
+                <span key={chip} className="text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5">
+                  {chip}
+                </span>
+              ))}
+              <span className="text-xs font-bold text-emerald-700">→ say “haan”</span>
+            </div>
           )}
           {phase === 'error' && error && (
             <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 flex flex-col gap-2" role="alert">

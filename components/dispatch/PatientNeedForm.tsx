@@ -224,10 +224,11 @@ export function PatientNeedForm({
         htmlFor="needsFreeCare"
         className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-3 cursor-pointer"
       >
-        <span>
+        <span title="Govt hospitals (free) and charity hospitals (10% of beds free for poor patients) come first">
           <span className="text-sm font-bold text-slate-900 block">Patient can&apos;t pay</span>
-          <span className="text-xs text-slate-500">
-            Govt hospitals (free) and charity hospitals (10% of beds free for poor patients) come first
+          <span className="flex flex-wrap gap-1 mt-0.5 text-xs font-semibold">
+            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">🏛️ Govt: free</span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">🤝 Charity: 10% free</span>
           </span>
         </span>
         <input

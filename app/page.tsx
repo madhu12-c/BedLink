@@ -426,10 +426,12 @@ export default function DispatcherPage() {
   // The crew's own phone hears every step on Telegram, even with the screen off
   const crewTelegramCard = (
     <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col gap-2">
-      <div>
-        <span className="text-sm font-bold text-slate-900 block">Updates on Telegram</span>
-        <span className="text-xs text-slate-500">
-          Your phone hears when a hospital accepts or says no, and where BedLink goes next, even with the screen off.
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-bold text-slate-900">Updates on Telegram</span>
+        <span className="flex items-center gap-1 text-xs font-semibold text-slate-600" title="Your phone hears every step, even with the screen off">
+          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">✓ accepted</span>
+          <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-800 border border-red-200">✕ no</span>
+          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">→ next</span>
         </span>
       </div>
       <TelegramConnectButton role="crew" />

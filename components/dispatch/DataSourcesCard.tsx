@@ -1,22 +1,43 @@
 'use client';
 
 import React from 'react';
-import { Database } from 'lucide-react';
+import { Ambulance, Building2, Database, HeartHandshake, Stethoscope } from 'lucide-react';
 import { DIRECTORY_HOSPITALS } from '@/lib/data/directoryHospitals';
-import { AMBULANCE_FLEETS } from '@/lib/data/ambulanceFleets';
+import { AMBULANCE_FLEETS, TOTAL_FLEET_AMBULANCES } from '@/lib/data/ambulanceFleets';
 
-const SOURCES: { title: string; text: string }[] = [
+/** Four tiles: a big number, two words, and where it comes from on hover / in the details. */
+const TILES = [
   {
-    title: 'Hospitals',
-    text: 'Government hospital directory (data.gov.in National Hospital Directory, Esri India Living Atlas): 30,000+ hospitals in India with map points. Mumbai: 31 government hospitals, listed below and shown as purple GOVT pins on the map.'
+    icon: Building2,
+    value: '30,000+',
+    label: 'hospitals',
+    source: 'Govt hospital directory',
+    detail: 'data.gov.in National Hospital Directory and Esri India Living Atlas, with map points.',
+    tone: 'text-violet-700 bg-violet-50 border-violet-200'
   },
   {
-    title: 'Free treatment',
-    text: 'PM-JAY (hospitals.pmjay.gov.in) and Maharashtra MJPJAY lists: the "Patient can\'t pay" filter.'
+    icon: HeartHandshake,
+    value: 'Free',
+    label: 'care filter',
+    source: 'PM-JAY · MJPJAY',
+    detail: 'Govt and charity hospitals from the PM-JAY and Maharashtra MJPJAY lists: the "Patient can\'t pay" filter.',
+    tone: 'text-emerald-700 bg-emerald-50 border-emerald-200'
   },
   {
-    title: 'Live free beds',
-    text: 'No public source has live ICU beds for private hospitals (BMC\'s new dashboard covers civic hospitals only). The ward nurse updates in 10 seconds, on the app or Telegram; every count shows its age.'
+    icon: Stethoscope,
+    value: '10 s',
+    label: 'live bed update',
+    source: 'Ward nurses',
+    detail: 'No public source has live ICU beds for private hospitals (BMC covers civic only). Nurses update on the app or Telegram; every count shows its age.',
+    tone: 'text-blue-700 bg-blue-50 border-blue-200'
+  },
+  {
+    icon: Ambulance,
+    value: `${(Math.floor(TOTAL_FLEET_AMBULANCES / 100) * 100).toLocaleString('en-IN')}+`,
+    label: 'ambulances',
+    source: AMBULANCE_FLEETS.map((f) => f.name).join(' · '),
+    detail: 'Target fleets; each crew is one login or one Telegram link, nothing to install.',
+    tone: 'text-red-700 bg-red-50 border-red-200'
   }
 ];
 
@@ -28,30 +49,44 @@ export function DataSourcesCard() {
         <Database className="w-4 h-4 text-blue-600" />
         Where our data comes from
       </span>
-      <ul className="flex flex-col gap-2">
-        {SOURCES.map((s) => (
-          <li key={s.title} className="text-xs text-slate-600 leading-snug">
-            <strong className="text-slate-900">{s.title}: </strong>
-            {s.text}
-          </li>
+
+      <div className="grid grid-cols-2 gap-2">
+        {TILES.map(({ icon: Icon, value, label, source, detail, tone }) => (
+          <div key={label} className={`rounded-lg border p-2.5 flex flex-col gap-0.5 ${tone}`} title={detail}>
+            <Icon className="w-4 h-4" aria-hidden="true" />
+            <span className="text-xl font-black leading-none mt-1">{value}</span>
+            <span className="text-xs font-bold text-slate-800">{label}</span>
+            <span className="text-[11px] font-medium text-slate-500 leading-tight">{source}</span>
+          </div>
         ))}
-        <li className="text-xs text-slate-600 leading-snug">
-          <strong className="text-slate-900">Ambulances: </strong>
-          any fleet plugs in; each crew is one login or one Telegram link, nothing to install. Target fleets:
-          <ul className="mt-1 flex flex-col gap-0.5">
-            {AMBULANCE_FLEETS.map((f) => (
-              <li key={f.id}>
-                • <strong className="text-slate-800">{f.name}</strong> ({f.kind === 'government' ? 'govt' : 'private'},{' '}
-                {f.ambulances.toLocaleString('en-IN')}
-                {f.id === 'redhealth' ? '+' : ''}): {f.detail}
-              </li>
-            ))}
-          </ul>
-        </li>
-      </ul>
+      </div>
+
+      {/* The fleets, one row each */}
+      <div className="flex flex-col gap-1">
+        {AMBULANCE_FLEETS.map((f) => (
+          <div key={f.id} className="flex items-center gap-2 text-xs" title={f.detail}>
+            <span
+              className={`px-1.5 py-0.5 rounded font-extrabold border ${
+                f.kind === 'government' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+              }`}
+            >
+              {f.name}
+            </span>
+            <span className="font-mono font-bold text-slate-900">
+              {f.ambulances.toLocaleString('en-IN')}
+              {f.id === 'redhealth' ? '+' : ''}
+            </span>
+            <span className="text-slate-500 truncate">{f.kind === 'government' ? 'govt' : 'private'} · {f.coverage}</span>
+          </div>
+        ))}
+      </div>
+
       <details className="group rounded-lg border border-slate-200 bg-slate-50">
         <summary className="list-none cursor-pointer select-none px-3 min-h-[40px] flex items-center justify-between text-xs font-bold text-slate-800">
-          {DIRECTORY_HOSPITALS.length} Mumbai government hospitals ({inBedLink} already in BedLink)
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-[3px] bg-violet-600 inline-block" aria-hidden="true" />
+            {DIRECTORY_HOSPITALS.length} Mumbai govt hospitals · {inBedLink} live on BedLink
+          </span>
           <span className="text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
         </summary>
         <ul className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">

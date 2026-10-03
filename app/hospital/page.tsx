@@ -841,11 +841,14 @@ Bed Type: ${bed}
                 />
 
                 {/* Nurse Guidance Banner */}
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-900">
+                <div
+                  className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl flex flex-wrap items-center gap-2 text-xs font-semibold text-blue-900"
+                  title="Nurse screen: keep the free-bed counts right and see past admissions. The bed desk answers ambulance requests."
+                >
                   <Lock className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>
-                    <strong>Nurse screen:</strong> keep the free-bed counts right and see past admissions. The bed desk answers ambulance requests.
-                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-white border border-blue-200">🛏️ Keep counts right</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white border border-blue-200">📋 Past admissions</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white border border-blue-200">🚑 Bed desk answers requests</span>
                 </div>
               </div>
             )}

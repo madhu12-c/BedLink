@@ -132,11 +132,10 @@ export function BedTypeCard({
             <span className="text-lg" aria-hidden="true">
               {meta.icon}
             </span>
-            <h3 className="font-bold text-slate-900 text-base leading-snug">
+            <h3 className="font-bold text-slate-900 text-base leading-snug" title={meta.subtext}>
               {meta.label}
             </h3>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">{meta.subtext}</p>
           {inventory.updated_by_name && (
             <p className="text-xs text-slate-500 mt-0.5 truncate" title="Who last changed or confirmed this count">
               Last update by <span className="font-semibold text-slate-700">{inventory.updated_by_name}</span>

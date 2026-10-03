@@ -12,8 +12,8 @@ export function FleetBadge() {
   if (!crew) return null;
   const { fleet, vehicle } = crew;
   return (
-    <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col gap-1.5">
-      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Your ambulance fleet</span>
+    <div className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex flex-col gap-1" title={fleet.connects}>
+      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Your fleet</span>
       <span className="flex flex-wrap items-center gap-1.5">
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-extrabold border ${
@@ -26,16 +26,19 @@ export function FleetBadge() {
           {fleet.name}
         </span>
         {vehicle && (
-          <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
-            {vehicle} · {VEHICLE_LABELS[vehicle]}
+          <span
+            className="px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200"
+            title={VEHICLE_LABELS[vehicle]}
+          >
+            {vehicle}
           </span>
         )}
-        <span className="text-xs text-slate-500">
-          {fleet.kind === 'government' ? 'Government' : 'Private'} · {fleet.ambulances.toLocaleString('en-IN')}
-          {fleet.id === 'redhealth' ? '+' : ''} ambulances · {fleet.coverage}
+        <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">
+          🚑 {fleet.ambulances.toLocaleString('en-IN')}
+          {fleet.id === 'redhealth' ? '+' : ''}
         </span>
+        <span className="text-xs text-slate-500">{fleet.kind === 'government' ? 'Govt' : 'Private'}</span>
       </span>
-      <span className="text-xs text-slate-600">{fleet.connects}</span>
     </div>
   );
 }
