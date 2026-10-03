@@ -6,6 +6,23 @@ import { Navigation, Layers, Compass } from 'lucide-react';
 import type * as LeafletType from 'leaflet';
 import { fetchRoadPolyline } from '@/lib/routing';
 import { DIRECTORY_HOSPITALS } from '@/lib/data/directoryHospitals';
+import { useLiveAmbulances } from '@/lib/tracking/useLiveAmbulances';
+import type { LivePosition } from '@/lib/tracking/liveTracking';
+
+/** Live ambulance pin: arrow turned to the phone's compass, MOVING / STOPPED tag. */
+function liveIconHtml(a: LivePosition): string {
+  const name = a.name.replace(/[&<>"']/g, '');
+  return `
+    <div style="position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
+      <div style="position: absolute; width: 56px; height: 56px; border-radius: 50%; background: rgba(220,38,38,0.18); animation: ping 1.6s cubic-bezier(0,0,0.2,1) infinite;"></div>
+      <div data-heading style="position: absolute; inset: 0; transition: transform 0.3s ease-out; transform: rotate(${a.heading ?? 0}deg);">
+        <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid #dc2626;"></div>
+      </div>
+      <div style="width: 34px; height: 34px; border-radius: 50%; background: #ffffff; border: 3px solid #dc2626; box-shadow: 0 3px 10px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-size: 18px;">🚑</div>
+      <div data-moving style="position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 9px; font-weight: 900; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 4px; border: 1.5px solid #fff; white-space: nowrap; background: ${a.moving ? '#16a34a' : '#64748b'};">${a.moving ? 'MOVING' : 'STOPPED'}</div>
+      <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #dc2626; color: #fff; font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 4px; border: 1.5px solid #fff; white-space: nowrap;">LIVE · ${name}</div>
+    </div>`;
+}
 
 interface HospitalMapProps {
   patientLocation: { latitude: number; longitude: number };
@@ -31,6 +48,11 @@ export function HospitalMap({
   // Zoomed out to every govt hospital: the route then doesn't pull the map back in
   const [showGovt, setShowGovt] = useState(false);
   const showGovtRef = useRef(false);
+  // Ambulances sharing their phone's GPS / compass / motion right now
+  const liveAmbulances = useLiveAmbulances();
+  const liveLayerRef = useRef<LeafletType.LayerGroup | null>(null);
+  const liveMarkersRef = useRef(new Map<string, LeafletType.Marker>());
+  const [followId, setFollowId] = useState<string | null>(null);
   const selectedHospital = hospitals.find((h) => h.hospital.id === selectedHospitalId) || hospitals[0];
   // Result of the last road-route lookup, tagged with the route it was for
   const [routeResult, setRouteResult] = useState<{ key: string; failed: boolean } | null>(null);
@@ -341,9 +363,66 @@ export function HospitalMap({
     }
   }, [isMapReady, patientLocation, hospitals, selectedHospitalId, onSelectHospital, selectedHospital]);
 
+  // 3. Live ambulances: own layer, markers moved and turned in place (no flicker at 4 updates/s)
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapInstanceRef.current;
+    if (!L || !map || !isMapReady) return;
+    if (!liveLayerRef.current) liveLayerRef.current = L.layerGroup().addTo(map);
+    const layer = liveLayerRef.current;
+    const markers = liveMarkersRef.current;
+    const seen = new Set<string>();
+
+    for (const a of liveAmbulances) {
+      if (a.lat === null || a.lng === null) continue;
+      seen.add(a.id);
+      const tooltip = `<strong>${a.name.replace(/[&<>"']/g, '')}</strong>${a.fleet ? ` · ${a.fleet.replace(/[&<>"']/g, '')}` : ''}${a.vehicle ? ` ${a.vehicle}` : ''}<br/>${a.moving ? 'Moving' : 'Stopped'}${a.heading !== null ? ` · facing ${a.heading}°` : ''}${a.accuracy !== null ? ` · ±${a.accuracy} m` : ''}`;
+      let marker = markers.get(a.id);
+      if (!marker) {
+        marker = L.marker([a.lat, a.lng], {
+          icon: L.divIcon({ className: 'leaflet-live-ambulance', html: liveIconHtml(a), iconSize: [64, 64], iconAnchor: [32, 32] }),
+          zIndexOffset: 3000
+        }).addTo(layer);
+        marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -30] });
+        markers.set(a.id, marker);
+      } else {
+        marker.setLatLng([a.lat, a.lng]);
+        marker.setTooltipContent(tooltip);
+        const el = marker.getElement();
+        const arrow = el?.querySelector<HTMLElement>('[data-heading]');
+        if (arrow) arrow.style.transform = `rotate(${a.heading ?? 0}deg)`;
+        const tag = el?.querySelector<HTMLElement>('[data-moving]');
+        if (tag) {
+          tag.textContent = a.moving ? 'MOVING' : 'STOPPED';
+          tag.style.background = a.moving ? '#16a34a' : '#64748b';
+        }
+      }
+      if (followId === a.id) map.panTo([a.lat, a.lng], { animate: true });
+    }
+    for (const [id, marker] of markers) {
+      if (!seen.has(id)) {
+        layer.removeLayer(marker);
+        markers.delete(id);
+      }
+    }
+  }, [liveAmbulances, isMapReady, followId]);
+
+  const handleFollow = (a: LivePosition) => {
+    const map = mapInstanceRef.current;
+    if (followId === a.id) {
+      setFollowId(null);
+      showGovtRef.current = showGovt;
+      return;
+    }
+    setFollowId(a.id);
+    showGovtRef.current = true; // the route must not pull the map away while following
+    if (map && a.lat !== null && a.lng !== null) map.setView([a.lat, a.lng], 17);
+  };
+
   // Recenter helper
   const handleRecenter = () => {
     const map = mapInstanceRef.current;
+    setFollowId(null);
     showGovtRef.current = false;
     setShowGovt(false);
     if (map) {
@@ -359,6 +438,7 @@ export function HospitalMap({
     const next = !showGovt;
     showGovtRef.current = next;
     setShowGovt(next);
+    setFollowId(null);
     if (!map || !L) return;
     if (next) {
       const points: [number, number][] = [
@@ -403,6 +483,38 @@ export function HospitalMap({
         )}
       </div>
 
+
+      {/* Live ambulances: tap to follow one */}
+      {liveAmbulances.length > 0 && (
+        <div className="absolute top-14 left-3 z-[1000] flex flex-col gap-1 max-w-[80%]">
+          {liveAmbulances.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => handleFollow(a)}
+              aria-pressed={followId === a.id}
+              disabled={a.lat === null}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shadow-md text-xs font-bold text-left ${
+                followId === a.id ? 'bg-red-600 text-white border-red-700' : 'bg-white text-slate-900 border-red-300'
+              }`}
+              title={a.lat === null ? 'Waiting for this phone’s GPS' : followId === a.id ? 'Stop following' : 'Follow on the map'}
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" aria-hidden="true" />
+              <span className="truncate">LIVE · {a.name}</span>
+              <span
+                className="inline-block transition-transform duration-300"
+                style={{ transform: `rotate(${a.heading ?? 0}deg)` }}
+                aria-label={a.heading !== null ? `facing ${a.heading} degrees` : 'no compass'}
+              >
+                ↑
+              </span>
+              <span className={`px-1 rounded text-[10px] ${a.moving ? 'bg-emerald-600 text-white' : 'bg-slate-500 text-white'}`}>
+                {a.moving ? 'MOVING' : 'STOPPED'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* All government hospitals from the directory */}
       <button

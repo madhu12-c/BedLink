@@ -21,6 +21,7 @@ import { VitalsForm } from '@/components/dispatch/VitalsForm';
 import { TelegramConnectButton } from '@/components/shared/TelegramConnectButton';
 import { DataSourcesCard } from '@/components/dispatch/DataSourcesCard';
 import { FleetBadge } from '@/components/dispatch/FleetBadge';
+import { LiveTrackingCard } from '@/components/dispatch/LiveTrackingCard';
 import { CasualtyHoldResult, MassCasualtyPanel } from '@/components/dispatch/MassCasualtyPanel';
 import { CasualtyPlanRow } from '@/lib/dispatch/massCasualty';
 import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
@@ -772,6 +773,7 @@ export default function DispatcherPage() {
             onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
           />
           {massCasualtyButton}
+          <LiveTrackingCard reservationId={activeReservation?.status === 'pending' || activeReservation?.status === 'accepted' ? activeReservation.id : null} />
           <FleetBadge />
           {crewTelegramCard}
           <DataSourcesCard />
@@ -913,6 +915,7 @@ export default function DispatcherPage() {
               onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
             />
             {massCasualtyButton}
+            <LiveTrackingCard reservationId={activeReservation?.status === 'pending' || activeReservation?.status === 'accepted' ? activeReservation.id : null} />
             <FleetBadge />
             {crewTelegramCard}
             <DataSourcesCard />
