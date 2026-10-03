@@ -17,7 +17,9 @@ import { BED_LABELS, isYes, parseBedCounts } from './parse';
  * - Every linked nurse gets a "still right?" reminder when the counts are 30+ minutes old.
  * - Coordinator: new ambulance requests arrive with Accept / Reject buttons (same 2-minute
  *   rule; the dispatcher's screen moves on to the next hospital on reject or timeout).
- * A chat is linked to a hospital by the signed link from the hospital screen.
+ * - Ambulance crew: hears which hospital is being asked, when it accepts (with a Maps link),
+ *   and where BedLink goes next after a no, even with the phone's screen off.
+ * A chat is linked by the signed link from the hospital screen (staff) or dispatch screen (crew).
  */
 
 interface TgUser {
@@ -232,17 +234,62 @@ const HELP = [
   '• /status shows your hospital\'s counts',
   '• /stop disconnects this chat',
   '',
-  'Coordinators also get ambulance requests here with Accept / Reject buttons.'
+  'Coordinators also get ambulance requests here with Accept / Reject buttons.',
+  'Ambulance crews get updates on the beds they hold (connect from the dispatch screen).'
 ].join('\n');
+
+const CREW_CONNECTED = [
+  '✅ Connected as <b>ambulance crew</b>.',
+  '',
+  'For every bed you hold on BedLink I\'ll tell you here:',
+  '🚑 which hospital is being asked',
+  '✅ when it accepts, with a Google Maps link',
+  '❌ when it says no or doesn\'t answer, and which hospital BedLink asks next',
+  '',
+  'Keep this chat unmuted. /stop disconnects.'
+].join('\n');
+
+const CREW_IDLE =
+  'This chat gets ambulance updates. Hold a bed on the BedLink dispatch screen and I\'ll tell you here what the hospital says. /stop disconnects.';
+
+async function isCrewChat(chatId: number): Promise<boolean> {
+  const { data } = await db().from('telegram_crew_links').select('chat_id').eq('chat_id', chatId).maybeSingle();
+  return Boolean(data);
+}
+
+/** /stop: this chat gets nothing more, as staff or as crew. */
+async function unlinkChat(chatId: number) {
+  const supabase = db();
+  await supabase.from('telegram_links').delete().eq('chat_id', chatId);
+  await supabase.from('telegram_crew_links').delete().eq('chat_id', chatId);
+  await sendMessage(chatId, 'Disconnected. You will get no more BedLink messages here.');
+}
+
+async function linkCrew(chatId: number, who: string, userId: string) {
+  const { error } = await db().from('telegram_crew_links').upsert(
+    { chat_id: chatId, user_id: userId, display_name: who, linked_at: new Date().toISOString() },
+    { onConflict: 'chat_id' }
+  );
+  if (error) {
+    console.warn('[telegram] crew link failed:', error.message);
+    await sendMessage(chatId, 'Could not connect right now (has the Telegram crew SQL been run on Supabase?). Please try again.');
+    return;
+  }
+  await sendMessage(chatId, CREW_CONNECTED);
+}
 
 async function handleStart(chatId: number, who: string, code: string) {
   if (!code) {
-    await sendMessage(chatId, 'Welcome to BedLink. To connect, open BedLink → hospital screen → <b>Connect Telegram</b> and tap the link there.');
+    await sendMessage(chatId, 'Welcome to BedLink. To connect, open BedLink → hospital or dispatch screen → <b>Connect Telegram</b> and tap the link there.');
     return;
   }
   const target = readLinkCode(code);
   if (!target) {
-    await sendMessage(chatId, 'This connect link is not valid. Get a new one from the BedLink hospital screen.');
+    await sendMessage(chatId, 'This connect link is not valid. Get a new one from BedLink.');
+    return;
+  }
+  if (target.role === 'crew') {
+    await linkCrew(chatId, who, target.userId);
     return;
   }
   const { error } = await db().from('telegram_links').upsert(
@@ -320,7 +367,12 @@ async function handleMessage(message: TgMessage) {
 
   const link = await getLink(chatId);
   if (!link) {
-    await sendMessage(chatId, 'This chat is not connected to a hospital yet. Open BedLink → hospital screen → <b>Connect Telegram</b>.');
+    if (await isCrewChat(chatId)) {
+      if (text === '/stop') await unlinkChat(chatId);
+      else await sendMessage(chatId, CREW_IDLE);
+      return;
+    }
+    await sendMessage(chatId, 'This chat is not connected yet. Open BedLink → hospital or dispatch screen → <b>Connect Telegram</b>.');
     return;
   }
   if (text === '/status') {
@@ -329,8 +381,7 @@ async function handleMessage(message: TgMessage) {
     return;
   }
   if (text === '/stop') {
-    await db().from('telegram_links').delete().eq('chat_id', chatId);
-    await sendMessage(chatId, 'Disconnected. You will get no more BedLink messages here.');
+    await unlinkChat(chatId);
     return;
   }
 
@@ -466,4 +517,140 @@ export async function nudgeStaleHospitals(): Promise<number> {
     sent++;
   }
   return sent;
+}
+
+// ── Updates for the ambulance crew ──
+
+interface HoldRow {
+  id: string;
+  request_id: string;
+  hospital_id: string;
+  bed_type: BedType;
+  status: string;
+  eta_minutes: number | null;
+  rejection_reason: string | null;
+  requested_at: string;
+  expires_at: string;
+}
+
+/** The steps the crew hears about. A no / timeout is told with the next hospital asked, so the order is always right. */
+type CrewNotice = 'pending' | 'accepted' | 'none_left';
+
+const HOLD_FIELDS = 'id, request_id, hospital_id, bed_type, status, eta_minutes, rejection_reason, requested_at, expires_at';
+
+function ordinal(n: number): string {
+  const suffix = n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+}
+
+/** Holding a bed for this patient right now: accepted, or asked and still inside its 2 minutes. */
+function isOpen(hold: HoldRow): boolean {
+  return hold.status === 'accepted' || (hold.status === 'pending' && new Date(hold.expires_at).getTime() > Date.now());
+}
+
+/** Why a hold fell through, e.g. "❌ Aditi Hospital said no." (null if it didn't). */
+async function failureLine(hold: HoldRow): Promise<string | null> {
+  const name = `<b>${esc(await hospitalName(hold.hospital_id))}</b>`;
+  if (hold.status === 'rejected') {
+    const reason = hold.rejection_reason?.trim();
+    // Telegram rejects store "Rejected on Telegram by …": not a reason worth repeating
+    const shown = reason && !/^Rejected on Telegram/i.test(reason) ? `: <i>${esc(reason)}</i>` : '';
+    return `❌ ${name} said no${shown}.`;
+  }
+  if (hold.status === 'expired' || (hold.status === 'pending' && !isOpen(hold))) {
+    return `⏱ ${name} didn't answer in 2 minutes.`;
+  }
+  if (hold.status === 'bed_lost') return `⚠️ ${name} no longer has the bed.`;
+  return null;
+}
+
+async function crewMessage(kind: CrewNotice, hold: HoldRow): Promise<string | null> {
+  const bed = BED_LABELS[hold.bed_type] ?? hold.bed_type;
+  const { data: tries } = await db()
+    .from('reservations')
+    .select(HOLD_FIELDS)
+    .eq('request_id', hold.request_id)
+    .order('requested_at', { ascending: true });
+  // Every hospital asked for this patient, in order (shadow pre-holds were never asked)
+  const asked = ((tries ?? []) as HoldRow[]).filter((r) => r.status !== 'shadow' && r.status !== 'auto_released');
+  const index = asked.findIndex((r) => r.id === hold.id);
+
+  if (kind === 'none_left') {
+    if (asked.some(isOpen) || isOpen(hold)) return null;
+    const why = await failureLine(hold);
+    return [why, `⚠️ No other hospital has a free ${bed} bed right now. Pick one on the BedLink screen, or call 108.`]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  const { data: place } = await db()
+    .from('hospitals')
+    .select('name, phone, latitude, longitude')
+    .eq('id', hold.hospital_id)
+    .maybeSingle();
+  const name = `<b>${esc(typeof place?.name === 'string' ? place.name : 'The hospital')}</b>`;
+  const drive = hold.eta_minutes ? `Drive about ${hold.eta_minutes} min.` : null;
+
+  if (kind === 'pending') {
+    const previous = index > 0 ? asked[index - 1] : null;
+    return [
+      previous ? await failureLine(previous) : null,
+      `🚑 Asking ${name} for ${/^[AEIOU]/i.test(bed) ? 'an' : 'a'} ${bed} bed${index > 0 ? ` (${ordinal(index + 1)} hospital)` : ''}.`,
+      ['The bed is held while they decide (2 min).', drive].filter(Boolean).join(' ')
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const phone = typeof place?.phone === 'string' && place.phone.trim() ? place.phone.trim() : null;
+  const maps =
+    place?.latitude != null && place?.longitude != null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${Number(place.latitude)},${Number(place.longitude)}&travelmode=driving`
+      : null;
+  return [
+    `✅ ${name} accepted. Your ${bed} bed is held.`,
+    [drive, phone ? `Call ${esc(phone)}` : null].filter(Boolean).join(' · ') || null,
+    maps ? `<a href="${esc(maps)}">🗺 Open in Google Maps</a>` : null
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Tells the dispatcher's linked Telegram chats what happened to one of their holds: which
+ * hospital is being asked (and why the one before fell through), that it accepted, or that
+ * no hospital is left. The step is read from the database, and each one is sent once per chat
+ * even if several screens report it. Returns the number of chats told.
+ */
+export async function notifyCrew(userId: string, reservationId: string, noHospitalLeft = false): Promise<number> {
+  const supabase = db();
+  const { data: chats } = await supabase.from('telegram_crew_links').select('chat_id').eq('user_id', userId);
+  if (!chats?.length) return 0;
+  const { data } = await supabase.from('reservations').select(HOLD_FIELDS).eq('id', reservationId).maybeSingle();
+  const hold = data as HoldRow | null;
+  if (!hold) return 0;
+
+  const kind: CrewNotice | null = noHospitalLeft
+    ? 'none_left'
+    : hold.status === 'pending' || hold.status === 'accepted'
+      ? hold.status
+      : null;
+  if (!kind) return 0;
+  const text = await crewMessage(kind, hold);
+  if (!text) return 0;
+
+  // Claim the step first: only chats that weren't told yet come back
+  const { data: claimed, error } = await supabase
+    .from('telegram_notices')
+    .upsert(
+      (chats as { chat_id: number }[]).map((chat) => ({ reservation_id: hold.id, chat_id: chat.chat_id, kind })),
+      { onConflict: 'reservation_id,chat_id,kind', ignoreDuplicates: true }
+    )
+    .select('chat_id');
+  if (error) {
+    console.warn('[telegram] crew update not sent:', error.message);
+    return 0;
+  }
+  for (const { chat_id } of (claimed ?? []) as { chat_id: number }[]) await sendMessage(chat_id, text);
+  return claimed?.length ?? 0;
 }
