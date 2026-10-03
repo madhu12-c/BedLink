@@ -5,6 +5,7 @@ import { ScoredHospital } from '@/lib/types';
 import { Navigation, Layers, Compass } from 'lucide-react';
 import type * as LeafletType from 'leaflet';
 import { fetchRoadPolyline } from '@/lib/routing';
+import { DIRECTORY_HOSPITALS } from '@/lib/data/directoryHospitals';
 
 interface HospitalMapProps {
   patientLocation: { latitude: number; longitude: number };
@@ -27,6 +28,9 @@ export function HospitalMap({
   const markersLayerGroupRef = useRef<LeafletType.LayerGroup | null>(null);
   const routeLineRef = useRef<LeafletType.Layer | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  // Zoomed out to every govt hospital: the route then doesn't pull the map back in
+  const [showGovt, setShowGovt] = useState(false);
+  const showGovtRef = useRef(false);
   const selectedHospital = hospitals.find((h) => h.hospital.id === selectedHospitalId) || hospitals[0];
   // Result of the last road-route lookup, tagged with the route it was for
   const [routeResult, setRouteResult] = useState<{ key: string; failed: boolean } | null>(null);
@@ -236,6 +240,32 @@ export function HospitalMap({
       });
     });
 
+    // Government hospitals from the national hospital directory that aren't on BedLink yet:
+    // purple "GOVT" pins (no live beds, so they are never ranked)
+    const govtIcon = L.divIcon({
+      className: 'leaflet-govt-hospital-marker',
+      html: `
+        <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+          <div style="width: 26px; height: 26px; border-radius: 8px; background: #7c3aed; border: 2px solid #ffffff; box-shadow: 0 3px 8px rgba(0,0,0,0.35); color: #ffffff; font-size: 18px; font-weight: 900; line-height: 22px; text-align: center;">+</div>
+          <div style="margin-top: 2px; background: #7c3aed; color: #ffffff; font-size: 8px; font-weight: 800; letter-spacing: 0.05em; padding: 0 4px; border-radius: 4px; border: 1px solid #ffffff;">GOVT</div>
+        </div>
+      `,
+      iconSize: [34, 42],
+      iconAnchor: [17, 14]
+    });
+    for (const d of DIRECTORY_HOSPITALS) {
+      if (d.inBedLink) continue;
+      L.marker([d.latitude, d.longitude], { icon: govtIcon, zIndexOffset: 50 })
+        .addTo(markersLayer)
+        .bindTooltip(
+          `<div style="font-family: inherit;">
+            <strong style="color: #0f172a;">${d.name}</strong>, ${d.area}<br/>
+            <span style="color: #64748b; font-size: 12px;">Govt hospital directory · not on BedLink yet${d.phone ? ` · ${d.phone}` : ''}</span>
+          </div>`,
+          { direction: 'top', offset: [0, -14] }
+        );
+    }
+
     // Draw real turn-by-turn road route to selected hospital
     if (selectedHospital) {
       const origin = { latitude: patientLocation.latitude, longitude: patientLocation.longitude };
@@ -283,15 +313,15 @@ export function HospitalMap({
           routeLineRef.current = group;
           setRouteResult({ key: thisRoute, failed: false });
 
-          // Fit map bounds to show patient and target hospital
+          // Fit map bounds to show patient and target hospital (not while showing all govt hospitals)
           const bounds = currentL.latLngBounds(roadCoords);
-          currentMap.fitBounds(bounds, { padding: [55, 55], maxZoom: 16 });
+          if (!showGovtRef.current) currentMap.fitBounds(bounds, { padding: [55, 55], maxZoom: 16 });
         })
         .catch(() => {
           if (!isCurrent) return;
           setRouteResult({ key: thisRoute, failed: true });
           // Fit map to just show both points without a route line
-          if (mapInstanceRef.current && leafletRef.current) {
+          if (mapInstanceRef.current && leafletRef.current && !showGovtRef.current) {
             const currentL = leafletRef.current;
             const bounds = currentL.latLngBounds([
               [origin.latitude, origin.longitude],
@@ -314,7 +344,29 @@ export function HospitalMap({
   // Recenter helper
   const handleRecenter = () => {
     const map = mapInstanceRef.current;
+    showGovtRef.current = false;
+    setShowGovt(false);
     if (map) {
+      map.setView([patientLocation.latitude, patientLocation.longitude], 13);
+    }
+  };
+
+  // Zoom out to every government hospital from the directory (and back)
+  const govtCount = DIRECTORY_HOSPITALS.filter((d) => !d.inBedLink).length;
+  const handleToggleGovt = () => {
+    const map = mapInstanceRef.current;
+    const L = leafletRef.current;
+    const next = !showGovt;
+    showGovtRef.current = next;
+    setShowGovt(next);
+    if (!map || !L) return;
+    if (next) {
+      const points: [number, number][] = [
+        [patientLocation.latitude, patientLocation.longitude],
+        ...DIRECTORY_HOSPITALS.map((d): [number, number] => [d.latitude, d.longitude])
+      ];
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
+    } else {
       map.setView([patientLocation.latitude, patientLocation.longitude], 13);
     }
   };
@@ -352,6 +404,26 @@ export function HospitalMap({
       </div>
 
 
+      {/* All government hospitals from the directory */}
+      <button
+        type="button"
+        onClick={handleToggleGovt}
+        aria-pressed={showGovt}
+        className={`absolute bottom-10 left-3 z-[1000] px-3 py-2 rounded-lg border shadow-md text-xs font-bold flex items-center gap-1.5 transition-colors ${
+          showGovt
+            ? 'bg-violet-600 hover:bg-violet-700 text-white border-violet-700'
+            : 'bg-white hover:bg-violet-50 text-violet-800 border-violet-300'
+        }`}
+      >
+        <span
+          className={`w-4 h-4 rounded-[4px] flex items-center justify-center text-[11px] font-black ${showGovt ? 'bg-white text-violet-700' : 'bg-violet-600 text-white'}`}
+          aria-hidden="true"
+        >
+          +
+        </span>
+        {showGovt ? 'Back to the patient' : `Show ${govtCount} govt hospitals`}
+      </button>
+
       {/* Recenter Button */}
       <button
         type="button"
@@ -372,7 +444,11 @@ export function HospitalMap({
           <Navigation className="w-3 h-3 text-blue-600" />
           Drive times use real roads
         </span>
-        <span className="text-slate-400">Tap a hospital to see its route</span>
+        <span className="flex items-center gap-1 text-slate-500">
+          <span className="w-2.5 h-2.5 rounded-[3px] bg-violet-600 inline-block" aria-hidden="true" />
+          Govt hospital (directory), not on BedLink yet
+        </span>
+        <span className="text-slate-400 hidden sm:inline">Tap a hospital to see its route</span>
       </div>
     </div>
   );
