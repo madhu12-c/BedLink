@@ -64,6 +64,10 @@ export function canonicalizeHandoverPayload(record: Omit<PatientHandoverRecord, 
   if (record.procedures_performed && record.procedures_performed.length > 0) {
     normalized.procedures_performed = record.procedures_performed.map((p) => p.trim().toLowerCase()).sort();
   }
+  // A name the crew typed is sealed too (sheets with only a case label keep their old code)
+  if (hasRealName(record.patient_name)) {
+    normalized.patient_name = record.patient_name!.trim();
+  }
 
   return JSON.stringify(normalized);
 }
@@ -94,10 +98,16 @@ export async function verifyHandoverIntegrity(record: PatientHandoverRecord): Pr
 }
 
 /**
- * Short case label used instead of patient names: BedLink keeps no patient personal data.
+ * Short case label used when the crew doesn't know (or doesn't give) the patient's name.
  */
 export function caseLabel(reservationId: string): string {
   return `Case ${reservationId.replace(/[^a-z0-9]/gi, '').slice(0, 4).toUpperCase() || '0000'}`;
+}
+
+/** A name the crew typed, not a case label or a placeholder. */
+export function hasRealName(name: string | null | undefined): boolean {
+  const n = (name ?? '').trim();
+  return n.length > 0 && !/^case\b/i.test(n) && !/^(emergency (admission|patient)|patient|unknown)$/i.test(n);
 }
 
 /**

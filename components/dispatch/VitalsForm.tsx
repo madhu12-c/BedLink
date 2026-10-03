@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { ChevronDown, HeartPulse, Send, ShieldCheck } from 'lucide-react';
 import { PatientHandoverRecord, Reservation } from '@/lib/types';
 import { bedLinkStore } from '@/lib/data/store';
-import { caseLabel, createSignedHandoverRecord } from '@/lib/crypto/handoverSha';
+import { caseLabel, createSignedHandoverRecord, hasRealName } from '@/lib/crypto/handoverSha';
 import { serverNow, serverIso } from '@/lib/utils/serverClock';
 
 interface VitalsFormProps {
@@ -54,7 +54,7 @@ const VITAL_FIELDS: Field[] = [
 /**
  * The crew sends the patient's vitals to the hospital before arrival. The sheet is sealed with
  * a SHA-256 code made from its content, so the hospital can check nothing was changed on the
- * way. No names or personal details: the patient is a case number.
+ * way. The patient's name is optional: without one the patient is a case number.
  */
 export function VitalsForm({ reservation, crewName, className = '' }: VitalsFormProps) {
   const sent = bedLinkStore.findPatientHandover(reservation.id);
@@ -62,6 +62,7 @@ export function VitalsForm({ reservation, crewName, className = '' }: VitalsForm
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
+    name: hasRealName(sent?.patient_name) ? sent!.patient_name! : '',
     complaint: sent?.chief_complaint ?? '',
     bp: sent?.vitals.bp ?? '',
     hr: sent ? String(sent.vitals.heart_rate) : '',
@@ -108,7 +109,7 @@ export function VitalsForm({ reservation, crewName, className = '' }: VitalsForm
         id: `ho-${reservation.id.slice(0, 8)}-${serverNow()}`,
         reservation_id: reservation.id,
         patient_id: `CASE-${reservation.id.slice(0, 8).toUpperCase()}`,
-        patient_name: caseLabel(reservation.id),
+        patient_name: form.name.trim().replace(/\s+/g, ' ').slice(0, 80) || caseLabel(reservation.id),
         chief_complaint: form.complaint.trim().slice(0, 120),
         triage_level: TRIAGE[reservation.patient_urgency ?? 'critical'] ?? 'red',
         vitals: {
@@ -166,10 +167,23 @@ export function VitalsForm({ reservation, crewName, className = '' }: VitalsForm
 
       {open && (
         <div className="px-3 pb-3 flex flex-col gap-3 border-t border-slate-100 pt-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-slate-600">What happened (no names)</span>
-            <input value={form.complaint} onChange={set('complaint')} placeholder="Chest pain, sweating, 30 min" maxLength={120} className={inputClass} />
-          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-slate-600">Patient name (if known)</span>
+              <input
+                value={form.name}
+                onChange={set('name')}
+                placeholder="Ramesh Patil"
+                maxLength={80}
+                autoComplete="off"
+                className={inputClass}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-slate-600">What happened</span>
+              <input value={form.complaint} onChange={set('complaint')} placeholder="Chest pain, sweating, 30 min" maxLength={120} className={inputClass} />
+            </label>
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {VITAL_FIELDS.map((f) => (
@@ -217,7 +231,7 @@ export function VitalsForm({ reservation, crewName, className = '' }: VitalsForm
             {sending ? 'Sealing…' : sent ? 'Send updated vitals' : 'Seal and send to hospital'}
           </button>
           <p className="text-xs text-slate-500">
-            Sealed with a SHA-256 code made from these vitals, so the hospital can check nothing changed on the way.
+            Sealed with a SHA-256 code made from the name and vitals, so the hospital can check nothing changed on the way.
           </p>
         </div>
       )}

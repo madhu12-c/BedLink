@@ -24,7 +24,7 @@ import {
   SEED_REFERENCE_MS
 } from '../demo/seed-data';
 import { INITIAL_BED_HISTORY_LOGS } from '../demo/bed-history-data';
-import { caseLabel, generateDefaultHandover } from '../crypto/handoverSha';
+import { caseLabel, generateDefaultHandover, hasRealName } from '../crypto/handoverSha';
 import { generateUUID, ensureUUID } from '../crypto/uuid';
 import { rankHospitals } from '../dispatch/ranking';
 import { serverNow, serverIso } from '../utils/serverClock';
@@ -1786,7 +1786,8 @@ class BedLinkDataStore {
         targetArrivalMs,
         ambulanceId: handover?.ambulance_vehicle_id || `MH-02-EMS-${108 + index * 4}`,
         paramedicId: handover?.paramedic_badge_id || 'Paramedic 108 CAD',
-        patientName: caseLabel(res.id),
+        // The name the crew sealed with the vitals, else a case number
+        patientName: hasRealName(handover?.patient_name) ? handover!.patient_name! : caseLabel(res.id),
         patientUrgency: res.patient_urgency || 'critical',
         bedType: res.bed_type,
         distanceKm: Number(((etaMinutes * 0.45) + 0.3).toFixed(1))

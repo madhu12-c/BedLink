@@ -21,6 +21,12 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
+/** Text typed on another device goes into the print page's HTML: show it, never run it. */
+function escapeHtml(value: unknown): string {
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => map[ch]);
+}
+
 interface PatientHandoverModalProps {
   handover: PatientHandoverRecord;
   onClose: () => void;
@@ -74,7 +80,7 @@ export function PatientHandoverModal({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Clinical Handover - ${handover?.patient_name || 'Patient'}</title>
+          <title>Clinical Handover - ${escapeHtml(handover?.patient_name || 'Patient')}</title>
           <style>
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -153,7 +159,7 @@ export function PatientHandoverModal({
           <div class="header">
             <div>
               <div class="title">Patient handover sheet</div>
-              <div class="subtitle">Ambulance Vehicle Unit: ${handover?.ambulance_vehicle_id || 'EMS Unit'}</div>
+              <div class="subtitle">Ambulance Vehicle Unit: ${escapeHtml(handover?.ambulance_vehicle_id || 'EMS Unit')}</div>
             </div>
             <div style="text-align: right;">
               <span style="font-size: 11px; font-weight: bold; color: #059669; background: #d1fae5; padding: 4px 8px; border-radius: 4px; border: 1px solid #a7f3d0;">
@@ -164,32 +170,33 @@ export function PatientHandoverModal({
 
           <div class="seal-box">
             <strong style="color: #9ca3af; text-transform: uppercase;">Tamper-proof code (SHA-256):</strong><br/>
-            ${handover?.sha256_hash || 'VERIFIED_HASH_SEAL'}
+            ${escapeHtml(handover?.sha256_hash || 'VERIFIED_HASH_SEAL')}
           </div>
 
           <div class="grid">
             <div class="card">
-              <div class="label">Case ID</div>
-              <div class="value">${handover?.patient_name || 'Case'}</div>
+              <div class="label">Patient name</div>
+              <div class="value">${escapeHtml(handover?.patient_name || 'Not given')}</div>
+              <div style="font-size: 11px; color: #6b7280; font-family: monospace;">${escapeHtml(handover?.patient_id || '')}</div>
             </div>
             <div class="card">
               <div class="label">Age / Sex</div>
-              <div class="value">${handover?.patient_age ? `${handover.patient_age} yrs` : 'Not recorded'}${handover?.patient_gender ? ` / ${handover.patient_gender}` : ''}</div>
+              <div class="value">${handover?.patient_age ? `${handover.patient_age} yrs` : 'Not recorded'}${handover?.patient_gender ? ` / ${escapeHtml(handover.patient_gender)}` : ''}</div>
             </div>
             <div class="card">
               <div class="label">Paramedic Badge</div>
-              <div class="value" style="font-family: monospace; color: #1d4ed8;">${handover?.paramedic_badge_id || 'P-108'}</div>
+              <div class="value" style="font-family: monospace; color: #1d4ed8;">${escapeHtml(handover?.paramedic_badge_id || 'P-108')}</div>
             </div>
             <div class="card">
               <div class="label">Urgency</div>
-              <div class="value" style="text-transform: uppercase;">${handover?.triage_level || 'YELLOW'} TRIAGE</div>
+              <div class="value" style="text-transform: uppercase;">${escapeHtml(handover?.triage_level || 'YELLOW')} TRIAGE</div>
             </div>
           </div>
 
           <div class="complaint-box">
             <div class="label" style="color: #991b1b;">Chief Complaint / On-Scene Assessment</div>
             <div style="font-size: 14px; font-weight: bold; margin-top: 4px; color: #0f172a;">
-              ${handover?.chief_complaint || 'Patient Emergency Transport'}
+              ${escapeHtml(handover?.chief_complaint || 'Patient Emergency Transport')}
             </div>
           </div>
 
@@ -200,19 +207,19 @@ export function PatientHandoverModal({
             <div class="grid">
               <div class="card">
                 <div class="label">GCS (Coma Scale)</div>
-                <div class="value">${handover.vitals.gcs} / 15</div>
+                <div class="value">${escapeHtml(handover.vitals.gcs)} / 15</div>
               </div>
               <div class="card">
                 <div class="label">Blood Pressure</div>
-                <div class="value">${handover.vitals.bp} mmHg</div>
+                <div class="value">${escapeHtml(handover.vitals.bp)} mmHg</div>
               </div>
               <div class="card">
                 <div class="label">Oxygen Saturation</div>
-                <div class="value" style="color: ${handover.vitals.spo2 < 92 ? '#dc2626' : '#059669'};">${handover.vitals.spo2}%</div>
+                <div class="value" style="color: ${handover.vitals.spo2 < 92 ? '#dc2626' : '#059669'};">${escapeHtml(handover.vitals.spo2)}%</div>
               </div>
               <div class="card">
                 <div class="label">Heart Rate</div>
-                <div class="value">${handover.vitals.heart_rate} bpm</div>
+                <div class="value">${escapeHtml(handover.vitals.heart_rate)} bpm</div>
               </div>
             </div>
           ` : ''}
@@ -221,7 +228,7 @@ export function PatientHandoverModal({
             <div style="background: #f5f3ff; border: 1px solid #ddd6fe; padding: 12px; border-radius: 8px; margin: 14px 0;">
               <div class="label" style="color: #6d28d9;">Procedures Done En-Route / On-Scene</div>
               <div style="font-size: 13px; font-weight: 600; color: #4c1d95; margin-top: 4px; line-height: 1.6;">
-                ${handover.procedures_performed.map(p => `• ${p}`).join('<br/>')}
+                ${handover.procedures_performed.map(p => `• ${escapeHtml(p)}`).join('<br/>')}
               </div>
             </div>
           ` : ''}
@@ -230,13 +237,13 @@ export function PatientHandoverModal({
             <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; margin: 14px 0;">
               <div class="label" style="color: #1d4ed8;">Medications Given On The Way</div>
               <div style="font-size: 13px; font-weight: 600; color: #1e3a8a; margin-top: 4px; line-height: 1.6;">
-                ${handover.medications_administered.map(m => `• ${m}`).join('<br/>')}
+                ${handover.medications_administered.map(m => `• ${escapeHtml(m)}`).join('<br/>')}
               </div>
             </div>
           ` : ''}
 
           <div style="margin-top: 28px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between;">
-            <span>Paramedic Officer: ${handover?.paramedic_badge_id || 'Officer'}</span>
+            <span>Paramedic Officer: ${escapeHtml(handover?.paramedic_badge_id || 'Officer')}</span>
             <span>Timestamp: ${handover?.timestamp ? new Date(handover.timestamp).toLocaleString() : 'LIVE'} IST</span>
           </div>
         </body>
@@ -379,8 +386,9 @@ export function PatientHandoverModal({
           {/* Patient Overview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div>
-              <span className="text-xs uppercase font-bold text-slate-400 block">Case ID</span>
-              <span className="text-sm font-black text-slate-900">{handover?.patient_name || 'Case'}</span>
+              <span className="text-xs uppercase font-bold text-slate-400 block">Patient name</span>
+              <span className="text-sm font-black text-slate-900 block">{handover?.patient_name || 'Not given'}</span>
+              {handover?.patient_id && <span className="text-xs font-mono text-slate-500">{handover.patient_id}</span>}
             </div>
             <div>
               <span className="text-xs uppercase font-bold text-slate-400 block">Age / Sex</span>
