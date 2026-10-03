@@ -1229,11 +1229,19 @@ class BedLinkDataStore {
       needsFreeCare: request.needs_free_care
     });
 
-    const ranked = [...ranking.exactMatches, ...ranking.partialMatches];
-    const [primary] = ranked;
+    // Only a hospital with a free bed of this type can be held (partial matches may have none);
+    // best first, moving down the list if a hold fails
+    const ranked = [...ranking.exactMatches, ...ranking.partialMatches].filter((candidate) =>
+      this.bedInventories.some(
+        (b) =>
+          b.hospital_id === candidate.hospital.id &&
+          b.bed_type === request.required_bed_type &&
+          b.available_beds > 0
+      )
+    );
 
-    // Hold primary as normal 'pending'
-    if (primary) {
+    // Hold the first that works as normal 'pending'
+    for (const primary of ranked) {
       try {
         const nextRes = this.holdBedAtomic(
           requestId,
@@ -1264,15 +1272,14 @@ class BedLinkDataStore {
           newReservation: nextRes,
           hospital: primary
         });
+        // Shadow pre-holds at the next hospital are off: they took a real bed from a hospital
+        // that never agreed to it. If this hospital also fails, the next one is held then.
+        return primary;
       } catch (err) {
-        console.error('[EC-1] Primary fallback hold attempt failed:', err);
+        console.warn(`[EC-1] Fallback hold at ${primary.hospital.name} failed, trying the next hospital:`, err);
       }
     }
-
-    // Shadow pre-holds at the next hospital are off: they took a real bed from a hospital that
-    // never agreed to it. If this hospital also fails, the next one is held at that point.
-
-    return primary;
+    return null;
   }
 
   /**
