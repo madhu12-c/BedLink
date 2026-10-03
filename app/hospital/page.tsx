@@ -18,7 +18,7 @@ import { bedLinkStore } from '@/lib/data/store';
 import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/roles';
-import { persistBedHistoryLog, persistPatientHandover, persistReservationStatus, persistBedInventoryUpsert } from '@/lib/supabase/sync';
+import { persistBedHistoryLog, persistPatientHandover, persistReservationStatus } from '@/lib/supabase/sync';
 import { executeAutoBedAssignment, BedNeedEvaluation } from '@/lib/utils/bedAutoAssign';
 import { BedAutoAssignedModal } from '@/components/hospital/BedAutoAssignedModal';
 import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
@@ -249,6 +249,7 @@ Bed Type: ${bed}
 
   // Handlers
   const handleAddBeds = (type: BedType, totalCount: number, availableCount: number, wardName: string) => {
+    // Saved to Supabase by the store (as +N on the server, so the new beds survive refreshes)
     bedLinkStore.addNewBedTypeOrUnits(
       selectedHospitalId,
       type,
@@ -256,18 +257,6 @@ Bed Type: ${bed}
       availableCount,
       actorName('Bed Coordinator')
     );
-    // Persist to Supabase so the new bed survives page refreshes and Vercel cold-starts
-    const updatedInv = bedLinkStore.getBedInventories(selectedHospitalId).find((b) => b.bed_type === type);
-    if (updatedInv) {
-      persistBedInventoryUpsert({
-        id: updatedInv.id,
-        hospital_id: updatedInv.hospital_id,
-        bed_type: updatedInv.bed_type,
-        total_beds: updatedInv.total_beds,
-        available_beds: updatedInv.available_beds,
-        updated_by: null,
-      });
-    }
     setToastMessage(`✓ Added ${totalCount} ${type.toUpperCase()} bed(s) in ${wardName}!`);
     setLastUpdateTrigger((prev) => prev + 1);
   };
@@ -368,6 +357,20 @@ Bed Type: ${bed}
       currentHospital.id,
       bedType,
       delta,
+      actorId,
+      actorName(view === 'nurse' ? 'Nurse on duty' : 'Bed Coordinator')
+    );
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
+  // Tap one bed number in the bed-by-bed view: that bed is taken / free on every screen
+  const handleToggleBed = async (bedType: BedType, bedNo: number, occupied: boolean) => {
+    if (!currentHospital) return;
+    bedLinkStore.setBedOccupied(
+      currentHospital.id,
+      bedType,
+      bedNo,
+      occupied,
       actorId,
       actorName(view === 'nurse' ? 'Nurse on duty' : 'Bed Coordinator')
     );
@@ -825,6 +828,7 @@ Bed Type: ${bed}
                       bedInventory={bedInventories}
                       capabilities={capabilities}
                       onUpdateCount={handleUpdateCount}
+                      onToggleBed={handleToggleBed}
                     />
                   </div>
                 </details>
@@ -859,10 +863,10 @@ Bed Type: ${bed}
                       Total beds
                     </span>
                     <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
-                      {currentHospital?.emergency_capacity || 0} Beds
+                      {bedInventories.reduce((sum, b) => sum + b.total_beds, 0)} Beds
                     </span>
                     <span className="text-xs text-slate-400 mt-1 block">
-                      Emergency capacity
+                      All bed types
                     </span>
                   </div>
 
@@ -912,6 +916,7 @@ Bed Type: ${bed}
                     capabilities={capabilities}
                     onUpdateCount={handleUpdateCount}
                     onUpdateTotalBeds={handleUpdateTotalBeds}
+                    onToggleBed={handleToggleBed}
                   />
                 )}
 

@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { Minus, Plus, Check, AlertCircle } from 'lucide-react';
 import { BedInventory, BedType } from '@/lib/types';
+import { fitOccupied } from '@/lib/data/bedNumbers';
 import { FreshnessIndicator } from '../dispatch/FreshnessIndicator';
 
 interface BedTypeCardProps {
   inventory: BedInventory;
   onUpdateCount: (bedType: BedType, delta: number) => Promise<void>;
   onUpdateTotalBeds?: (bedType: BedType, delta: number) => Promise<void>;
+  /** Mark one bed number taken / free (shared with every screen). Without it a tap is just -1 / +1. */
+  onToggleBed?: (bedType: BedType, bedNo: number, occupied: boolean) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -23,56 +26,23 @@ const BED_METADATA: Record<BedType, { label: string; subtext: string; icon: stri
   general: { label: 'General Ward', subtext: 'Standard Inpatient Admission', icon: '🛏️', image: '/general_ward_bed.jpg' }
 };
 
-/** Keeps the occupied bed numbers the user chose, adding or freeing beds to match the count. */
-function reconcileOccupied(prev: Set<number>, totalBeds: number, availableBeds: number): Set<number> {
-  const targetOccupiedCount = Math.max(0, totalBeds - availableBeds);
-  const next = new Set(Array.from(prev).filter((n) => n >= 1 && n <= totalBeds));
-  if (next.size < targetOccupiedCount) {
-    // Need more occupied beds: assign from highest bed numbers (newly added beds) downwards
-    for (let b = totalBeds; b >= 1 && next.size < targetOccupiedCount; b--) {
-      next.add(b);
-    }
-  } else if (next.size > targetOccupiedCount) {
-    // Free some occupied beds (start from highest bed number downwards)
-    const sorted = Array.from(next).sort((a, c) => c - a);
-    for (const b of sorted) {
-      if (next.size === targetOccupiedCount) break;
-      next.delete(b);
-    }
-  }
-  return next;
-}
-
 export function BedTypeCard({
   inventory,
   onUpdateCount,
   onUpdateTotalBeds,
+  onToggleBed,
   disabled = false
 }: BedTypeCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Set of occupied bed numbers (1..total_beds).
-  // Beds NOT in this set are available.
-  const [occupiedBeds, setOccupiedBeds] = useState<Set<number>>(() => {
-    const initial = new Set<number>();
-    const occupiedCount = Math.max(0, inventory.total_beds - inventory.available_beds);
-    // Occupy beds from 1 up to occupiedCount
-    for (let i = 1; i <= occupiedCount; i++) {
-      if (i <= inventory.total_beds) initial.add(i);
-    }
-    return initial;
-  });
-
-  // When the counts change elsewhere, bring the bed grid in line (adjusting state during render,
-  // React's pattern for "reset state when a prop changes")
-  const countsKey = `${inventory.id}:${inventory.total_beds}:${inventory.available_beds}`;
-  const [syncedCountsKey, setSyncedCountsKey] = useState(countsKey);
-  if (syncedCountsKey !== countsKey) {
-    setSyncedCountsKey(countsKey);
-    setOccupiedBeds((prev) => reconcileOccupied(prev, inventory.total_beds, inventory.available_beds));
-  }
+  // Taken bed numbers come from the shared counts (never this screen's own guess), so the
+  // nurse's phone, the coordinator's laptop and every other screen show the same red beds
+  const occupiedBeds = useMemo(
+    () => new Set(fitOccupied(inventory.occupied_beds, inventory.total_beds, inventory.available_beds)),
+    [inventory.occupied_beds, inventory.total_beds, inventory.available_beds]
+  );
 
   const meta = BED_METADATA[inventory.bed_type] || {
     label: inventory.bed_type.toUpperCase(),
@@ -81,51 +51,22 @@ export function BedTypeCard({
     image: '/general_ward_bed.jpg'
   };
 
-  // Current available count derived from occupied state
-  const currentAvailable = Math.max(0, inventory.total_beds - occupiedBeds.size);
+  // The free count is the shared one, the same number dispatch ranks with
+  const currentAvailable = Math.max(0, Math.min(inventory.total_beds, inventory.available_beds));
 
-  /**
-   * Toggle a specific bed between Occupied and Available
-   */
+  /** Tap a bed number: taken ↔ free. The count follows. */
   const handleToggleBed = async (bedNum: number) => {
     if (disabled || isUpdating) return;
-
-    const isCurrentlyOccupied = occupiedBeds.has(bedNum);
-    // If occupied, clicking makes it available (delta: +1)
-    // If available, clicking makes it occupied (delta: -1)
-    const delta = isCurrentlyOccupied ? 1 : -1;
-
-    // Optimistic local state update
-    setOccupiedBeds((prev) => {
-      const next = new Set(prev);
-      if (isCurrentlyOccupied) {
-        next.delete(bedNum);
-      } else {
-        next.add(bedNum);
-      }
-      return next;
-    });
-
+    const makeOccupied = !occupiedBeds.has(bedNum);
     setIsUpdating(true);
     setErrorMessage(null);
-
     try {
-      await onUpdateCount(inventory.bed_type, delta);
+      if (onToggleBed) await onToggleBed(inventory.bed_type, bedNum, makeOccupied);
+      else await onUpdateCount(inventory.bed_type, makeOccupied ? -1 : 1);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
     } catch (err: unknown) {
-      // Revert optimistic update on error
-      setOccupiedBeds((prev) => {
-        const revert = new Set(prev);
-        if (isCurrentlyOccupied) {
-          revert.add(bedNum);
-        } else {
-          revert.delete(bedNum);
-        }
-        return revert;
-      });
-      const msg = err instanceof Error ? err.message : 'Update failed';
-      setErrorMessage(msg);
+      setErrorMessage(err instanceof Error ? err.message : 'Update failed');
     } finally {
       setIsUpdating(false);
     }

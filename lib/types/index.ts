@@ -76,6 +76,8 @@ export interface BedInventory {
   updated_by?: string | null;
   /** Name of the person who last changed or confirmed this count */
   updated_by_name?: string | null;
+  /** Which bed numbers (1..total_beds) are taken, shared by every screen (see lib/data/bedNumbers) */
+  occupied_beds?: number[];
 }
 
 export interface EmergencyRequest {

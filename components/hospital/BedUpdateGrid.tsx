@@ -11,6 +11,7 @@ interface BedUpdateGridProps {
   capabilities: string[];
   onUpdateCount: (bedType: BedType, delta: number) => Promise<void>;
   onUpdateTotalBeds?: (bedType: BedType, delta: number) => Promise<void>;
+  onToggleBed?: (bedType: BedType, bedNo: number, occupied: boolean) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function BedUpdateGrid({
   capabilities,
   onUpdateCount,
   onUpdateTotalBeds,
+  onToggleBed,
   disabled = false
 }: BedUpdateGridProps) {
   // Ordered per spec: ICU, Ventilator, Oxygen, Cardiac, Burns, then Emergency, General
@@ -89,6 +91,7 @@ export function BedUpdateGrid({
             inventory={item}
             onUpdateCount={onUpdateCount}
             onUpdateTotalBeds={onUpdateTotalBeds}
+            onToggleBed={onToggleBed}
             disabled={disabled}
           />
         ))}

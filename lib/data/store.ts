@@ -28,6 +28,10 @@ import { caseLabel, generateDefaultHandover } from '../crypto/handoverSha';
 import { generateUUID, ensureUUID } from '../crypto/uuid';
 import { rankHospitals } from '../dispatch/ranking';
 import { serverNow, serverIso } from '../utils/serverClock';
+import { fitOccupied, sameBeds } from './bedNumbers';
+
+/** A count this screen changed less than this long ago keeps its local value over a re-read. */
+const LOCAL_CHANGE_GRACE_MS = 5000;
 
 export type SyncHandler = {
   onBedUpdate?: (hospitalId: string, bedType: BedType, newAvailable: number, actorId?: string) => void;
@@ -48,6 +52,10 @@ export type SyncHandler = {
   onCountsConfirmed?: (hospitalId: string, confirmedAt: string, actorId?: string, actorName?: string) => void;
   /** +1 / -1 on a bed count, applied on the server so concurrent changes add up. */
   onBedDelta?: (hospitalId: string, bedType: BedType, delta: number, actorName?: string) => void;
+  /** One bed number marked taken or free (number and count change together on the server). */
+  onBedToggle?: (hospitalId: string, bedType: BedType, bedNo: number, occupied: boolean, actorName?: string) => void;
+  /** Coordinator added or removed beds: +N / -N on the server, so nothing else is overwritten. */
+  onTotalDelta?: (inventory: BedInventory, totalDelta: number, freeDelta: number, actorName?: string) => void;
   /** Dispatcher withdrew a pending hold. */
   onHoldCancelled?: (reservation: Reservation) => void;
   /** Accepted but no arrival by ETA + 15 min: the bed was given back. */
@@ -142,7 +150,24 @@ class BedLinkDataStore {
     if (data.reservations) this.reservations = data.reservations;
     if (data.reservationEvents) this.reservationEvents = data.reservationEvents;
     if (data.bedHistoryLogs && data.bedHistoryLogs.length > 0) this.bedHistoryLogs = data.bedHistoryLogs;
+    // "How full" comes from the bed counts, so every screen shows the same number
+    for (const h of this.hospitals) this.recomputeLoad(h.id, false);
     this.notifyListeners('SYNC_STATE', null);
+  }
+
+  /**
+   * How full a hospital is: taken beds out of all its beds, from the counts every screen shares.
+   * (Not the database's stored load, which only some screens would have updated.)
+   */
+  private recomputeLoad(hospitalId: string, touch = true) {
+    const hosp = this.hospitals.find((h) => h.id === hospitalId);
+    if (!hosp) return;
+    const hospBeds = this.bedInventories.filter((b) => b.hospital_id === hospitalId);
+    const total = hospBeds.reduce((acc, curr) => acc + curr.total_beds, 0);
+    const avail = hospBeds.reduce((acc, curr) => acc + Math.min(curr.available_beds, curr.total_beds), 0);
+    if (total <= 0) return;
+    hosp.current_load = Math.round(((total - avail) / total) * 100);
+    if (touch) hosp.load_updated_at = serverIso();
   }
 
   public applyExternalBedUpdate(item: BedInventory) {
@@ -154,22 +179,47 @@ class BedLinkDataStore {
     } else {
       this.bedInventories.push(item);
     }
-    const hosp = this.hospitals.find((h) => h.id === item.hospital_id);
-    if (hosp) {
-      const hospBeds = this.bedInventories.filter((b) => b.hospital_id === item.hospital_id);
-      const total = hospBeds.reduce((acc, curr) => acc + curr.total_beds, 0);
-      const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
-      if (total > 0) {
-        hosp.current_load = Math.round(((total - avail) / total) * 100);
-        hosp.load_updated_at = serverIso();
-      }
-    }
+    this.recomputeLoad(item.hospital_id);
     this.broadcast('bed_updated', {
       hospitalId: item.hospital_id,
       bedType: item.bed_type,
       available_beds: item.available_beds,
       inv: item
     });
+  }
+
+  /**
+   * Every bed count as the database has it now, re-read after the screen was asleep, offline or
+   * lost its live connection (realtime does not replay what it missed). A count this screen
+   * changed in the last few seconds keeps its local value, since its save may still be on the
+   * way, unless `force` (a save failed, so the database is right).
+   */
+  public applyBedSnapshot(rows: BedInventory[], force = false) {
+    const touched = new Set<string>();
+    for (const row of rows) {
+      const idx = this.bedInventories.findIndex(
+        (b) => b.hospital_id === row.hospital_id && b.bed_type === row.bed_type
+      );
+      const local = idx >= 0 ? this.bedInventories[idx] : undefined;
+      if (local) {
+        const localAt = Date.parse(local.updated_at);
+        const savingNow = localAt > Date.parse(row.updated_at) && serverNow() - localAt < LOCAL_CHANGE_GRACE_MS;
+        if (savingNow && !force) continue;
+        const same =
+          local.total_beds === row.total_beds &&
+          local.available_beds === row.available_beds &&
+          local.updated_at === row.updated_at &&
+          (row.occupied_beds === undefined || sameBeds(local.occupied_beds, row.occupied_beds));
+        if (same) continue;
+        this.bedInventories[idx] = { ...local, ...row };
+      } else {
+        this.bedInventories.push({ ...row });
+      }
+      touched.add(row.hospital_id);
+    }
+    if (touched.size === 0) return;
+    for (const hospitalId of touched) this.recomputeLoad(hospitalId, false);
+    this.notifyListeners('SYNC_STATE', null);
   }
 
   /** Stores a reservation changed on another device. Returns whether its status changed. */
@@ -322,7 +372,9 @@ class BedLinkDataStore {
   }) {
     const hosp = this.hospitals.find((h) => h.id === update.id);
     if (hosp) {
-      hosp.current_load = update.current_load;
+      // With bed counts, "how full" is worked out from them (the stored load can be stale)
+      if (this.bedInventories.some((b) => b.hospital_id === hosp.id)) this.recomputeLoad(hosp.id, false);
+      else hosp.current_load = update.current_load;
       hosp.load_updated_at = update.load_updated_at;
       if (update.ed_status) hosp.ed_status = update.ed_status;
       if (typeof update.reliability === 'number') hosp.reliability = update.reliability;
@@ -420,6 +472,7 @@ class BedLinkDataStore {
     this.emergencyRequests = [];
     this.bedHistoryLogs = JSON.parse(JSON.stringify(INITIAL_BED_HISTORY_LOGS));
     this.patientHandovers = new Map();
+    for (const h of this.hospitals) this.recomputeLoad(h.id, false);
     if (this.demoClockStarted) this.rebaseSeedTimes();
   }
 
@@ -550,21 +603,11 @@ class BedLinkDataStore {
     const newCount = Math.max(0, Math.min(inv.total_beds, inv.available_beds + delta));
     const appliedDelta = newCount - inv.available_beds;
     inv.available_beds = newCount;
+    inv.occupied_beds = fitOccupied(inv.occupied_beds, inv.total_beds, newCount);
     inv.updated_at = serverIso();
     inv.updated_by = actorId;
     inv.updated_by_name = actorName;
-
-    // Recalculate hospital load approximately
-    const hosp = this.hospitals.find((h) => h.id === hospitalId);
-    if (hosp) {
-      const hospBeds = this.bedInventories.filter((b) => b.hospital_id === hospitalId);
-      const total = hospBeds.reduce((acc, curr) => acc + curr.total_beds, 0);
-      const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
-      if (total > 0) {
-        hosp.current_load = Math.round(((total - avail) / total) * 100);
-        hosp.load_updated_at = serverIso();
-      }
-    }
+    this.recomputeLoad(hospitalId);
 
     this.broadcast('bed_updated', { hospitalId, bedType, available_beds: newCount, inv, actorName });
     if (this.syncHandler?.onBedDelta) {
@@ -622,35 +665,70 @@ class BedLinkDataStore {
       throw new Error(`Inventory record not found for hospital ${hospitalId} and bed ${bedType}`);
     }
 
-    if (delta < 0 && inv.available_beds <= 0) {
+    // Removing a bed takes a free one (a taken bed has a patient in it)
+    if (delta < 0 && inv.available_beds < -delta) {
       throw new Error('Cannot remove a bed when 0 free beds are available.');
     }
-
-    const newTotal = Math.max(1, inv.total_beds + delta);
-    inv.total_beds = newTotal;
-    if (delta > 0) {
-      inv.available_beds = Math.min(newTotal, inv.available_beds + delta);
-    } else {
-      inv.available_beds = Math.max(0, Math.min(newTotal - 1, inv.available_beds - 1));
+    if (inv.total_beds + delta < 1) {
+      throw new Error('A ward needs at least one bed.');
     }
+
+    // New beds are free; removed beds were free, so the taken count stays the same
+    inv.total_beds += delta;
+    inv.available_beds = Math.max(0, Math.min(inv.total_beds, inv.available_beds + delta));
+    inv.occupied_beds = fitOccupied(inv.occupied_beds, inv.total_beds, inv.available_beds);
     inv.updated_at = serverIso();
     inv.updated_by = actorId;
+    inv.updated_by_name = actorName;
+    this.recomputeLoad(hospitalId);
 
-    // Recalculate hospital load
-    const hosp = this.hospitals.find((h) => h.id === hospitalId);
-    if (hosp) {
-      const hospBeds = this.bedInventories.filter((b) => b.hospital_id === hospitalId);
-      const total = hospBeds.reduce((acc, curr) => acc + curr.total_beds, 0);
-      const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
-      if (total > 0) {
-        hosp.current_load = Math.round(((total - avail) / total) * 100);
-        hosp.load_updated_at = serverIso();
-      }
+    this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, total_beds: inv.total_beds, inv, actorName });
+    if (this.syncHandler?.onTotalDelta) {
+      this.syncHandler.onTotalDelta(inv, delta, delta, actorName);
+    } else if (this.syncHandler?.onBedInventoryUpsert) {
+      this.syncHandler.onBedInventoryUpsert(inv);
+    } else {
+      this.syncHandler?.onBedUpdate?.(hospitalId, bedType, inv.available_beds, actorId);
+    }
+    return { ...inv };
+  }
+
+  /**
+   * Nurse or coordinator taps one bed number: that bed becomes taken (or free) and the free
+   * count follows, so the numbers and the count can never disagree.
+   */
+  public setBedOccupied(
+    hospitalId: string,
+    bedType: BedType,
+    bedNo: number,
+    occupied: boolean,
+    actorId = 'nurse-1',
+    actorName = 'Staff Nurse'
+  ): BedInventory {
+    const inv = this.bedInventories.find((b) => b.hospital_id === hospitalId && b.bed_type === bedType);
+    if (!inv) {
+      throw new Error(`Inventory record not found for hospital ${hospitalId} and bed ${bedType}`);
+    }
+    if (!Number.isInteger(bedNo) || bedNo < 1 || bedNo > inv.total_beds) {
+      throw new Error(`There is no bed ${bedNo} here.`);
     }
 
-    this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, total_beds: newTotal, inv, actorName });
-    if (this.syncHandler?.onBedInventoryUpsert) {
-      this.syncHandler.onBedInventoryUpsert(inv);
+    const current = fitOccupied(inv.occupied_beds, inv.total_beds, inv.available_beds);
+    if (current.includes(bedNo) === occupied) return { ...inv, occupied_beds: current };
+
+    const next = occupied ? [...current, bedNo].sort((a, b) => a - b) : current.filter((n) => n !== bedNo);
+    inv.occupied_beds = next;
+    inv.available_beds = inv.total_beds - next.length;
+    inv.updated_at = serverIso();
+    inv.updated_by = actorId;
+    inv.updated_by_name = actorName;
+    this.recomputeLoad(hospitalId);
+
+    this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, inv, actorName });
+    if (this.syncHandler?.onBedToggle) {
+      this.syncHandler.onBedToggle(hospitalId, bedType, bedNo, occupied, actorName);
+    } else if (this.syncHandler?.onBedDelta) {
+      this.syncHandler.onBedDelta(hospitalId, bedType, occupied ? -1 : 1, actorName);
     } else {
       this.syncHandler?.onBedUpdate?.(hospitalId, bedType, inv.available_beds, actorId);
     }
@@ -1617,9 +1695,11 @@ class BedLinkDataStore {
 
     if (inventory) {
       inventory.total_beds += totalToAdd;
-      inventory.available_beds += availableToAdd;
+      inventory.available_beds = Math.min(inventory.total_beds, inventory.available_beds + availableToAdd);
+      inventory.occupied_beds = fitOccupied(inventory.occupied_beds, inventory.total_beds, inventory.available_beds);
       inventory.updated_at = serverIso();
       inventory.updated_by = actorName;
+      inventory.updated_by_name = actorName;
     } else {
       inventory = {
         id: `inv-${hospitalId.slice(0, 4)}-${bedType}`,
@@ -1657,12 +1737,18 @@ class BedLinkDataStore {
     };
     this.reservationEvents.unshift(event);
 
+    this.recomputeLoad(hospitalId);
+
+    // `inv` is the key other tabs read (applyPeerTabState)
     this.broadcast('bed_inventory_updated', {
       hospitalId,
       bedType,
-      inventory
+      inventory,
+      inv: inventory
     });
-    if (this.syncHandler?.onBedInventoryUpsert) {
+    if (this.syncHandler?.onTotalDelta) {
+      this.syncHandler.onTotalDelta(inventory, totalToAdd, availableToAdd, actorName);
+    } else if (this.syncHandler?.onBedInventoryUpsert) {
       this.syncHandler.onBedInventoryUpsert(inventory);
     }
   }
