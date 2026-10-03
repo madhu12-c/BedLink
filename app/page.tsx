@@ -19,6 +19,7 @@ import { QuickMessages } from '@/components/shared/QuickMessages';
 import { StabiliseSuggestion } from '@/components/dispatch/StabiliseSuggestion';
 import { VitalsForm } from '@/components/dispatch/VitalsForm';
 import { TelegramConnectButton } from '@/components/shared/TelegramConnectButton';
+import { DataSourcesCard } from '@/components/dispatch/DataSourcesCard';
 import { CasualtyHoldResult, MassCasualtyPanel } from '@/components/dispatch/MassCasualtyPanel';
 import { CasualtyPlanRow } from '@/lib/dispatch/massCasualty';
 import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
@@ -769,6 +770,7 @@ export default function DispatcherPage() {
           />
           {massCasualtyButton}
           {crewTelegramCard}
+          <DataSourcesCard />
           {showDemoControls && (
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider block">Demo Controls</span>
@@ -908,6 +910,7 @@ export default function DispatcherPage() {
             />
             {massCasualtyButton}
             {crewTelegramCard}
+            <DataSourcesCard />
             {/* Demo actions (admin only) */}
             {showDemoControls && (
             <button
