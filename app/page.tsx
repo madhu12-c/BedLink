@@ -17,6 +17,7 @@ import { HoldTimeline } from '@/components/dispatch/HoldTimeline';
 import { QuickMessages } from '@/components/shared/QuickMessages';
 import { StabiliseSuggestion } from '@/components/dispatch/StabiliseSuggestion';
 import { VitalsForm } from '@/components/dispatch/VitalsForm';
+import { TelegramConnectButton } from '@/components/shared/TelegramConnectButton';
 import { CasualtyHoldResult, MassCasualtyPanel } from '@/components/dispatch/MassCasualtyPanel';
 import { CasualtyPlanRow } from '@/lib/dispatch/massCasualty';
 import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
@@ -416,6 +417,18 @@ export default function DispatcherPage() {
       Mass casualty (many patients)
     </button>
   );
+  // The crew's own phone hears every step on Telegram, even with the screen off
+  const crewTelegramCard = (
+    <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col gap-2">
+      <div>
+        <span className="text-sm font-bold text-slate-900 block">Updates on Telegram</span>
+        <span className="text-xs text-slate-500">
+          Your phone hears when a hospital accepts or says no, and where BedLink goes next, even with the screen off.
+        </span>
+      </div>
+      <TelegramConnectButton role="crew" />
+    </div>
+  );
 
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -749,6 +762,7 @@ export default function DispatcherPage() {
             onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
           />
           {massCasualtyButton}
+          {crewTelegramCard}
           {showDemoControls && (
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col gap-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider block">Demo Controls</span>
@@ -887,6 +901,7 @@ export default function DispatcherPage() {
               onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
             />
             {massCasualtyButton}
+            {crewTelegramCard}
             {/* Demo actions (admin only) */}
             {showDemoControls && (
             <button
