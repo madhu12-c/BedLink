@@ -9,6 +9,7 @@ interface QuickBedUpdateProps {
   bedInventory: BedInventory[];
   onUpdateCount: (bedType: BedType, delta: number) => Promise<void>;
   disabled?: boolean;
+  allowAdd?: boolean;
 }
 
 const ORDER: BedType[] = ['icu', 'ventilator', 'oxygen', 'cardiac', 'burns', 'emergency', 'general'];
@@ -29,7 +30,7 @@ const clock = () => performance.now();
  * The nurse's 10-second screen: every bed type on one phone screen, one tap each.
  * Shows how long each save took, so "10 seconds" is something you can see.
  */
-export function QuickBedUpdate({ bedInventory, onUpdateCount, disabled = false }: QuickBedUpdateProps) {
+export function QuickBedUpdate({ bedInventory, onUpdateCount, disabled = false, allowAdd = false }: QuickBedUpdateProps) {
   const [busy, setBusy] = useState<BedType | null>(null);
   const [saved, setSaved] = useState<{ type: BedType; ms: number } | null>(null);
   const rows = [...bedInventory].sort((a, b) => ORDER.indexOf(a.bed_type) - ORDER.indexOf(b.bed_type));
@@ -92,15 +93,17 @@ export function QuickBedUpdate({ bedInventory, onUpdateCount, disabled = false }
                 >
                   <Minus className="w-7 h-7" />
                 </button>
-                <button
-                  type="button"
-                  disabled={disabled || busy !== null || inv.available_beds >= inv.total_beds}
-                  onClick={() => void tap(inv.bed_type, 1)}
-                  aria-label={`One more free ${LABELS[inv.bed_type]} bed`}
-                  className="w-14 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center disabled:opacity-30"
-                >
-                  <Plus className="w-7 h-7" />
-                </button>
+                {allowAdd && (
+                  <button
+                    type="button"
+                    disabled={disabled || busy !== null || inv.available_beds >= inv.total_beds}
+                    onClick={() => void tap(inv.bed_type, 1)}
+                    aria-label={`One more free ${LABELS[inv.bed_type]} bed`}
+                    className="w-14 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center disabled:opacity-30"
+                  >
+                    <Plus className="w-7 h-7" />
+                  </button>
+                )}
               </div>
             </li>
           );

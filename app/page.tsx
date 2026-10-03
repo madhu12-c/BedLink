@@ -36,6 +36,7 @@ import {
   Building2,
   Map,
   Siren,
+  MessageSquare,
   X
 } from 'lucide-react';
 
@@ -109,6 +110,8 @@ export default function DispatcherPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdateTrigger, setLastUpdateTrigger] = useState(0);
   const [showConfirmedAlert, setShowConfirmedAlert] = useState(false);
+  const [dismissedHoldId, setDismissedHoldId] = useState<string | null>(null);
+  const [dismissedMessagesReservationId, setDismissedMessagesReservationId] = useState<string | null>(null);
   // Real road routes (OSRM) for the current ambulance location. Kept across bed updates so the
   // list doesn't jump back to the estimate every time a count changes. `moved` = places each
   // hospital moved when the road times arrived (shown on the cards for a few seconds).
@@ -557,6 +560,26 @@ export default function DispatcherPage() {
     setLastUpdateTrigger((prev) => prev + 1);
   };
 
+  // Close the active hold tab/session completely and return to the clean dispatch dashboard
+  const handleCloseHoldTab = () => {
+    if (activeReservation && (activeReservation.status === 'pending' || activeReservation.status === 'accepted')) {
+      try {
+        bedLinkStore.cancelHold(activeReservation.id, dispatcherId, dispatcherName);
+      } catch {
+        // ignore if already settled
+      }
+    }
+    const fresh = generateUUID();
+    tabRequestId = fresh;
+    setCurrentRequestId(fresh);
+    setActiveReservation(null);
+    setActionNotice(null);
+    setDismissedHoldId(null);
+    setDismissedMessagesReservationId(null);
+    setShowConfirmedAlert(false);
+    setLastUpdateTrigger((prev) => prev + 1);
+  };
+
   // Voice: best exact match for what the crew said, using the same ranking as the hospital list.
   const findVoiceBestMatch = (values: IntakeFormValues): VoiceBestMatch | null => {
     const next: DispatchFormParams = { ...formData, ...values };
@@ -664,8 +687,12 @@ export default function DispatcherPage() {
       <Header hideBottomNav />
 
       {/* This crew's hold: big countdown, Navigate / Call, Cancel */}
-      {activeReservation && (
-        <ActiveHoldBar reservation={activeReservation} onCancel={handleCancelHold} />
+      {activeReservation && dismissedHoldId !== activeReservation.id && (
+        <ActiveHoldBar
+          reservation={activeReservation}
+          onCancel={handleCancelHold}
+          onDismiss={handleCloseHoldTab}
+        />
       )}
       {/* Every hospital tried for this patient: shows the automatic fallback */}
       <HoldTimeline reservations={patientHolds} />
@@ -700,9 +727,10 @@ export default function DispatcherPage() {
           </div>
           <button
             type="button"
-            onClick={() => setActionNotice(null)}
-            className="text-slate-400 hover:text-white ml-2 shrink-0 p-1"
-            aria-label="Dismiss notice"
+            onClick={handleCloseHoldTab}
+            className="text-white/70 hover:text-white hover:bg-white/10 ml-2 shrink-0 p-1.5 rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+            aria-label="Close hold view"
+            title="Close this hold session"
           >
             <X className="w-4 h-4" />
           </button>

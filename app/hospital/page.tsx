@@ -14,7 +14,6 @@ import { AddBedModal } from '@/components/hospital/AddBedModal';
 import { BedHistoryLogTable } from '@/components/hospital/BedHistoryLogTable';
 import { TelegramConnectButton } from '@/components/hospital/TelegramConnectButton';
 import { IncomingAmbulanceMap } from '@/components/hospital/IncomingAmbulanceMap';
-import { QuickBedUpdate } from '@/components/hospital/QuickBedUpdate';
 import { bedLinkStore } from '@/lib/data/store';
 import { BedType, EdStatus, Reservation, PatientHandoverRecord } from '@/lib/types';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -631,10 +630,7 @@ Bed Type: ${bed}
 
             {/* Nurse: the 10-second update comes right after "is an ambulance coming?" */}
             {view === 'nurse' && (
-              <>
-                <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
-                <QuickBedUpdate bedInventory={bedInventories} onUpdateCount={handleUpdateCount} />
-              </>
+              <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
             )}
 
             {/* Admin only: preview either hospital screen. Staff get the screen for their role. */}

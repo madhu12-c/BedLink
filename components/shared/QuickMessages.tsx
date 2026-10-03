@@ -54,9 +54,11 @@ export function QuickMessages({ reservationId, from, author, className = '' }: Q
       className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col gap-2 ${className}`}
       aria-label={`Messages with the ${otherSide.toLowerCase()}`}
     >
-      <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-        <MessageSquare className="w-4 h-4 text-blue-600" />
-        Messages with the {otherSide.toLowerCase()}
+      <div className="flex items-center text-xs font-bold text-slate-700">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-blue-600" />
+          Messages with the {otherSide.toLowerCase()}
+        </div>
       </div>
 
       {messages.length > 0 && (
