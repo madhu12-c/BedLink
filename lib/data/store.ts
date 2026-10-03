@@ -57,6 +57,8 @@ export type SyncHandler = {
   onMessage?: (message: QuickMessage) => void;
   /** The crew sent (or updated) the sealed handover sheet with vitals. */
   onHandover?: (record: PatientHandoverRecord) => void;
+  /** This hold fell through and no other hospital can take the patient. */
+  onNoHospitalLeft?: (failed: Reservation) => void;
 };
 
 // In-memory persistent state (retains changes during session & syncs across tabs via BroadcastChannel)
@@ -169,14 +171,16 @@ class BedLinkDataStore {
     });
   }
 
-  public applyExternalReservation(item: Reservation) {
+  /** Stores a reservation changed on another device. Returns whether its status changed. */
+  public applyExternalReservation(item: Reservation): boolean {
     const { changed, react } = this.mergeReservation(item);
     // Our own write echoing back from Supabase: nothing new, so don't announce it twice.
-    if (!changed) return;
+    if (!changed) return false;
     const hosp = this.getHospital(item.hospital_id);
     const enriched = { ...item, hospital_name: hosp?.name || 'Hospital' };
     this.broadcast(BedLinkDataStore.eventForStatus(item.status), { reservation: enriched });
     react?.();
+    return true;
   }
 
   private static eventForStatus(status: ReservationStatus): string {
@@ -286,7 +290,8 @@ class BedLinkDataStore {
     return created;
   }
 
-  private ownsRequest(requestId: string): boolean {
+  /** True on the dispatcher's screen that created this request (it re-routes and tells the crew). */
+  public ownsRequest(requestId: string): boolean {
     return this.emergencyRequests.some((r) => r.id === requestId);
   }
 
@@ -302,7 +307,9 @@ class BedLinkDataStore {
     );
     if (stillOpen) return null;
     if (this.activateShadowHold(failed.request_id, failed.hospital_id)) return null;
-    return this.triggerAutomaticFallbackWithShadows(failed.request_id, failed.hospital_id);
+    const next = this.triggerAutomaticFallbackWithShadows(failed.request_id, failed.hospital_id);
+    if (!next) this.syncHandler?.onNoHospitalLeft?.(failed);
+    return next;
   }
 
   public applyExternalHospitalUpdate(update: {

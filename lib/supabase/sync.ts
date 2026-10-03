@@ -108,6 +108,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     },
     onHandover: (record) => {
       persistHandoverSent(record);
+    },
+    onNoHospitalLeft: (failed) => {
+      notifyCrew(failed.id, true);
     }
   });
 
@@ -261,7 +264,7 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         (payload) => {
           if (payload.new && typeof payload.new === 'object') {
             const row = payload.new as Record<string, unknown>;
-            bedLinkStore.applyExternalReservation({
+            const changed = bedLinkStore.applyExternalReservation({
               id: String(row.id || ''),
               request_id: String(row.request_id || ''),
               hospital_id: String(row.hospital_id || ''),
@@ -276,6 +279,10 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               eta_minutes: typeof row.eta_minutes === 'number' ? row.eta_minutes : undefined,
               arrived_at: row.arrived_at ? String(row.arrived_at) : undefined
             });
+            // The hospital accepted on its phone or on Telegram: tell this crew's Telegram too
+            if (changed && row.status === 'accepted' && bedLinkStore.ownsRequest(String(row.request_id || ''))) {
+              notifyCrew(String(row.id));
+            }
             lastSyncTime = new Date().toLocaleTimeString();
             notifyConnectionChange();
           }
@@ -444,6 +451,7 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
         );
       } else if (!result.duplicate) {
         notifyTelegram(safeReservationId);
+        if (bedLinkStore.ownsRequest(reservation.request_id)) notifyCrew(safeReservationId);
       }
       return;
     }
@@ -500,7 +508,10 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
         expires_at: reservation.expires_at
       }
     });
-    if (safeStatus === 'pending') notifyTelegram(safeReservationId);
+    if (safeStatus === 'pending') {
+      notifyTelegram(safeReservationId);
+      if (bedLinkStore.ownsRequest(reservation.request_id)) notifyCrew(safeReservationId);
+    }
   } catch (err) {
     console.warn('[BedLink] Failed to persist reservation hold to Supabase:', err);
   }
@@ -571,6 +582,10 @@ export async function persistReservationResponse(
         rejection_reason: rejectionReason || null
       }
     });
+
+    // Accepted on this same screen (e.g. an admin playing both sides): its echo won't count as new
+    const requestId = bedLinkStore.getReservations().find((r) => r.id === reservationId)?.request_id;
+    if (action === 'accept' && requestId && bedLinkStore.ownsRequest(requestId)) notifyCrew(safeResId);
   } catch (err) {
     console.warn('[BedLink] Failed to persist reservation response to Supabase:', err);
   }
@@ -712,6 +727,20 @@ function notifyTelegram(reservationId: string) {
     body: JSON.stringify({ reservationId })
   }).catch(() => {
     // Telegram is extra: the hospital screen still shows the request
+  });
+}
+
+/**
+ * Tells this dispatcher's own Telegram (if connected) about one of their holds; the server
+ * reads what happened from the database and sends each step only once.
+ */
+function notifyCrew(reservationId: string, noHospitalLeft = false) {
+  void fetch('/api/telegram/crew', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reservationId: ensureUUID(reservationId), ...(noHospitalLeft ? { noHospitalLeft } : {}) })
+  }).catch(() => {
+    // Telegram is extra: the dispatch screen still shows every step
   });
 }
 
