@@ -166,8 +166,9 @@ export function LoginForm({ next, initialError, demoMode }: LoginFormProps) {
           {showDemoAccounts && (
             <div className="px-5 pb-4 flex flex-col gap-3">
               <p className="text-xs text-slate-500">
-                Tap an account to fill in its email. The password is the one your team set when creating the demo
-                accounts.
+                Tap an account to fill in its email (e.g. <span className="font-mono">nurse.kem@bedlink.test</span>,{' '}
+                <span className="font-mono">ambulance2@bedlink.test</span>). The password is the one your team set when
+                creating the demo accounts.
               </p>
               {USER_ROLES.map((role) => (
                 <div key={role} className="flex flex-col gap-1">
@@ -183,10 +184,14 @@ export function LoginForm({ next, initialError, demoMode }: LoginFormProps) {
                             setEmail(u.email);
                             setError(null);
                           }}
-                          className="text-xs font-semibold px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-800 min-h-[32px]"
-                          title={u.name}
+                          className={`text-xs font-semibold px-2 py-1.5 rounded-lg border min-h-[32px] ${
+                            email === u.email
+                              ? 'border-blue-500 bg-blue-50 text-blue-800'
+                              : 'border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-800'
+                          }`}
+                          title={`${u.name}: ${u.email}`}
                         >
-                          {u.email}
+                          {u.label}
                         </button>
                       ))}
                   </div>
