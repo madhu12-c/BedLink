@@ -4,6 +4,7 @@ import { useHydrated } from '@/lib/utils/useHydrated';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Clock } from 'lucide-react';
 import { FreshnessCategory } from '@/lib/types';
+import { serverNow } from '@/lib/utils/serverClock';
 
 interface FreshnessIndicatorProps {
   updatedAt: string;
@@ -13,7 +14,7 @@ interface FreshnessIndicatorProps {
   compact?: boolean;
 }
 
-export function getFreshnessInfo(updatedAtIso: string, currentTimeMs = Date.now()): {
+export function getFreshnessInfo(updatedAtIso: string, currentTimeMs = serverNow()): {
   label: string;
   category: FreshnessCategory;
   minutesAgo: number;
@@ -57,11 +58,11 @@ export function FreshnessIndicator({
   compact = false
 }: FreshnessIndicatorProps) {
   const mounted = useHydrated();
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setNow(Date.now());
+      setNow(serverNow());
     }, 15000);
     return () => clearInterval(interval);
   }, []);

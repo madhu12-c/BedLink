@@ -7,6 +7,7 @@ import { bedLinkStore } from '@/lib/data/store';
 import { fetchRoadPolyline, pointAlongRoute } from '@/lib/routing';
 import { fetchPickupLocation } from '@/lib/supabase/sync';
 import { IncomingAmbulanceItem } from './AmbulanceArrivalCountdown';
+import { serverNow } from '@/lib/utils/serverClock';
 
 interface IncomingAmbulanceMapProps {
   hospital: { id: string; name: string; latitude: number; longitude: number };
@@ -43,7 +44,7 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
   // Goes up each time the map is (re)created, so the drawing effects run again
   const [mapVersion, setMapVersion] = useState(0);
   const [trips, setTrips] = useState<Record<string, TripRoute | null>>({});
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
 
   // 1. Map: created when the first ambulance shows up (the section isn't on screen before)
   const hasIncoming = incoming.length > 0;
@@ -110,7 +111,7 @@ export function IncomingAmbulanceMap({ hospital, incoming }: IncomingAmbulanceMa
   // 3. Clock: move the ambulances every second
   useEffect(() => {
     if (incoming.length === 0) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(serverNow()), 1000);
     return () => clearInterval(timer);
   }, [incoming.length]);
 

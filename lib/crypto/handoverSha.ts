@@ -4,6 +4,7 @@
  */
 
 import { PatientHandoverRecord, PatientVitals } from '../types';
+import { serverIso } from '../utils/serverClock';
 
 /**
  * Computes a standard SHA-256 hash of a string in browser or Node.js runtime.
@@ -147,7 +148,7 @@ export function generateDefaultHandover(
     paramedic_badge_id: overrides?.paramedic_badge_id || 'PARAMEDIC-BMC-108-744',
     ambulance_vehicle_id: overrides?.ambulance_vehicle_id || 'MH-02-EMS-108',
     destination_hospital_id: hospitalId,
-    timestamp: overrides?.timestamp || new Date().toISOString(),
+    timestamp: overrides?.timestamp || serverIso(),
     // A sample is never sealed: only a sheet the crew sends gets a real SHA-256 code
     sha256_hash: overrides?.sha256_hash || '',
     unsealed_reason: overrides?.unsealed_reason || 'Sample data: the crew did not send vitals for this patient.'

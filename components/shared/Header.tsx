@@ -19,6 +19,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { canAccess, ROLE_LABELS } from '@/lib/auth/roles';
 import { bedLinkStore } from '@/lib/data/store';
 import { applySunlight, useSunlight } from '@/lib/utils/sunlight';
+import { serverDate, startServerClock } from '@/lib/utils/serverClock';
 
 interface HeaderProps {
   hideBottomNav?: boolean;
@@ -54,13 +55,15 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
   useEffect(() => {
     // Demo ages count from now (after hydration, so server and browser render the same page)
     bedLinkStore.startDemoClock();
+    // Times and countdowns follow the server's clock, even on a phone set to the wrong time
+    startServerClock();
     initSupabaseSync();
     const unsub = subscribeSupabaseStatus((status) => {
       setSupabaseState(status);
     });
 
     const updateClock = () => {
-      const d = new Date();
+      const d = serverDate();
       setCurrentTime(
         d.toLocaleTimeString('en-IN', {
           hour: '2-digit',

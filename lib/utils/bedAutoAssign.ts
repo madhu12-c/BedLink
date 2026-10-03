@@ -1,5 +1,6 @@
 import { BedType, PatientHandoverRecord } from '../types';
 import { bedLinkStore } from '../data/store';
+import { serverNow, serverIso } from './serverClock';
 
 export interface BedNeedEvaluation {
   targetBedType: BedType;
@@ -151,7 +152,7 @@ export function autoAssignBedIdentifier(
     slotNumber++;
   }
 
-  return `${prefix}-Bed-${Date.now().toString().slice(-4)}`;
+  return `${prefix}-Bed-${serverNow().toString().slice(-4)}`;
 }
 
 /**
@@ -211,8 +212,8 @@ export function executeAutoBedAssignment(
     vitalsSummary,
     triageLevel: handover?.triage_level || 'yellow',
     isFallback,
-    logId: `bhl-${Date.now()}`,
-    admittedAt: new Date().toISOString(),
+    logId: `bhl-${serverNow()}`,
+    admittedAt: serverIso(),
     handover
   };
 }

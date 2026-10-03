@@ -14,6 +14,7 @@ import {
   Check
 } from 'lucide-react';
 import { PatientHandoverModal } from '@/components/handover/PatientHandoverModal';
+import { serverNow } from '@/lib/utils/serverClock';
 
 export interface IncomingAmbulanceItem {
   reservation: Reservation;
@@ -44,7 +45,7 @@ export function AmbulanceArrivalCountdown({
   onAcceptReservation
 }: AmbulanceArrivalCountdownProps) {
   const [selectedHandover, setSelectedHandover] = useState<PatientHandoverRecord | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
   const [confirmLostId, setConfirmLostId] = useState<string | null>(null);
 
   // Tick every second for live countdown only when ambulances are en-route
@@ -54,7 +55,7 @@ export function AmbulanceArrivalCountdown({
   useEffect(() => {
     if (!hasIncoming) return;
     const timer = setInterval(() => {
-      setNow(Date.now());
+      setNow(serverNow());
     }, 1000);
     return () => clearInterval(timer);
   }, [hasIncoming]);

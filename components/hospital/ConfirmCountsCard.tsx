@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BellRing, CheckCircle2 } from 'lucide-react';
 import { FreshnessIndicator } from '@/components/dispatch/FreshnessIndicator';
 import { playEmergencyAlertSound, triggerEmergencyNotification } from '@/lib/utils/audioAlert';
+import { serverNow } from '@/lib/utils/serverClock';
 
 interface ConfirmCountsCardProps {
   /** Oldest update time across this hospital's bed types, or null if there are none. */
@@ -26,7 +27,7 @@ export function ConfirmCountsCard({ oldestUpdatedAt, onConfirm }: ConfirmCountsC
   const remindedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    const tick = () => setNow(Date.now());
+    const tick = () => setNow(serverNow());
     const first = window.setTimeout(tick, 0);
     const timer = window.setInterval(tick, 30_000);
     return () => {

@@ -5,6 +5,7 @@ import { ChevronDown, HeartPulse, Send, ShieldCheck } from 'lucide-react';
 import { PatientHandoverRecord, Reservation } from '@/lib/types';
 import { bedLinkStore } from '@/lib/data/store';
 import { caseLabel, createSignedHandoverRecord } from '@/lib/crypto/handoverSha';
+import { serverNow, serverIso } from '@/lib/utils/serverClock';
 
 interface VitalsFormProps {
   reservation: Reservation;
@@ -104,7 +105,7 @@ export function VitalsForm({ reservation, crewName, className = '' }: VitalsForm
     setError(null);
     try {
       const record = await createSignedHandoverRecord({
-        id: `ho-${reservation.id.slice(0, 8)}-${Date.now()}`,
+        id: `ho-${reservation.id.slice(0, 8)}-${serverNow()}`,
         reservation_id: reservation.id,
         patient_id: `CASE-${reservation.id.slice(0, 8).toUpperCase()}`,
         patient_name: caseLabel(reservation.id),
@@ -125,7 +126,7 @@ export function VitalsForm({ reservation, crewName, className = '' }: VitalsForm
         paramedic_badge_id: crewName || 'Ambulance crew',
         ambulance_vehicle_id: form.vehicle.trim().toUpperCase() || 'AMBULANCE',
         destination_hospital_id: reservation.hospital_id,
-        timestamp: new Date().toISOString()
+        timestamp: serverIso()
       });
       bedLinkStore.sendPatientHandover(record);
       setOpen(false);

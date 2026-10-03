@@ -7,6 +7,7 @@ import {
   Urgency
 } from '../types';
 import { calculateHaversineDistanceKm, calculateEmergencyETA } from '../routing';
+import { serverNow, serverIso } from '../utils/serverClock';
 
 export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
   bedMatch: 0.40,
@@ -37,7 +38,7 @@ export interface RankingOptions {
  */
 export function calculateFreshnessScore(updatedAtIso: string): { score: number; minutesAgo: number } {
   const updatedTime = new Date(updatedAtIso).getTime();
-  const now = Date.now();
+  const now = serverNow();
   const minutesAgo = Math.max(0, Math.floor((now - updatedTime) / (1000 * 60)));
 
   let score: number;
@@ -112,7 +113,7 @@ export function likelyFreeFor(
 ): number {
   const inv = scored.inventory[bedType];
   if (!inv) return 0;
-  const ageMinutes = (Date.now() - Date.parse(inv.updated_at)) / 60000;
+  const ageMinutes = (serverNow() - Date.parse(inv.updated_at)) / 60000;
   return likelyFreeOnArrival(inv.available_beds, ageMinutes, scored.etaMinutes, {
     loadPercent: scored.hospital?.current_load,
     recentHolds
@@ -192,7 +193,7 @@ function scoreCandidate(
 
   const travelScore = calculateTravelScore(etaMinutes);
   const mostRecentUpdate =
-    requestedBedInventory?.updated_at || hospital.load_updated_at || hospital.created_at || new Date().toISOString();
+    requestedBedInventory?.updated_at || hospital.load_updated_at || hospital.created_at || serverIso();
   const { score: freshnessScore } = calculateFreshnessScore(mostRecentUpdate);
   // A hospital that says it is busy counts as more loaded
   const loadScore = Number(

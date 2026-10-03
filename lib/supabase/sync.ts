@@ -2,6 +2,7 @@ import { getBrowserSupabaseClient, isSupabaseConfigured } from './client';
 import { bedLinkStore } from '../data/store';
 import { BedHistoryLog, BedInventory, BedType, EdStatus, Hospital, HospitalCapability, PatientHandoverRecord, QuickMessage, Reservation, ReservationEvent } from '../types';
 import { isUUID, ensureUUID, generateUUID } from '../crypto/uuid';
+import { serverDate, serverIso } from '../utils/serverClock';
 
 let initPromise: Promise<boolean> | null = null;
 let syncInitialized = false;
@@ -135,7 +136,7 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         longitude: Number(h.longitude),
         emergency_capacity: Number(h.emergency_capacity),
         current_load: Number(h.current_load),
-        load_updated_at: h.load_updated_at || new Date().toISOString(),
+        load_updated_at: h.load_updated_at || serverIso(),
         is_active: h.is_active ?? true,
         phone: h.phone || undefined,
         created_at: h.created_at,
@@ -219,12 +220,12 @@ async function runSupabaseSyncInit(): Promise<boolean> {
       });
 
       isConnected = true;
-      lastSyncTime = new Date().toLocaleTimeString();
+      lastSyncTime = serverDate().toLocaleTimeString();
       notifyConnectionChange();
     } else {
       // Tables might be empty or schema not yet seeded; mark connected
       isConnected = true;
-      lastSyncTime = new Date().toLocaleTimeString();
+      lastSyncTime = serverDate().toLocaleTimeString();
       notifyConnectionChange();
     }
 
@@ -249,11 +250,11 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               bed_type: row.bed_type as BedType,
               total_beds: Number(row.total_beds || 0),
               available_beds: Number(row.available_beds || 0),
-              updated_at: String(row.updated_at || new Date().toISOString()),
+              updated_at: String(row.updated_at || serverIso()),
               updated_by: row.updated_by ? String(row.updated_by) : undefined,
               updated_by_name: row.updated_by_name ? String(row.updated_by_name) : null
             });
-            lastSyncTime = new Date().toLocaleTimeString();
+            lastSyncTime = serverDate().toLocaleTimeString();
             notifyConnectionChange();
           }
         }
@@ -264,14 +265,14 @@ async function runSupabaseSyncInit(): Promise<boolean> {
         (payload) => {
           if (payload.new && typeof payload.new === 'object') {
             const row = payload.new as Record<string, unknown>;
-            const changed = bedLinkStore.applyExternalReservation({
+            bedLinkStore.applyExternalReservation({
               id: String(row.id || ''),
               request_id: String(row.request_id || ''),
               hospital_id: String(row.hospital_id || ''),
               bed_type: row.bed_type as BedType,
               status: String(row.status || 'pending') as Reservation['status'],
-              requested_at: String(row.requested_at || new Date().toISOString()),
-              expires_at: String(row.expires_at || new Date().toISOString()),
+              requested_at: String(row.requested_at || serverIso()),
+              expires_at: String(row.expires_at || serverIso()),
               responded_at: row.responded_at ? String(row.responded_at) : undefined,
               accepted_by: row.accepted_by ? String(row.accepted_by) : undefined,
               rejection_reason: row.rejection_reason ? String(row.rejection_reason) : undefined,
@@ -307,11 +308,11 @@ async function runSupabaseSyncInit(): Promise<boolean> {
             bedLinkStore.applyExternalHospitalUpdate({
               id: String(row.id),
               current_load: Number(row.current_load),
-              load_updated_at: String(row.load_updated_at || new Date().toISOString()),
+              load_updated_at: String(row.load_updated_at || serverIso()),
               ed_status: row.ed_status ? (String(row.ed_status) as EdStatus) : undefined,
               reliability: typeof row.reliability === 'number' ? row.reliability : undefined
             });
-            lastSyncTime = new Date().toLocaleTimeString();
+            lastSyncTime = serverDate().toLocaleTimeString();
             notifyConnectionChange();
           }
         }
@@ -330,13 +331,13 @@ async function runSupabaseSyncInit(): Promise<boolean> {
               patient_id: row.patient_id ? String(row.patient_id) : undefined,
               patient_name: row.patient_name ? String(row.patient_name) : undefined,
               diagnosis: row.diagnosis ? String(row.diagnosis) : undefined,
-              admitted_at: String(row.admitted_at || new Date().toISOString()),
+              admitted_at: String(row.admitted_at || serverIso()),
               discharged_at: row.discharged_at ? String(row.discharged_at) : undefined,
               status: (row.status as BedHistoryLog['status']) || 'occupied',
               handover_sha256: row.handover_sha256 ? String(row.handover_sha256) : undefined,
               actor_name: String(row.actor_name || 'Staff Nurse'),
             });
-            lastSyncTime = new Date().toLocaleTimeString();
+            lastSyncTime = serverDate().toLocaleTimeString();
             notifyConnectionChange();
           }
         }
@@ -385,7 +386,7 @@ export async function persistBedUpdate(hospitalId: string, bedType: BedType, new
     const safeHospId = ensureUUID(hospitalId);
     const updatePayload: Record<string, unknown> = {
       available_beds: newAvailable,
-      updated_at: new Date().toISOString(),
+      updated_at: serverIso(),
       updated_by: isUUID(actorId) ? actorId : null
     };
     if (inv?.total_beds !== undefined) {
@@ -486,7 +487,7 @@ export async function persistReservationHold(reservation: Reservation, actorId?:
         .from('bed_inventory')
         .update({
           available_beds: currentBeds.available_beds,
-          updated_at: new Date().toISOString(),
+          updated_at: serverIso(),
           updated_by: isUUID(actorId) ? actorId : null
         })
         .eq('hospital_id', safeHospitalId)
@@ -541,7 +542,7 @@ export async function persistReservationResponse(
       .from('reservations')
       .update({
         status,
-        responded_at: new Date().toISOString(),
+        responded_at: serverIso(),
         accepted_by: action === 'accept' && isUUID(actorId) ? actorId : null,
         rejection_reason: action === 'reject' ? (rejectionReason || null) : null
       })
@@ -562,7 +563,7 @@ export async function persistReservationResponse(
             .from('bed_inventory')
             .update({
               available_beds: currentBeds.available_beds,
-              updated_at: new Date().toISOString(),
+              updated_at: serverIso(),
               updated_by: isUUID(actorId) ? actorId : null
             })
             .eq('hospital_id', safeHospId)
@@ -611,7 +612,7 @@ export async function persistReservationExpired(reservationId: string, hospitalI
       .from('reservations')
       .update({
         status: 'expired',
-        responded_at: new Date().toISOString()
+        responded_at: serverIso()
       })
       .eq('id', safeResId);
 
@@ -622,7 +623,7 @@ export async function persistReservationExpired(reservationId: string, hospitalI
         .from('bed_inventory')
         .update({
           available_beds: currentBeds.available_beds,
-          updated_at: new Date().toISOString(),
+          updated_at: serverIso(),
           updated_by: null
         })
         .eq('hospital_id', safeHospId)
@@ -644,7 +645,7 @@ function messageFromEventRow(row: Record<string, unknown> | null | undefined): Q
     from: meta.from === 'hospital' ? 'hospital' : 'crew',
     text: meta.text,
     author: typeof meta.author === 'string' ? meta.author : '',
-    created_at: String(row.created_at ?? new Date().toISOString())
+    created_at: String(row.created_at ?? serverIso())
   };
 }
 
@@ -851,7 +852,7 @@ export async function resetDemoInDatabase(): Promise<string | null> {
   const supabase = getBrowserSupabaseClient();
   if (!supabase) return null;
 
-  const now = new Date().toISOString();
+  const now = serverIso();
   const { error: resErr } = await supabase
     .from('reservations')
     .update({ status: 'cancelled', responded_at: now })
@@ -960,7 +961,7 @@ export async function persistBedInventoryUpsert(inv: {
       bed_type: inv.bed_type,
       total_beds: inv.total_beds,
       available_beds: inv.available_beds,
-      updated_at: new Date().toISOString(),
+      updated_at: serverIso(),
       updated_by: isUUID(inv.updated_by) ? inv.updated_by : null,
     };
     if (inv.id && isUUID(inv.id)) {

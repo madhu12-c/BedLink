@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Timer, AlertTriangle } from 'lucide-react';
 import { useHydrated } from '@/lib/utils/useHydrated';
+import { serverNow } from '@/lib/utils/serverClock';
 
 interface ReservationTimerProps {
   expiresAt: string;
@@ -22,7 +23,7 @@ export function ReservationTimer({
 
   useEffect(() => {
     const calculate = () => {
-      const diff = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
+      const diff = Math.floor((new Date(expiresAt).getTime() - serverNow()) / 1000);
       const remaining = Math.max(0, diff);
       setSecondsRemaining(remaining);
       if (remaining === 0 && onExpire) {

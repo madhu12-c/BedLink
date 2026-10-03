@@ -27,6 +27,7 @@ import { INITIAL_BED_HISTORY_LOGS } from '../demo/bed-history-data';
 import { caseLabel, generateDefaultHandover } from '../crypto/handoverSha';
 import { generateUUID, ensureUUID } from '../crypto/uuid';
 import { rankHospitals } from '../dispatch/ranking';
+import { serverNow, serverIso } from '../utils/serverClock';
 
 export type SyncHandler = {
   onBedUpdate?: (hospitalId: string, bedType: BedType, newAvailable: number, actorId?: string) => void;
@@ -160,7 +161,7 @@ class BedLinkDataStore {
       const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
       if (total > 0) {
         hosp.current_load = Math.round(((total - avail) / total) * 100);
-        hosp.load_updated_at = new Date().toISOString();
+        hosp.load_updated_at = serverIso();
       }
     }
     this.broadcast('bed_updated', {
@@ -285,7 +286,7 @@ class BedLinkDataStore {
       Object.assign(existing, request);
       return existing;
     }
-    const created: EmergencyRequest = { ...request, status: 'active', created_at: new Date().toISOString() };
+    const created: EmergencyRequest = { ...request, status: 'active', created_at: serverIso() };
     this.emergencyRequests.unshift(created);
     return created;
   }
@@ -365,7 +366,7 @@ class BedLinkDataStore {
       from,
       text: clean,
       author,
-      created_at: new Date().toISOString()
+      created_at: serverIso()
     };
     this.messages.push(message);
     this.broadcast('reservation_message', { message });
@@ -400,7 +401,7 @@ class BedLinkDataStore {
   }
 
   private rebaseSeedTimes() {
-    const offset = Date.now() - SEED_REFERENCE_MS;
+    const offset = serverNow() - SEED_REFERENCE_MS;
     const shift = (iso: string) => new Date(Date.parse(iso) + offset).toISOString();
     for (const h of this.hospitals) {
       h.load_updated_at = shift(h.load_updated_at);
@@ -549,7 +550,7 @@ class BedLinkDataStore {
     const newCount = Math.max(0, Math.min(inv.total_beds, inv.available_beds + delta));
     const appliedDelta = newCount - inv.available_beds;
     inv.available_beds = newCount;
-    inv.updated_at = new Date().toISOString();
+    inv.updated_at = serverIso();
     inv.updated_by = actorId;
     inv.updated_by_name = actorName;
 
@@ -561,7 +562,7 @@ class BedLinkDataStore {
       const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
       if (total > 0) {
         hosp.current_load = Math.round(((total - avail) / total) * 100);
-        hosp.load_updated_at = new Date().toISOString();
+        hosp.load_updated_at = serverIso();
       }
     }
 
@@ -584,7 +585,7 @@ class BedLinkDataStore {
     if (beds.length === 0) {
       throw new Error('No bed counts found for this hospital.');
     }
-    const confirmedAt = new Date().toISOString();
+    const confirmedAt = serverIso();
     for (const inv of beds) {
       inv.updated_at = confirmedAt;
       inv.updated_by = actorId;
@@ -632,7 +633,7 @@ class BedLinkDataStore {
     } else {
       inv.available_beds = Math.max(0, Math.min(newTotal - 1, inv.available_beds - 1));
     }
-    inv.updated_at = new Date().toISOString();
+    inv.updated_at = serverIso();
     inv.updated_by = actorId;
 
     // Recalculate hospital load
@@ -643,7 +644,7 @@ class BedLinkDataStore {
       const avail = hospBeds.reduce((acc, curr) => acc + curr.available_beds, 0);
       if (total > 0) {
         hosp.current_load = Math.round(((total - avail) / total) * 100);
-        hosp.load_updated_at = new Date().toISOString();
+        hosp.load_updated_at = serverIso();
       }
     }
 
@@ -664,7 +665,7 @@ class BedLinkDataStore {
       ...requestData,
       id: generateUUID(),
       status: 'active',
-      created_at: new Date().toISOString()
+      created_at: serverIso()
     };
     this.emergencyRequests.unshift(newReq);
     this.broadcast('request_created', newReq);
@@ -713,7 +714,7 @@ class BedLinkDataStore {
           hospital_id: hospitalId,
           bed_type: bedType
         },
-        created_at: new Date().toISOString()
+        created_at: serverIso()
       };
       this.reservationEvents.unshift(blockedEvent);
       this.broadcast('race_condition_blocked', {
@@ -731,7 +732,7 @@ class BedLinkDataStore {
     this.bedHoldLocks.set(lockKey, {
       hospitalId,
       bedType,
-      lockedAt: Date.now(),
+      lockedAt: serverNow(),
       lockedByRequestId: safeRequestId
     });
 
@@ -763,12 +764,12 @@ class BedLinkDataStore {
 
       // 2. Atomically decrement
       inv.available_beds -= 1;
-      inv.updated_at = new Date().toISOString();
+      inv.updated_at = serverIso();
       inv.updated_by = actorId;
 
       // 3. Create reservation (shadow or primary)
       const reservationId = generateUUID();
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      const expiresAt = new Date(serverNow() + 2 * 60 * 1000).toISOString();
 
       const reservation: Reservation = {
         id: reservationId,
@@ -776,7 +777,7 @@ class BedLinkDataStore {
         hospital_id: hospitalId,
         bed_type: bedType,
         status: options?.isShadow ? 'shadow' : 'pending',
-        requested_at: new Date().toISOString(),
+        requested_at: serverIso(),
         expires_at: expiresAt,
         hospital_name: this.getHospital(hospitalId)?.name,
         patient_urgency: options?.urgency,
@@ -799,7 +800,7 @@ class BedLinkDataStore {
           requestId: safeRequestId,
           is_shadow: options?.isShadow ?? false
         },
-        created_at: new Date().toISOString()
+        created_at: serverIso()
       };
       this.reservationEvents.unshift(event);
 
@@ -818,13 +819,13 @@ class BedLinkDataStore {
             reservationId,
             hospitalId,
             distanceKm: options.distanceKm,
-            heldAt: Date.now()
+            heldAt: serverNow()
           });
         } else {
           this.carrierHolds.set(carrierKey, {
             carrierId: options.carrierId,
             requestId,
-            holds: [{ reservationId, hospitalId, distanceKm: options.distanceKm, heldAt: Date.now() }]
+            holds: [{ reservationId, hospitalId, distanceKm: options.distanceKm, heldAt: serverNow() }]
           });
         }
       }
@@ -855,7 +856,7 @@ class BedLinkDataStore {
     if (reservation.status !== 'pending') {
       throw new Error(`Only a hold that is still waiting can be cancelled (now: ${reservation.status}).`);
     }
-    const now = new Date().toISOString();
+    const now = serverIso();
     reservation.status = 'cancelled';
     reservation.responded_at = now;
 
@@ -905,7 +906,7 @@ class BedLinkDataStore {
     const reservation = this.reservations.find((r) => r.id === reservationId);
     if (!reservation || reservation.status !== 'pending') return;
     reservation.status = 'cancelled';
-    reservation.responded_at = new Date().toISOString();
+    reservation.responded_at = serverIso();
     reservation.rejection_reason = reason;
     const inv = this.bedInventories.find(
       (b) => b.hospital_id === reservation.hospital_id && b.bed_type === reservation.bed_type
@@ -925,7 +926,7 @@ class BedLinkDataStore {
     if (reservation.status !== 'accepted' && reservation.status !== 'pending') {
       throw new Error(`This request is already ${reservation.status}.`);
     }
-    const now = new Date().toISOString();
+    const now = serverIso();
     reservation.status = 'bed_lost';
     reservation.responded_at = now;
     const event: ReservationEvent = {
@@ -965,14 +966,14 @@ class BedLinkDataStore {
     }
 
     // Backend authoritative expiration check
-    if (Date.now() > new Date(reservation.expires_at).getTime()) {
+    if (serverNow() > new Date(reservation.expires_at).getTime()) {
       this.expireReservationInternal(reservation, 'Response attempted after 2-minute deadline');
       throw new Error('Reservation deadline expired (2 minutes exceeded)');
     }
 
     if (action === 'accept') {
       reservation.status = 'accepted';
-      reservation.responded_at = new Date().toISOString();
+      reservation.responded_at = serverIso();
       reservation.accepted_by = actorId;
 
       const req = this.emergencyRequests.find((r) => r.id === reservation.request_id);
@@ -990,7 +991,7 @@ class BedLinkDataStore {
           accepted_at: reservation.responded_at,
           hospital_id: reservation.hospital_id
         },
-        created_at: new Date().toISOString()
+        created_at: serverIso()
       };
       this.reservationEvents.unshift(event);
 
@@ -1003,7 +1004,7 @@ class BedLinkDataStore {
     } else {
       // Reject: restore held bed back into available inventory!
       reservation.status = 'rejected';
-      reservation.responded_at = new Date().toISOString();
+      reservation.responded_at = serverIso();
       reservation.rejection_reason = rejectionReason || 'Capacity temporarily constrained';
 
       const inv = this.bedInventories.find(
@@ -1011,7 +1012,7 @@ class BedLinkDataStore {
       );
       if (inv) {
         inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
-        inv.updated_at = new Date().toISOString();
+        inv.updated_at = serverIso();
       }
 
       const event: ReservationEvent = {
@@ -1024,7 +1025,7 @@ class BedLinkDataStore {
           reason: reservation.rejection_reason,
           hospital_id: reservation.hospital_id
         },
-        created_at: new Date().toISOString()
+        created_at: serverIso()
       };
       this.reservationEvents.unshift(event);
 
@@ -1065,7 +1066,7 @@ class BedLinkDataStore {
     const res = this.reservations.find((r) => r.id === reservationId);
     if (res) {
       res.status = status;
-      res.responded_at = new Date().toISOString();
+      res.responded_at = serverIso();
       if (status === 'accepted' || status === 'completed') {
         res.accepted_by = actorId;
       }
@@ -1080,7 +1081,7 @@ class BedLinkDataStore {
         actor_id: actorId,
         actor_name: actorName,
         metadata: { status, hospital_id: res.hospital_id },
-        created_at: new Date().toISOString()
+        created_at: serverIso()
       };
       this.reservationEvents.unshift(event);
       this.broadcast('reservation_updated', { reservation: res, event });
@@ -1093,7 +1094,7 @@ class BedLinkDataStore {
    * Authoritative backend timeout check (Step 19)
    */
   public checkAndExpirePendingReservations() {
-    const now = Date.now();
+    const now = serverNow();
     for (const reservation of this.reservations) {
       if (reservation.status === 'pending') {
         const expiresTime = new Date(reservation.expires_at).getTime();
@@ -1110,7 +1111,7 @@ class BedLinkDataStore {
 
   private releaseReservation(reservation: Reservation) {
     reservation.status = 'released';
-    reservation.responded_at = new Date().toISOString();
+    reservation.responded_at = serverIso();
     const inv = this.bedInventories.find(
       (b) => b.hospital_id === reservation.hospital_id && b.bed_type === reservation.bed_type
     );
@@ -1139,7 +1140,7 @@ class BedLinkDataStore {
 
   private expireReservationInternal(reservation: Reservation, reason: string) {
     reservation.status = 'expired';
-    reservation.responded_at = new Date().toISOString();
+    reservation.responded_at = serverIso();
 
     // Reclaim bed
     const inv = this.bedInventories.find(
@@ -1147,7 +1148,7 @@ class BedLinkDataStore {
     );
     if (inv) {
       inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
-      inv.updated_at = new Date().toISOString();
+      inv.updated_at = serverIso();
     }
 
     const event: ReservationEvent = {
@@ -1157,7 +1158,7 @@ class BedLinkDataStore {
       actor_id: 'system',
       actor_name: 'Automated Timeout Monitor',
       metadata: { reason, hospital_id: reservation.hospital_id },
-      created_at: new Date().toISOString()
+      created_at: serverIso()
     };
     this.reservationEvents.unshift(event);
 
@@ -1182,7 +1183,7 @@ class BedLinkDataStore {
   public expireNowForDemo(reservationId: string) {
     const reservation = this.reservations.find((r) => r.id === reservationId && r.status === 'pending');
     if (!reservation) return;
-    reservation.expires_at = new Date(Date.now() - 1000).toISOString();
+    reservation.expires_at = new Date(serverNow() - 1000).toISOString();
     this.expireReservationInternal(reservation, 'Demo: skipped ahead to the 2-minute timeout');
   }
 
@@ -1259,7 +1260,7 @@ class BedLinkDataStore {
           { urgency: request.urgency, etaMinutes: primary.etaMinutes }
         );
         const fallbackEvent: ReservationEvent = {
-          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${Date.now()}`,
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `evt-${serverNow()}`,
           reservation_id: nextRes.id,
           event_type: 'fallback_triggered',
           actor_id: 'system',
@@ -1270,7 +1271,7 @@ class BedLinkDataStore {
             hospital_name: primary.hospital.name,
             reason: 'Previous hospital rejected or timed out'
           },
-          created_at: new Date().toISOString()
+          created_at: serverIso()
         };
         this.reservationEvents.unshift(fallbackEvent);
         this.broadcast('fallback_triggered', {
@@ -1305,7 +1306,7 @@ class BedLinkDataStore {
 
     shadowRes.status = 'pending';
     // The hospital gets a full 2 minutes from now, not what was left of the pre-hold
-    shadowRes.expires_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+    shadowRes.expires_at = new Date(serverNow() + 2 * 60 * 1000).toISOString();
     const event: ReservationEvent = {
       id: generateUUID(),
       reservation_id: shadowRes.id,
@@ -1317,7 +1318,7 @@ class BedLinkDataStore {
         activated_hospital_id: shadowRes.hospital_id,
         request_id: requestId
       },
-      created_at: new Date().toISOString()
+      created_at: serverIso()
     };
     this.reservationEvents.unshift(event);
     this.broadcast('reservation_created', { reservation: shadowRes, event });
@@ -1342,7 +1343,7 @@ class BedLinkDataStore {
 
     for (const shadow of shadows) {
       shadow.status = 'auto_released';
-      shadow.responded_at = new Date().toISOString();
+      shadow.responded_at = serverIso();
 
       // Restore the pre-held bed back to available
       const inv = this.bedInventories.find(
@@ -1350,7 +1351,7 @@ class BedLinkDataStore {
       );
       if (inv) {
         inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
-        inv.updated_at = new Date().toISOString();
+        inv.updated_at = serverIso();
       }
 
       const event: ReservationEvent = {
@@ -1364,7 +1365,7 @@ class BedLinkDataStore {
           because_accepted_hospital_id: acceptedHospitalId,
           request_id: requestId
         },
-        created_at: new Date().toISOString()
+        created_at: serverIso()
       };
       this.reservationEvents.unshift(event);
 
@@ -1405,7 +1406,7 @@ class BedLinkDataStore {
     // Find the farthest among all existing + new
     const allHolds = [
       ...existing.holds,
-      { reservationId: '__incoming__', hospitalId: newHospitalId, distanceKm: newDistanceKm, heldAt: Date.now() }
+      { reservationId: '__incoming__', hospitalId: newHospitalId, distanceKm: newDistanceKm, heldAt: serverNow() }
     ];
     const farthest = allHolds.reduce((a, b) => (a.distanceKm >= b.distanceKm ? a : b));
 
@@ -1416,7 +1417,7 @@ class BedLinkDataStore {
       );
       if (resToRelease) {
         resToRelease.status = 'auto_released';
-        resToRelease.responded_at = new Date().toISOString();
+        resToRelease.responded_at = serverIso();
         resToRelease.rejection_reason = `[EC-3] Auto-released: carrier selected closer hospital (${newHospitalId})`;
 
         const inv = this.bedInventories.find(
@@ -1424,11 +1425,11 @@ class BedLinkDataStore {
         );
         if (inv) {
           inv.available_beds = Math.min(inv.total_beds, inv.available_beds + 1);
-          inv.updated_at = new Date().toISOString();
+          inv.updated_at = serverIso();
         }
 
         const event: ReservationEvent = {
-          id: `evt-${Date.now()}-ec3`,
+          id: `evt-${serverNow()}-ec3`,
           reservation_id: farthest.reservationId,
           event_type: 'auto_released_distant',
           actor_id: 'system',
@@ -1441,7 +1442,7 @@ class BedLinkDataStore {
             kept_distance_km: newDistanceKm,
             request_id: requestId
           },
-          created_at: new Date().toISOString()
+          created_at: serverIso()
         };
         this.reservationEvents.unshift(event);
 
@@ -1617,7 +1618,7 @@ class BedLinkDataStore {
     if (inventory) {
       inventory.total_beds += totalToAdd;
       inventory.available_beds += availableToAdd;
-      inventory.updated_at = new Date().toISOString();
+      inventory.updated_at = serverIso();
       inventory.updated_by = actorName;
     } else {
       inventory = {
@@ -1626,7 +1627,7 @@ class BedLinkDataStore {
         bed_type: bedType,
         total_beds: totalToAdd,
         available_beds: availableToAdd,
-        updated_at: new Date().toISOString(),
+        updated_at: serverIso(),
         updated_by: actorName
       };
       this.bedInventories.push(inventory);
@@ -1652,7 +1653,7 @@ class BedLinkDataStore {
         new_total: inventory.total_beds,
         new_available: inventory.available_beds
       },
-      created_at: new Date().toISOString()
+      created_at: serverIso()
     };
     this.reservationEvents.unshift(event);
 
@@ -1668,7 +1669,7 @@ class BedLinkDataStore {
 
   /** Holds made at a hospital for one bed type in the last `minutes`: how busy it is right now. */
   public recentHoldCount(hospitalId: string, bedType: BedType, minutes = 60): number {
-    const since = Date.now() - minutes * 60_000;
+    const since = serverNow() - minutes * 60_000;
     return this.reservations.filter(
       (r) =>
         r.hospital_id === hospitalId &&

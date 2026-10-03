@@ -40,6 +40,7 @@ import {
   MessageSquare,
   X
 } from 'lucide-react';
+import { serverNow } from '@/lib/utils/serverClock';
 
 type MobileTab = 'intake' | 'hospitals' | 'map';
 
@@ -161,7 +162,7 @@ export default function DispatcherPage() {
   const announceMissedConfirmation = useEffectEvent(() => {
     const reservation = latestReservationFor(currentRequestId);
     if (reservation?.status !== 'accepted' || !reservation.responded_at) return;
-    if (Date.now() - Date.parse(reservation.responded_at) > 2 * 60_000) return;
+    if (serverNow() - Date.parse(reservation.responded_at) > 2 * 60_000) return;
     announceReservation('accepted', reservation);
   });
   useEffect(() => {
