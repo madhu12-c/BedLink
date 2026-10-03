@@ -1,0 +1,9 @@
+{
+  "name": "bedlink-button-test",
+  "private": true,
+  "type": "module",
+  "description": "Clicks every BedLink button in Chrome and reports bugs (see SKILL.md)",
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
