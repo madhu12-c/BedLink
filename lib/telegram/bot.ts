@@ -81,19 +81,21 @@ function displayName(user?: TgUser): string {
   return name || 'Telegram user';
 }
 
+/** "an ICU bed", "a Cardiac bed" */
+function aBed(label: string): string {
+  return `${/^[AEIOU]/i.test(label) ? 'an' : 'a'} ${label} bed`;
+}
+
 function timeNow(): string {
   return new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' });
 }
 
 // ── Database ──
 
-async function getLink(chatId: number): Promise<ChatLink | null> {
-  const { data } = await db()
-    .from('telegram_links')
-    .select('chat_id, hospital_id, role')
-    .eq('chat_id', chatId)
-    .maybeSingle();
-  return (data as ChatLink | null) ?? null;
+/** The hospital roles this chat holds (one nurse and one coordinator link at most), nurse first. */
+async function getLinks(chatId: number): Promise<ChatLink[]> {
+  const { data } = await db().from('telegram_links').select('chat_id, hospital_id, role').eq('chat_id', chatId);
+  return ((data ?? []) as ChatLink[]).sort((a, b) => Number(b.role === 'nurse') - Number(a.role === 'nurse'));
 }
 
 async function hospitalName(hospitalId: string): Promise<string> {
@@ -231,11 +233,12 @@ const HELP = [
   `• Send free-bed numbers any time, e.g. ${EXAMPLE}`,
   '• Or send a voice note: "ICU mein do bed khaali hain"',
   '• Reply <b>1</b> if nothing changed',
-  '• /status shows your hospital\'s counts',
+  '• /status shows what this chat is connected as, and the bed counts',
   '• /stop disconnects this chat',
   '',
   'Coordinators also get ambulance requests here with Accept / Reject buttons.',
-  'Ambulance crews get updates on the beds they hold (connect from the dispatch screen).'
+  'Ambulance crews get updates on the beds they hold (connect from the dispatch screen).',
+  'Roles add up: open another Connect link and this chat keeps the roles it has.'
 ].join('\n');
 
 const CREW_CONNECTED = [
@@ -257,6 +260,23 @@ async function isCrewChat(chatId: number): Promise<boolean> {
   return Boolean(data);
 }
 
+/** "This chat is: • Nurse at … • Ambulance crew", or '' when it has no roles. */
+async function rolesText(chatId: number, links: ChatLink[]): Promise<string> {
+  const lines: string[] = [];
+  for (const link of links) {
+    lines.push(`• ${link.role === 'nurse' ? 'Nurse' : 'Coordinator'} at <b>${esc(await hospitalName(link.hospital_id))}</b>`);
+  }
+  if (await isCrewChat(chatId)) lines.push('• Ambulance crew (updates on your holds)');
+  return lines.length ? `<b>This chat is</b>\n${lines.join('\n')}` : '';
+}
+
+/** After a new link: the role's intro, plus every role the chat now has when there is more than one. */
+async function sendConnected(chatId: number, intro: string) {
+  const links = await getLinks(chatId);
+  const roles = links.length + Number(await isCrewChat(chatId));
+  await sendMessage(chatId, roles > 1 ? `${intro}\n\n${await rolesText(chatId, links)}` : intro);
+}
+
 /** /stop: this chat gets nothing more, as staff or as crew. */
 async function unlinkChat(chatId: number) {
   const supabase = db();
@@ -275,7 +295,18 @@ async function linkCrew(chatId: number, who: string, userId: string) {
     await sendMessage(chatId, 'Could not connect right now (has the Telegram crew SQL been run on Supabase?). Please try again.');
     return;
   }
-  await sendMessage(chatId, CREW_CONNECTED);
+  await sendConnected(chatId, CREW_CONNECTED);
+}
+
+/** Adds (or moves) this chat's nurse / coordinator role; other roles stay. */
+async function linkStaff(chatId: number, who: string, hospitalId: string, role: LinkRole) {
+  const row = { chat_id: chatId, hospital_id: hospitalId, role, display_name: who, linked_at: new Date().toISOString() };
+  let { error } = await db().from('telegram_links').upsert(row, { onConflict: 'chat_id,role' });
+  if (error?.code === '42P10') {
+    // The roles-add-up SQL isn't run yet: one role per chat, so this one replaces the other
+    ({ error } = await db().from('telegram_links').upsert(row, { onConflict: 'chat_id' }));
+  }
+  return error;
 }
 
 async function handleStart(chatId: number, who: string, code: string) {
@@ -292,10 +323,7 @@ async function handleStart(chatId: number, who: string, code: string) {
     await linkCrew(chatId, who, target.userId);
     return;
   }
-  const { error } = await db().from('telegram_links').upsert(
-    { chat_id: chatId, hospital_id: target.hospitalId, role: target.role, display_name: who, linked_at: new Date().toISOString() },
-    { onConflict: 'chat_id' }
-  );
+  const error = await linkStaff(chatId, who, target.hospitalId, target.role);
   if (error) {
     console.warn('[telegram] link failed:', error.message);
     await sendMessage(chatId, 'Could not connect right now (has the Telegram SQL been run on Supabase?). Please try again.');
@@ -307,7 +335,7 @@ async function handleStart(chatId: number, who: string, code: string) {
     target.role === 'coordinator'
       ? `✅ Connected as <b>coordinator</b> of <b>${name}</b>.\n\nAmbulance requests will arrive here with Accept / Reject buttons. You have 2 minutes to answer each one.`
       : `✅ Connected as <b>nurse</b> at <b>${name}</b>.\n\nSend free-bed numbers any time (${EXAMPLE}) or a voice note in Hindi, Marathi or English. I'll remind you when the counts are ${STALE_MINUTES}+ minutes old.`;
-  await sendMessage(chatId, `${intro}\n\n<b>Right now</b>\n${countsText(rows)}`);
+  await sendConnected(chatId, `${intro}\n\n<b>Right now</b>\n${countsText(rows)}`);
 }
 
 async function handleVoice(link: ChatLink, who: string, chatId: number, fileId: string, seconds: number) {
@@ -365,23 +393,28 @@ async function handleMessage(message: TgMessage) {
     return;
   }
 
-  const link = await getLink(chatId);
-  if (!link) {
-    if (await isCrewChat(chatId)) {
-      if (text === '/stop') await unlinkChat(chatId);
-      else await sendMessage(chatId, CREW_IDLE);
-      return;
-    }
-    await sendMessage(chatId, 'This chat is not connected yet. Open BedLink → hospital or dispatch screen → <b>Connect Telegram</b>.');
+  const links = await getLinks(chatId);
+  if (text === '/stop') {
+    await unlinkChat(chatId);
     return;
   }
   if (text === '/status') {
-    const name = esc(await hospitalName(link.hospital_id));
-    await sendMessage(chatId, `<b>${name}</b>\n${countsText(await getInventory(link.hospital_id))}`);
+    const parts = [await rolesText(chatId, links)];
+    for (const hospitalId of new Set(links.map((l) => l.hospital_id))) {
+      parts.push(`<b>${esc(await hospitalName(hospitalId))}</b>\n${countsText(await getInventory(hospitalId))}`);
+    }
+    await sendMessage(chatId, parts.filter(Boolean).join('\n\n') || 'This chat is not connected yet.');
     return;
   }
-  if (text === '/stop') {
-    await unlinkChat(chatId);
+  // Bed updates go to the nurse's hospital (else the coordinator's)
+  const link = links[0];
+  if (!link) {
+    await sendMessage(
+      chatId,
+      (await isCrewChat(chatId))
+        ? CREW_IDLE
+        : 'This chat is not connected yet. Open BedLink → hospital or dispatch screen → <b>Connect Telegram</b>.'
+    );
     return;
   }
 
@@ -415,17 +448,21 @@ async function handleButton(query: TgCallbackQuery) {
   const chatId = query.message?.chat.id ?? query.from.id;
   const who = displayName(query.from);
   const [action, id] = (query.data ?? '').split(':');
-  const link = await getLink(chatId);
-  if (!link || !id) {
+  const links = await getLinks(chatId);
+  if (!links.length || !id) {
     await answerCallback(query.id, 'This chat is not connected to a hospital.');
     return;
   }
 
   let result: string;
   if (action === 'ok') {
-    result = id === link.hospital_id ? await confirmCounts(link, who) : 'Not your hospital.';
+    const link = links.find((l) => l.hospital_id === id);
+    result = link ? await confirmCounts(link, who) : 'Not your hospital.';
   } else if (action === 'acc' || action === 'rej') {
-    result = await respondToHold(link, who, id, action === 'acc' ? 'accept' : 'reject');
+    const link = links.find((l) => l.role === 'coordinator');
+    result = link
+      ? await respondToHold(link, who, id, action === 'acc' ? 'accept' : 'reject')
+      : 'Only the hospital coordinator can accept or reject.';
   } else {
     await answerCallback(query.id);
     return;
@@ -465,17 +502,22 @@ export async function notifyNewHold(reservationId: string): Promise<number> {
   const bed = BED_LABELS[hold.bed_type as BedType] ?? hold.bed_type;
   const minutesLeft = Math.max(1, Math.ceil((new Date(hold.expires_at).getTime() - Date.now()) / 60_000));
   const details = [
-    `🚑 <b>Ambulance needs a ${bed} bed</b>`,
+    `🚑 <b>Ambulance needs ${aBed(bed)}</b>`,
     hold.patient_urgency ? `Patient: ${esc(String(hold.patient_urgency))}` : null,
     hold.eta_minutes ? `Arriving in about ${hold.eta_minutes} min` : null
   ]
     .filter(Boolean)
     .join('\n');
 
+  // One message per chat: a chat that is both nurse and coordinator here gets the buttons
+  const byChat = new Map<number, LinkRole>();
   for (const link of links as { chat_id: number; role: LinkRole }[]) {
-    if (link.role === 'coordinator') {
+    if (byChat.get(link.chat_id) !== 'coordinator') byChat.set(link.chat_id, link.role);
+  }
+  for (const [chatId, role] of byChat) {
+    if (role === 'coordinator') {
       await sendMessage(
-        link.chat_id,
+        chatId,
         `${details}\n\nOne bed is held for this patient. Answer within ${minutesLeft} min, or the ambulance goes to the next hospital.`,
         [[
           { text: '✅ Accept', callback_data: `acc:${hold.id}` },
@@ -483,10 +525,10 @@ export async function notifyNewHold(reservationId: string): Promise<number> {
         ]]
       );
     } else {
-      await sendMessage(link.chat_id, `${details}\n\nThe coordinator is deciding. Get the bed ready in case it is accepted.`);
+      await sendMessage(chatId, `${details}\n\nThe coordinator is deciding. Get the bed ready in case it is accepted.`);
     }
   }
-  return links.length;
+  return byChat.size;
 }
 
 /** Reminds nurses whose counts are 30+ minutes old (at most once per 30 minutes each). */
@@ -513,7 +555,11 @@ export async function nudgeStaleHospitals(): Promise<number> {
       `⏰ Bed counts at <b>${name}</b> are ${minutesOld} min old. Still right?\n\n${countsText(rows)}\n\nTap ✅ if nothing changed, or send the new numbers (${EXAMPLE}).`,
       [[{ text: '✅ All still correct', callback_data: `ok:${link.hospital_id}` }]]
     );
-    await supabase.from('telegram_links').update({ last_nudged_at: new Date().toISOString() }).eq('chat_id', link.chat_id);
+    await supabase
+      .from('telegram_links')
+      .update({ last_nudged_at: new Date().toISOString() })
+      .eq('chat_id', link.chat_id)
+      .eq('role', 'nurse');
     sent++;
   }
   return sent;
@@ -595,7 +641,7 @@ async function crewMessage(kind: CrewNotice, hold: HoldRow): Promise<string | nu
     const previous = index > 0 ? asked[index - 1] : null;
     return [
       previous ? await failureLine(previous) : null,
-      `🚑 Asking ${name} for ${/^[AEIOU]/i.test(bed) ? 'an' : 'a'} ${bed} bed${index > 0 ? ` (${ordinal(index + 1)} hospital)` : ''}.`,
+      `🚑 Asking ${name} for ${aBed(bed)}${index > 0 ? ` (${ordinal(index + 1)} hospital)` : ''}.`,
       ['The bed is held while they decide (2 min).', drive].filter(Boolean).join(' ')
     ]
       .filter(Boolean)
