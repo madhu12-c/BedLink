@@ -30,6 +30,7 @@ import { rankHospitals } from '../dispatch/ranking';
 
 export type SyncHandler = {
   onBedUpdate?: (hospitalId: string, bedType: BedType, newAvailable: number, actorId?: string) => void;
+  onBedInventoryUpsert?: (inventory: BedInventory) => void;
   onReservationHold?: (reservation: Reservation, actorId?: string) => void;
   onReservationResponse?: (
     reservationId: string,
@@ -253,7 +254,7 @@ class BedLinkDataStore {
       if (record?.reservation_id) this.patientHandovers.set(record.reservation_id, record);
       return undefined;
     }
-    if (type === 'bed_updated' && data.inv) {
+    if ((type === 'bed_updated' || type === 'bed_inventory_updated') && data.inv) {
       const inv = data.inv;
       const idx = this.bedInventories.findIndex(
         (b) => b.hospital_id === inv.hospital_id && b.bed_type === inv.bed_type
@@ -613,12 +614,16 @@ class BedLinkDataStore {
       throw new Error(`Inventory record not found for hospital ${hospitalId} and bed ${bedType}`);
     }
 
+    if (delta < 0 && inv.available_beds <= 0) {
+      throw new Error('Cannot remove a bed when 0 free beds are available.');
+    }
+
     const newTotal = Math.max(1, inv.total_beds + delta);
     inv.total_beds = newTotal;
     if (delta > 0) {
       inv.available_beds = Math.min(newTotal, inv.available_beds + delta);
     } else {
-      inv.available_beds = Math.min(newTotal, inv.available_beds);
+      inv.available_beds = Math.max(0, Math.min(newTotal - 1, inv.available_beds - 1));
     }
     inv.updated_at = new Date().toISOString();
     inv.updated_by = actorId;
@@ -636,7 +641,11 @@ class BedLinkDataStore {
     }
 
     this.broadcast('bed_updated', { hospitalId, bedType, available_beds: inv.available_beds, total_beds: newTotal, inv, actorName });
-    this.syncHandler?.onBedUpdate?.(hospitalId, bedType, inv.available_beds, actorId);
+    if (this.syncHandler?.onBedInventoryUpsert) {
+      this.syncHandler.onBedInventoryUpsert(inv);
+    } else {
+      this.syncHandler?.onBedUpdate?.(hospitalId, bedType, inv.available_beds, actorId);
+    }
     return { ...inv };
   }
 
@@ -1638,6 +1647,9 @@ class BedLinkDataStore {
       bedType,
       inventory
     });
+    if (this.syncHandler?.onBedInventoryUpsert) {
+      this.syncHandler.onBedInventoryUpsert(inventory);
+    }
   }
 
   /** Holds made at a hospital for one bed type in the last `minutes`: how busy it is right now. */

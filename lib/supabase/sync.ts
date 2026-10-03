@@ -73,6 +73,9 @@ async function runSupabaseSyncInit(): Promise<boolean> {
     onBedUpdate: (hospitalId, bedType, newAvailable, actorId) => {
       persistBedUpdate(hospitalId, bedType, newAvailable, actorId);
     },
+    onBedInventoryUpsert: (inventory) => {
+      persistBedInventoryUpsert(inventory);
+    },
     onReservationHold: (reservation, actorId) => {
       persistReservationHold(reservation, actorId);
     },
@@ -371,19 +374,24 @@ export async function persistBedUpdate(hospitalId: string, bedType: BedType, new
   if (!supabase) return;
 
   try {
-    // updated_by must be a valid UUID referencing profiles(id) — null for non-UUID actor IDs
-    const isValidUUID = actorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actorId);
-    await supabase
+    const inv = bedLinkStore.getBedInventories(hospitalId).find((b) => b.bed_type === bedType);
+    const safeHospId = ensureUUID(hospitalId);
+    const updatePayload: Record<string, unknown> = {
+      available_beds: newAvailable,
+      updated_at: new Date().toISOString(),
+      updated_by: isUUID(actorId) ? actorId : null
+    };
+    if (inv?.total_beds !== undefined) {
+      updatePayload.total_beds = inv.total_beds;
+    }
+    const { error } = await supabase
       .from('bed_inventory')
-      .update({
-        available_beds: newAvailable,
-        updated_at: new Date().toISOString(),
-        updated_by: isValidUUID ? actorId : null
-      })
-      .eq('hospital_id', hospitalId)
+      .update(updatePayload)
+      .eq('hospital_id', safeHospId)
       .eq('bed_type', bedType);
+    if (error) console.warn('[BedLink] persistBedUpdate warning:', error.message);
   } catch (err) {
-    console.warn('Failed to persist bed update to Supabase:', err);
+    console.warn('[BedLink] Failed to save bed update to Supabase:', err);
   }
 }
 
@@ -895,6 +903,8 @@ export async function persistReservationStatus(reservation: Reservation) {
   }
 }
 
+
+
 // ═══════════════════════════════════════════════════════════════════════
 // BED INVENTORY UPSERT — Persist new/updated bed inventory rows
 // ═══════════════════════════════════════════════════════════════════════
@@ -905,7 +915,7 @@ export async function persistReservationStatus(reservation: Reservation) {
  * Falls back gracefully if Supabase is not configured.
  */
 export async function persistBedInventoryUpsert(inv: {
-  id: string;
+  id?: string;
   hospital_id: string;
   bed_type: string;
   total_beds: number;
@@ -916,15 +926,20 @@ export async function persistBedInventoryUpsert(inv: {
   const supabase = getBrowserSupabaseClient();
   if (!supabase) return;
   try {
-    const { error } = await supabase.from('bed_inventory').upsert({
-      id: inv.id,
-      hospital_id: inv.hospital_id,
+    const payload: Record<string, unknown> = {
+      hospital_id: ensureUUID(inv.hospital_id),
       bed_type: inv.bed_type,
       total_beds: inv.total_beds,
       available_beds: inv.available_beds,
       updated_at: new Date().toISOString(),
-      updated_by: inv.updated_by ?? null,
-    }, { onConflict: 'hospital_id,bed_type' });
+      updated_by: isUUID(inv.updated_by) ? inv.updated_by : null,
+    };
+    if (inv.id && isUUID(inv.id)) {
+      payload.id = inv.id;
+    }
+    const { error } = await supabase
+      .from('bed_inventory')
+      .upsert(payload, { onConflict: 'hospital_id,bed_type' });
     if (error) {
       console.warn('[BedLink] bed_inventory upsert warning:', error.message);
     }

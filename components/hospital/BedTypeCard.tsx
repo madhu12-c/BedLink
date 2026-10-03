@@ -28,11 +28,14 @@ function reconcileOccupied(prev: Set<number>, totalBeds: number, availableBeds: 
   const targetOccupiedCount = Math.max(0, totalBeds - availableBeds);
   const next = new Set(Array.from(prev).filter((n) => n >= 1 && n <= totalBeds));
   if (next.size < targetOccupiedCount) {
-    // Need more occupied beds (start from highest)
-    for (let b = totalBeds; b >= 1 && next.size < targetOccupiedCount; b--) next.add(b);
+    // Need more occupied beds: assign from highest bed numbers (newly added beds) downwards
+    for (let b = totalBeds; b >= 1 && next.size < targetOccupiedCount; b--) {
+      next.add(b);
+    }
   } else if (next.size > targetOccupiedCount) {
-    // Free some occupied beds (start from lowest)
-    for (const b of Array.from(next).sort((a, c) => a - c)) {
+    // Free some occupied beds (start from highest bed number downwards)
+    const sorted = Array.from(next).sort((a, c) => c - a);
+    for (const b of sorted) {
       if (next.size === targetOccupiedCount) break;
       next.delete(b);
     }
@@ -55,10 +58,9 @@ export function BedTypeCard({
   const [occupiedBeds, setOccupiedBeds] = useState<Set<number>>(() => {
     const initial = new Set<number>();
     const occupiedCount = Math.max(0, inventory.total_beds - inventory.available_beds);
-    // Occupy beds from total down to 1
-    for (let i = 0; i < occupiedCount; i++) {
-      const bedNum = inventory.total_beds - i;
-      if (bedNum >= 1) initial.add(bedNum);
+    // Occupy beds from 1 up to occupiedCount
+    for (let i = 1; i <= occupiedCount; i++) {
+      if (i <= inventory.total_beds) initial.add(i);
     }
     return initial;
   });
@@ -153,16 +155,7 @@ export function BedTypeCard({
    */
   const handleTotalDelta = async (delta: number) => {
     if (disabled || isUpdating || !onUpdateTotalBeds) return;
-    if (delta < 0 && inventory.total_beds <= 1) return;
-
-    if (delta < 0) {
-      // Optimistically remove the last bed from occupiedBeds if it was marked occupied
-      setOccupiedBeds((prev) => {
-        const next = new Set(prev);
-        next.delete(inventory.total_beds);
-        return next;
-      });
-    }
+    if (delta < 0 && (inventory.total_beds <= 1 || inventory.available_beds <= 0)) return;
 
     setIsUpdating(true);
     setErrorMessage(null);
@@ -364,10 +357,10 @@ export function BedTypeCard({
               {/* Decrement Seat Button */}
               <button
                 type="button"
-                disabled={disabled || isUpdating || inventory.total_beds <= 1}
+                disabled={disabled || isUpdating || inventory.total_beds <= 1 || inventory.available_beds <= 0}
                 onClick={() => handleTotalDelta(-1)}
                 aria-label={`Remove a seat from ${meta.label}`}
-                title="Remove 1 seat from this ward (-1 total)"
+                title={inventory.available_beds <= 0 ? "Cannot remove a seat when 0 free beds available" : "Remove 1 seat from this ward (-1 total)"}
                 className="w-11 h-11 sm:w-12 sm:h-12 min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xs border border-slate-200 cursor-pointer"
               >
                 <Minus className="w-5 h-5 sm:w-6 sm:h-6" />
