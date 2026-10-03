@@ -845,8 +845,9 @@ export async function persistEdStatus(hospitalId: string, status: EdStatus) {
 }
 
 /**
- * Admin "Reset demo": puts the shared database back to the demo bed counts with fresh times
- * and cancels every open hold, so all phones reset together (they follow through realtime).
+ * Admin "Reset demo": puts the shared database back to the demo bed counts with fresh times,
+ * every hospital open with full reliability, and cancels every open hold and request, so all
+ * phones reset together (they follow through realtime).
  * Call after bedLinkStore.resetToDefaults(), which provides the values to write.
  */
 export async function resetDemoInDatabase(): Promise<string | null> {
@@ -860,12 +861,18 @@ export async function resetDemoInDatabase(): Promise<string | null> {
     .update({ status: 'cancelled', responded_at: now })
     .in('status', ['pending', 'accepted', 'shadow']);
   if (resErr) return `Could not clear open holds: ${resErr.message}`;
+  // Requests left 'holding' by earlier runs: close them so they don't pile up
+  await supabase.from('emergency_requests').update({ status: 'cancelled' }).in('status', ['active', 'holding']);
 
   for (const hospital of bedLinkStore.getHospitals()) {
-    await supabase
+    const base = { current_load: hospital.current_load, load_updated_at: hospital.load_updated_at };
+    const { error: hospErr } = await supabase
       .from('hospitals')
-      .update({ current_load: hospital.current_load, load_updated_at: hospital.load_updated_at })
+      .update({ ...base, reliability: hospital.reliability ?? 100, ed_status: hospital.ed_status ?? 'open' })
       .eq('id', ensureUUID(hospital.id));
+    if (hospErr && isMissingColumn(hospErr)) {
+      await supabase.from('hospitals').update(base).eq('id', ensureUUID(hospital.id));
+    }
     for (const inv of bedLinkStore.getBedInventories(hospital.id)) {
       const { error } = await supabase
         .from('bed_inventory')

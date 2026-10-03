@@ -559,7 +559,9 @@ export default function DispatcherPage() {
     setLastUpdateTrigger((prev) => prev + 1);
     setActionNotice('Resetting demo on every phone…');
     const problem = await resetDemoInDatabase();
-    setActionNotice(problem ?? 'Demo reset: bed counts back to start, open holds cleared on every phone.');
+    setActionNotice(
+      problem ?? 'Demo reset: bed counts back to start, every hospital open at full reliability, open holds cleared on every phone.'
+    );
   };
 
   // The crew tapped the wrong hospital: withdraw the hold so the bed is freed straight away
