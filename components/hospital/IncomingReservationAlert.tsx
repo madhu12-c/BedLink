@@ -101,17 +101,15 @@ export function IncomingReservationAlert({
 
   return (
     <div
-      className={`rounded-2xl border-2 p-5 sm:p-6 shadow-xl transition-all duration-500 transform ${
-        fadingOut
+      className={`rounded-2xl border-2 p-5 sm:p-6 shadow-xl transition-all duration-500 transform ${fadingOut
           ? 'opacity-0 scale-95 -translate-y-4 max-h-0 overflow-hidden pointer-events-none p-0 my-0 border-0'
           : 'opacity-100 scale-100 translate-y-0 max-h-[800px]'
-      } ${
-        isAccepted
+        } ${isAccepted
           ? 'bg-emerald-50 border-emerald-500 text-emerald-950'
           : isRejected || isExpired
-          ? 'bg-slate-100 border-slate-300 text-slate-700 opacity-90'
-          : 'bg-red-50/80 border-red-600 text-slate-900 shadow-red-500/10'
-      }`}
+            ? 'bg-slate-100 border-slate-300 text-slate-700 opacity-90'
+            : 'bg-red-50/80 border-red-600 text-slate-900 shadow-red-500/10'
+        }`}
       role="alertdialog"
       aria-labelledby="incoming-alert-title"
       aria-describedby="incoming-alert-desc"
@@ -120,13 +118,12 @@ export function IncomingReservationAlert({
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-red-200/80">
         <div className="flex items-center gap-2.5">
           <div
-            className={`w-10 h-10 rounded-full text-white flex items-center justify-center shadow-md ${
-              isAccepted
+            className={`w-10 h-10 rounded-full text-white flex items-center justify-center shadow-md ${isAccepted
                 ? 'bg-emerald-600'
                 : isRejected || isExpired
-                ? 'bg-slate-600'
-                : 'bg-red-600 animate-pulse'
-            }`}
+                  ? 'bg-slate-600'
+                  : 'bg-red-600 animate-pulse'
+              }`}
           >
             {isAccepted ? (
               <Check className="w-5 h-5" />
@@ -141,15 +138,15 @@ export function IncomingReservationAlert({
               {isAccepted
                 ? 'BED HOLD SECURED & VERIFIED'
                 : isRejected
-                ? 'RESERVATION REJECTED & RE-ROUTED'
-                : 'INCOMING EMERGENCY RESERVATION'}
+                  ? 'RESERVATION REJECTED & RE-ROUTED'
+                  : 'INCOMING EMERGENCY RESERVATION'}
             </span>
             <h2 id="incoming-alert-title" className="text-lg sm:text-xl font-extrabold text-slate-900">
               {isAccepted
                 ? 'PATIENT TRANSFER CONFIRMED'
                 : isRejected
-                ? 'FALLBACK ROUTING IN PROGRESS'
-                : 'CRITICAL PATIENT EN ROUTE'}
+                  ? 'FALLBACK ROUTING IN PROGRESS'
+                  : 'CRITICAL PATIENT EN ROUTE'}
             </h2>
           </div>
         </div>
@@ -305,9 +302,8 @@ export function IncomingReservationAlert({
       {isAnswered && dismissCountdown !== null && (
         <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden mt-4">
           <div
-            className={`h-full transition-all duration-1000 ease-linear ${
-              isAccepted ? 'bg-emerald-500' : 'bg-red-500'
-            }`}
+            className={`h-full transition-all duration-1000 ease-linear ${isAccepted ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
             style={{ width: `${(dismissCountdown / 5) * 100}%` }}
           />
         </div>
@@ -316,72 +312,71 @@ export function IncomingReservationAlert({
       {/* Reject Modal dialog */}
       {rejectionModalOpen && (
         <ModalPortal>
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4 animate-scale-up">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-base">Select Rejection Reason</h3>
-              <button
-                type="button"
-                onClick={() => setRejectionModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600">
-              Rejecting will immediately release the held bed and re-route the ambulance to the next eligible hospital.
-            </p>
-
-            <div className="flex flex-col gap-2">
-              {[
-                'Staffing & Resus bay currently saturated',
-                'Equipment undergoing emergency decontamination',
-                'Attending specialist unavailable',
-                'Hospital emergency divert active'
-              ].map((reason) => (
-                <label
-                  key={reason}
-                  className={`p-3 rounded-lg border text-xs cursor-pointer flex items-center gap-2.5 transition-colors ${
-                    selectedReason === reason
-                      ? 'border-red-600 bg-red-50 text-red-950 font-semibold'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                  }`}
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4 animate-scale-up">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="font-bold text-slate-900 text-base">Select Rejection Reason</h3>
+                <button
+                  type="button"
+                  onClick={() => setRejectionModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600"
                 >
-                  <input
-                    type="radio"
-                    name="rejectionReason"
-                    checked={selectedReason === reason}
-                    onChange={() => setSelectedReason(reason)}
-                    className="text-red-600 focus:ring-red-500"
-                  />
-                  <span>{reason}</span>
-                </label>
-              ))}
-            </div>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setRejectionModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg min-h-[44px]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRejectConfirm}
-                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow min-h-[44px]"
-              >
-                Confirm Rejection & Fallback
-              </button>
+              <p className="text-xs text-slate-600">
+                Rejecting will immediately release the held bed and re-route the ambulance to the next eligible hospital.
+              </p>
+
+              <div className="flex flex-col gap-2">
+                {[
+                  'Staffing & Resus bay currently saturated',
+                  'Equipment undergoing emergency decontamination',
+                  'Attending specialist unavailable',
+                  'Hospital emergency divert active'
+                ].map((reason) => (
+                  <label
+                    key={reason}
+                    className={`p-3 rounded-lg border text-xs cursor-pointer flex items-center gap-2.5 transition-colors ${selectedReason === reason
+                        ? 'border-red-600 bg-red-50 text-red-950 font-semibold'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="rejectionReason"
+                      checked={selectedReason === reason}
+                      onChange={() => setSelectedReason(reason)}
+                      className="text-red-600 focus:ring-red-500"
+                    />
+                    <span>{reason}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setRejectionModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg min-h-[44px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRejectConfirm}
+                  className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow min-h-[44px]"
+                >
+                  Confirm Rejection & Fallback
+                </button>
+              </div>
             </div>
           </div>
-        </div>
         </ModalPortal>
       )}
     </div>

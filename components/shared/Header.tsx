@@ -4,12 +4,10 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Activity,
   Ambulance,
   Building2,
   History,
   WifiOff,
-  Radio,
   Clock,
   PhoneCall,
   LogOut,
@@ -95,47 +93,53 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
   ].filter((link) => role !== null && canAccess(role, link.href));
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-900 shadow-sm transition-all">
+    <header className="sticky top-0 z-40 bg-white border-b border-slate-200 text-slate-900">
       {/* Offline Alert Banner */}
       {!isOnline && (
         <div
-          className="bg-amber-500 text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2"
+          className="bg-amber-500 text-white text-xs py-1.5 px-4 text-center font-semibold flex items-center justify-center gap-2"
           role="alert"
         >
-          <WifiOff className="w-4 h-4" />
-          <span>OFFLINE MODE: Live bed reservations and sync temporarily queued.</span>
+          <WifiOff className="w-3.5 h-3.5" />
+          <span>Offline — live bed sync temporarily paused.</span>
         </div>
       )}
 
-      {/* Main Navbar Bar */}
-      <div className="max-w-[1700px] mx-auto px-3 sm:px-5 lg:px-6">
-        <div className="flex items-center justify-between h-16 gap-3">
-          
-          {/* Left: Brand & Main Navigation */}
-          <div className="flex items-center gap-4 lg:gap-7">
+      {/* Main Navbar */}
+      <div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 gap-3">
+
+          {/* Left: Brand & Nav */}
+          <div className="flex items-center gap-5 lg:gap-8">
+
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-all">
-                <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
+            <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
+              {/* Icon: hospital bed silhouette */}
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition-colors">
+                <svg viewBox="0 0 24 24" fill="white" className="w-[18px] h-[18px]" aria-hidden="true">
+                  {/* Headboard — tall left post */}
+                  <rect x="2.5" y="4.5" width="3" height="13" rx="1.5"/>
+                  {/* Mattress body */}
+                  <rect x="5.5" y="8" width="15.5" height="8" rx="2.5"/>
+                  {/* Pillow — carved out via opacity */}
+                  <rect x="7" y="9.5" width="5" height="3.5" rx="1.25" fillOpacity="0.35"/>
+                  {/* Bed base rail */}
+                  <rect x="2.5" y="17.5" width="18.5" height="2" rx="1"/>
+                </svg>
               </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-base sm:text-lg tracking-tight text-slate-900">
-                    Bed<span className="text-blue-600">Link</span>
-                  </span>
-                  <span className="hidden sm:inline-flex text-xs font-black tracking-widest uppercase bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">
-                    108 CAD
-                  </span>
-                </div>
-                <span className="hidden sm:block text-xs text-slate-500 font-medium tracking-wide">
-                  Mumbai Emergency Bed Coordination
+              {/* Wordmark */}
+              <div className="flex flex-col leading-none">
+                <span className="font-semibold text-[15px] tracking-tight text-slate-900">
+                  BedLink
+                </span>
+                <span className="hidden sm:block text-[11px] text-slate-400 font-normal mt-0.5">
+                  Emergency Bed Coordination
                 </span>
               </div>
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center gap-1 pl-2 border-l border-slate-200">
+            {/* Desktop Nav */}
+            <nav className="hidden md:flex items-center gap-0.5 pl-4 border-l border-slate-200">
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
@@ -143,16 +147,16 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
                       isActive
-                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
+                        ? 'bg-slate-100 text-slate-900 font-medium'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
                     }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-700' : 'text-slate-400'}`} />
                     <span>{link.label}</span>
                     {link.badge && isActive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping ml-0.5" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-0.5" />
                     )}
                   </Link>
                 );
@@ -160,104 +164,89 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
             </nav>
           </div>
 
-          {/* Right: Live Telemetry, Signed-in User & Emergency Clock */}
-          <div className="flex items-center gap-2 sm:gap-2.5 sm:gap-3.5">
-            
-            {/* Live Operational Clock (Desktop only) */}
-            <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-700 text-xs font-mono font-bold" title="Current time">
-              <Clock className="w-3.5 h-3.5 text-blue-600" />
+          {/* Right: Status & User */}
+          <div className="flex items-center gap-2">
+
+            {/* Clock */}
+            <div className="hidden xl:flex items-center gap-1.5 text-slate-500 text-xs font-mono" title="Current time">
+              <Clock className="w-3.5 h-3.5" />
               <span suppressHydrationWarning>{currentTime ?? '--:--:--'}</span>
-              <span className="text-xs text-slate-400 font-sans font-semibold">IST</span>
+              <span className="text-slate-400">IST</span>
             </div>
 
-            {/* Supabase Status — compact dot on mobile, full badge on sm+ */}
+            {/* Supabase status dot */}
             <div
-              className={`flex items-center gap-1.5 text-xs px-2 py-1.5 sm:px-2.5 rounded-lg border transition-all ${
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${
                 supabaseState.connected
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : supabaseState.configured
-                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-slate-50 text-slate-500 border-slate-200'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-slate-50 text-slate-500 border-slate-200'
               }`}
               title={
                 supabaseState.connected
-                  ? 'Live: shared with every hospital and ambulance'
+                  ? 'Live sync active'
                   : supabaseState.configured
-                  ? 'Connecting to the shared database…'
-                  : 'Demo: data stays on this device'
+                    ? 'Connecting…'
+                    : 'Demo mode'
               }
             >
-              {/* Solid dot (a ping alone fades to nothing and looked like an empty pill on phones) */}
-              <span className="relative flex w-2.5 h-2.5 shrink-0">
+              <span className="relative flex w-2 h-2 shrink-0">
                 {supabaseState.connected && (
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
                 )}
                 <span
-                  className={`relative inline-flex w-2.5 h-2.5 rounded-full ${
+                  className={`relative inline-flex w-2 h-2 rounded-full ${
                     supabaseState.connected
                       ? 'bg-emerald-500'
                       : supabaseState.configured
-                      ? 'bg-amber-400 animate-pulse'
-                      : 'bg-slate-400'
+                        ? 'bg-amber-400'
+                        : 'bg-slate-300'
                   }`}
                 />
               </span>
-              <Radio
-                className={`w-3.5 h-3.5 hidden sm:inline ${
-                  supabaseState.connected
-                    ? 'text-emerald-600'
-                    : supabaseState.configured
-                    ? 'text-amber-500'
-                    : 'text-slate-400'
-                }`}
-              />
-              <span className="font-mono text-xs font-bold tracking-tight hidden sm:inline">
-                {supabaseState.connected
-                  ? 'LIVE'
-                  : supabaseState.configured
-                  ? 'CONNECTING'
-                  : 'DEMO'}
+              <span className="font-medium hidden sm:inline">
+                {supabaseState.connected ? 'Live' : supabaseState.configured ? 'Connecting' : 'Demo'}
               </span>
             </div>
 
-            {/* Sunlight mode: high contrast for outdoor use */}
+            {/* Sunlight mode */}
             <button
               type="button"
               onClick={() => setSunlight(!sunlight)}
               aria-pressed={sunlight}
-              title={sunlight ? 'Sunlight mode on (high contrast)' : 'Sunlight mode: high contrast for outdoor use'}
-              className={`flex items-center gap-1.5 rounded-lg px-2 min-h-[36px] text-xs font-bold border transition-colors ${
-                sunlight ? 'bg-amber-400 text-slate-950 border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              title={sunlight ? 'Sunlight mode on' : 'Sunlight mode'}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium border transition-colors ${
+                sunlight
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
               }`}
             >
-              <Sun className="w-4 h-4" />
+              <Sun className="w-3.5 h-3.5" />
               <span className="hidden lg:inline">Sunlight</span>
             </button>
 
-            {/* Signed-in user + sign out */}
+            {/* User / Demo badge */}
             {demoMode ? (
-              <div
-                className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-800"
-                title="Supabase is not configured, so there is no login and every screen is open."
-              >
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Demo mode · no login</span>
-                <span className="sm:hidden">Demo</span>
+              <div className="flex items-center gap-1.5 border border-slate-200 rounded-md px-2.5 py-1 text-xs text-slate-500">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                <span className="hidden sm:inline">Demo</span>
               </div>
             ) : user ? (
               <div className="flex items-center gap-1.5">
                 <div
-                  className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg pl-2 pr-2.5 py-1 shadow-sm"
+                  className="flex items-center gap-2 bg-white border border-slate-200 rounded-md pl-2.5 pr-3 py-1"
                   title={`${user.email ?? ''}${userHospitalName ? ` · ${userHospitalName}` : ''}`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                    {(user.name?.[0] ?? '?').toUpperCase()}
+                  </div>
                   <div className="flex flex-col leading-tight min-w-0">
-                    <span className="text-xs font-bold text-slate-800 truncate max-w-[90px] sm:max-w-[160px]">
+                    <span className="text-xs font-medium text-slate-800 truncate max-w-[90px] sm:max-w-[140px]">
                       {user.name}
                     </span>
-                    <span className="text-xs font-semibold text-slate-500 truncate max-w-[90px] sm:max-w-[200px]">
+                    <span className="text-[11px] text-slate-400 truncate max-w-[90px] sm:max-w-[180px]">
                       {role ? ROLE_LABELS[role] : 'No role'}
-                      {userHospitalName && <span className="hidden lg:inline"> · {userHospitalName}</span>}
                     </span>
                   </div>
                 </div>
@@ -265,7 +254,7 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
                   type="button"
                   onClick={() => void signOut()}
                   disabled={signingOut}
-                  className="flex items-center gap-1.5 border border-slate-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 text-slate-600 rounded-lg px-2 py-1.5 text-xs font-bold min-h-[36px] transition-colors disabled:opacity-60"
+                  className="flex items-center gap-1.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-500 hover:text-slate-700 rounded-md px-2.5 py-1 text-xs font-medium min-h-[32px] transition-colors disabled:opacity-50"
                   aria-label="Sign out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -274,20 +263,20 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
               </div>
             ) : null}
 
-            {/* 108 Hotline — desktop only */}
-            <div className="hidden 2xl:flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg text-red-600 text-xs font-bold">
-              <PhoneCall className="w-3.5 h-3.5 text-red-500 animate-bounce" />
-              <span>108 HOTLINE</span>
+            {/* 108 Hotline pill */}
+            <div className="hidden 2xl:flex items-center gap-1.5 border border-red-200 bg-red-50 px-2.5 py-1 rounded-md text-red-600 text-xs font-medium">
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span>108</span>
             </div>
 
           </div>
         </div>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (WCAG AA compliant, 48px touch targets) */}
+      {/* Mobile Bottom Nav */}
       {!hideBottomNav && navLinks.length > 1 && (
         <div
-          className="md:hidden border-t border-slate-200 bg-white/98 backdrop-blur-lg grid py-1 px-2"
+          className="md:hidden border-t border-slate-100 bg-white grid"
           style={{ gridTemplateColumns: `repeat(${navLinks.length}, minmax(0, 1fr))` }}
         >
           {navLinks.map((link) => {
@@ -297,14 +286,14 @@ export function Header({ hideBottomNav = false }: HeaderProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg text-xs font-semibold min-h-[48px] transition-colors ${
+                className={`flex flex-col items-center justify-center py-2 px-1 text-xs font-medium min-h-[52px] transition-colors ${
                   isActive
-                    ? 'text-blue-600 font-bold bg-blue-50'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-slate-400 hover:text-slate-700'
                 }`}
               >
-                <Icon className="w-4 h-4 mb-0.5" />
-                <span className="truncate max-w-[70px]">{link.label}</span>
+                <Icon className={`w-[18px] h-[18px] mb-0.5 ${isActive ? 'text-blue-600' : ''}`} />
+                <span>{link.label}</span>
               </Link>
             );
           })}

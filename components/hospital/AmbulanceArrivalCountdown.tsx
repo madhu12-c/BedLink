@@ -109,26 +109,24 @@ export function AmbulanceArrivalCountdown({
             return (
               <div
                 key={item.reservation.id}
-                className={`p-4 rounded-2xl border transition-all animate-slide-in-up ${
-                  isImminent
+                className={`p-4 rounded-2xl border transition-all animate-slide-in-up ${isImminent
                     ? 'bg-red-50/70 border-red-200 shadow-md ring-1 ring-red-400/40'
                     : isPendingAcceptance
-                    ? 'bg-amber-50/40 border-amber-200 shadow-sm'
-                    : 'bg-white border-slate-200 shadow-sm'
-                }`}
+                      ? 'bg-amber-50/40 border-amber-200 shadow-sm'
+                      : 'bg-white border-slate-200 shadow-sm'
+                  }`}
                 style={{ animationDelay: entranceDelay }}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   {/* Left: Ambulance & Patient Info */}
                   <div className="flex items-start gap-3.5">
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                        isImminent
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isImminent
                           ? 'bg-red-600 text-white animate-pulse'
                           : isPendingAcceptance
-                          ? 'bg-amber-600 text-white animate-pulse'
-                          : 'bg-blue-600 text-white'
-                      }`}
+                            ? 'bg-amber-600 text-white animate-pulse'
+                            : 'bg-blue-600 text-white'
+                        }`}
                     >
                       <Ambulance className="w-6 h-6" />
                     </div>
@@ -139,11 +137,10 @@ export function AmbulanceArrivalCountdown({
                           {item.ambulanceId}
                         </span>
                         <span
-                          className={`text-xs font-black uppercase px-2 py-0.5 rounded ${
-                            item.patientUrgency === 'critical'
+                          className={`text-xs font-black uppercase px-2 py-0.5 rounded ${item.patientUrgency === 'critical'
                               ? 'bg-red-100 text-red-700'
                               : 'bg-amber-100 text-amber-700'
-                          }`}
+                            }`}
                         >
                           {item.patientUrgency.toUpperCase()}
                         </span>
@@ -184,13 +181,12 @@ export function AmbulanceArrivalCountdown({
                         {remainingMs === 0 ? 'ARRIVED AT BAY' : 'ARRIVAL COUNTDOWN'}
                       </span>
                       <div
-                        className={`flex items-center gap-1.5 font-mono text-xl sm:text-2xl font-black ${
-                          remainingMs === 0
+                        className={`flex items-center gap-1.5 font-mono text-xl sm:text-2xl font-black ${remainingMs === 0
                             ? 'text-emerald-600 animate-bounce'
                             : isImminent
-                            ? 'text-red-600'
-                            : 'text-slate-900'
-                        }`}
+                              ? 'text-red-600'
+                              : 'text-slate-900'
+                          }`}
                       >
                         <Clock className="w-4 h-4 text-slate-400" />
                         <span>{remainingMs === 0 ? '00:00' : formattedTime}</span>
@@ -229,36 +225,35 @@ export function AmbulanceArrivalCountdown({
                       ) : (
                         // Pop-in: spring-scale bounce when the Admit button appears after acceptance
                         <>
-                        {onBedLost && (
+                          {onBedLost && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirmLostId !== item.reservation.id) {
+                                  setConfirmLostId(item.reservation.id);
+                                  window.setTimeout(() => setConfirmLostId(null), 4000);
+                                  return;
+                                }
+                                setConfirmLostId(null);
+                                onBedLost(item.reservation.id);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-colors ${confirmLostId === item.reservation.id
+                                  ? 'bg-red-600 text-white border-red-600'
+                                  : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
+                                }`}
+                              title="The ambulance arrived but the held bed was gone"
+                            >
+                              {confirmLostId === item.reservation.id ? 'Tap again: bed lost' : 'Bed lost on arrival'}
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirmLostId !== item.reservation.id) {
-                                setConfirmLostId(item.reservation.id);
-                                window.setTimeout(() => setConfirmLostId(null), 4000);
-                                return;
-                              }
-                              setConfirmLostId(null);
-                              onBedLost(item.reservation.id);
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-colors ${
-                              confirmLostId === item.reservation.id
-                                ? 'bg-red-600 text-white border-red-600'
-                                : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
-                            }`}
-                            title="The ambulance arrived but the held bed was gone"
+                            onClick={() => onAdmitPatient(item.reservation.id, item.bedType, item.patientName)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-colors animate-pop-in"
                           >
-                            {confirmLostId === item.reservation.id ? 'Tap again: bed lost' : 'Bed lost on arrival'}
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Admit</span>
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onAdmitPatient(item.reservation.id, item.bedType, item.patientName)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-colors animate-pop-in"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Admit</span>
-                        </button>
                         </>
                       )}
                     </div>

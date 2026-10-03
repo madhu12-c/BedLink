@@ -98,7 +98,7 @@ export default function HospitalNursePage() {
   // Request notification permission on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
+      Notification.requestPermission().catch(() => { });
     }
   }, []);
 
@@ -524,431 +524,424 @@ Bed Type: ${bed}
         )}
 
         {currentHospital && (
-        <>
-        {/* 1. Incoming ambulance first: it is the one thing that can't wait */}
-        {view === 'coordinator' ? (
-          <div className="space-y-4">
-            {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes.
+          <>
+            {/* 1. Incoming ambulance first: it is the one thing that can't wait */}
+            {view === 'coordinator' ? (
+              <div className="space-y-4">
+                {/* Realtime Incoming Emergency Alert: accept or reject within 2 minutes.
                 Rendered first (top of stack) so the coordinator sees it immediately.
                 Once it auto-dismisses, AmbulanceArrivalCountdown slides in below. */}
-            {pendingHere.length > 1 && (
-              <div className="p-3 rounded-xl bg-red-600 text-white font-extrabold text-sm flex items-center gap-2" role="status">
-                <Ambulance className="w-5 h-5 shrink-0" />
-                {pendingHere.length} ambulance requests waiting: answer each one (2 minutes each)
-              </div>
-            )}
-            {displayReservation && (
-              <IncomingReservationAlert
-                key={`alert-${displayReservation.id}`}
-                reservation={displayReservation}
-                currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
-                onAccept={handleAcceptReservation}
-                onReject={handleRejectReservation}
-                onDismiss={() => setAlertDismissed(true)}
-              />
-            )}
+                {pendingHere.length > 1 && (
+                  <div className="p-3 rounded-xl bg-red-600 text-white font-extrabold text-sm flex items-center gap-2" role="status">
+                    <Ambulance className="w-5 h-5 shrink-0" />
+                    {pendingHere.length} ambulance requests waiting: answer each one (2 minutes each)
+                  </div>
+                )}
+                {displayReservation && (
+                  <IncomingReservationAlert
+                    key={`alert-${displayReservation.id}`}
+                    reservation={displayReservation}
+                    currentInventory={bedInventories.find((b) => b.bed_type === displayReservation.bed_type)}
+                    onAccept={handleAcceptReservation}
+                    onReject={handleRejectReservation}
+                    onDismiss={() => setAlertDismissed(true)}
+                  />
+                )}
 
-            {/* Quick messages with the ambulance crew for this request */}
-            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
-              <QuickMessages
-                key={`messages-${displayReservation.id}`}
-                reservationId={displayReservation.id}
-                from="hospital"
-                author={currentHospital.name}
-              />
-            )}
+                {/* Quick messages with the ambulance crew for this request */}
+                {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+                  <QuickMessages
+                    key={`messages-${displayReservation.id}`}
+                    reservationId={displayReservation.id}
+                    from="hospital"
+                    author={currentHospital.name}
+                  />
+                )}
 
-            {/* Live Incoming Ambulance ETA Countdown.
+                {/* Live Incoming Ambulance ETA Countdown.
                 Only shown after the emergency alert has been dismissed so the
                 two cards don't compete for attention. Slides in smoothly. */}
-            {alertDismissed && (
-              <div className="animate-slide-in-up">
-                <AmbulanceArrivalCountdown
-                  incoming={incomingAmbulances}
-                  onAdmitPatient={handleAdmitPatient}
-                  onBedLost={handleBedLost}
-                  onAcceptReservation={handleAcceptReservation}
+                {alertDismissed && (
+                  <div className="animate-slide-in-up">
+                    <AmbulanceArrivalCountdown
+                      incoming={incomingAmbulances}
+                      onAdmitPatient={handleAdmitPatient}
+                      onBedLost={handleBedLost}
+                      onAcceptReservation={handleAcceptReservation}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Incoming request heads-up (read-only: the coordinator accepts or rejects) */}
+                {displayReservation &&
+                  (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+                    <div
+                      role="status"
+                      className={`p-4 rounded-2xl border-2 flex items-start gap-3 ${displayReservation.status === 'pending'
+                          ? 'bg-red-50 border-red-300 text-red-900'
+                          : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                        }`}
+                    >
+                      <Ambulance className="w-6 h-6 shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-0.5">
+                        <strong className="text-sm font-black">
+                          {displayReservation.status === 'pending'
+                            ? 'Incoming ambulance request'
+                            : 'Bed allotted: patient on the way'}
+                        </strong>
+                        <span className="text-xs font-semibold">
+                          {displayReservation.bed_type.toUpperCase()} bed
+                          {displayReservation.patient_urgency ? ` · ${displayReservation.patient_urgency}` : ''}
+                          {displayReservation.eta_minutes ? ` · ETA ${displayReservation.eta_minutes} min` : ''}
+                        </span>
+                        <span className="text-xs">
+                          {displayReservation.status === 'pending'
+                            ? 'The hospital coordinator is deciding (2-minute timer). Get the bed ready in case it is accepted.'
+                            : 'Accepted by the coordinator. Prepare the bed to receive the patient.'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                {!(displayReservation &&
+                  (displayReservation.status === 'pending' || displayReservation.status === 'accepted')) && (
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center gap-3 text-slate-600">
+                      <Ambulance className="w-6 h-6 text-slate-400 shrink-0" />
+                      <span className="text-sm font-semibold">No ambulance on the way right now</span>
+                    </div>
+                  )}
+                {/* Messages from the crew also show on the ward screen */}
+                {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
+                  <QuickMessages
+                    key={`nurse-${displayReservation.id}`}
+                    reservationId={displayReservation.id}
+                    from="hospital"
+                    author={currentHospital.name}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Accepted ambulances moving along the road to this hospital (coordinator: keeps the
+            nurse page light on cheap phones) */}
+            {view === 'coordinator' && (
+              <IncomingAmbulanceMap key={currentHospital.id} hospital={currentHospital} incoming={incomingAmbulances} />
+            )}
+
+            {/* Nurse: the 10-second update comes right after "is an ambulance coming?" */}
+            {view === 'nurse' && (
+              <>
+                <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
+                <QuickBedUpdate bedInventory={bedInventories} onUpdateCount={handleUpdateCount} />
+              </>
+            )}
+
+            {/* Admin only: preview either hospital screen. Staff get the screen for their role. */}
+            {!isHospitalStaff && (
+              <div className="bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
+                <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-sm" role="group" aria-label="Screen to preview">
+                  <button
+                    type="button"
+                    onClick={() => setAdminView('nurse')}
+                    aria-pressed={view === 'nurse'}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all min-h-[44px] ${view === 'nurse'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                  >
+                    <HeartPulse className="w-4 h-4" />
+                    <span>Nurse screen</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminView('coordinator')}
+                    aria-pressed={view === 'coordinator'}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all min-h-[44px] ${view === 'coordinator'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>Hospital Coordinator screen</span>
+                  </button>
+                </div>
+
+                <div className="text-right px-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                    Admin preview
+                  </span>
+                  <span className="text-xs font-black text-slate-800">
+                    {view === 'nurse' ? 'What ward nurses see' : 'What hospital coordinators see'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Hospital Header (admins can switch hospital; staff are fixed to their own) */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${view === 'nurse'
+                        ? 'text-blue-700 bg-blue-50'
+                        : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
+                      }`}
+                  >
+                    {view === 'nurse' ? 'Nurse' : 'Coordinator'}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {view === 'nurse' ? 'Update free beds' : 'Manage beds'}
+                  </span>
+                </div>
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                  {currentHospital.name}
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">{currentHospital.address}</p>
+
+                {/* Emergency department status: coordinator switches it, everyone sees it */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">ED status</span>
+                  {view === 'coordinator' ? (
+                    <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden" role="group" aria-label="Emergency department status">
+                      {(['open', 'busy', 'diversion'] as const).map((status) => {
+                        const active = (currentHospital.ed_status ?? 'open') === status;
+                        const color =
+                          status === 'open'
+                            ? 'bg-emerald-600 text-white'
+                            : status === 'busy'
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-red-600 text-white';
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => handleEdStatus(status)}
+                            className={`px-4 min-h-[48px] text-sm font-extrabold capitalize ${active ? color : 'bg-white text-slate-600 hover:bg-slate-50'
+                              }`}
+                          >
+                            {status}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span
+                      className={`text-xs font-extrabold capitalize px-2.5 py-1 rounded-full ${(currentHospital.ed_status ?? 'open') === 'open'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : currentHospital.ed_status === 'busy'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                    >
+                      {currentHospital.ed_status ?? 'open'}
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-500">
+                    Reliability <strong className="text-slate-700">{currentHospital.reliability ?? 100}/100</strong>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-2.5 sm:justify-end">
+                <TelegramConnectButton key={`${currentHospital.id}-${view}`} hospitalId={currentHospital.id} role={view} />
+                <button
+                  type="button"
+                  onClick={() => setShowVoiceSettings((open) => !open)}
+                  aria-expanded={voicePanelOpen}
+                  className={`px-3 py-2 rounded-lg border font-bold text-sm flex items-center justify-center gap-1.5 min-h-[44px] ${voicePanelOpen
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  Voice alerts {voiceSettings.announce ? 'on' : 'off'}
+                </button>
+                {!isHospitalStaff && (
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <label htmlFor="hospital-select" className="text-xs font-semibold text-slate-500">
+                      Operating Hospital:
+                    </label>
+                    <select
+                      id="hospital-select"
+                      value={currentHospital.id}
+                      onChange={(e) => setAdminHospitalId(e.target.value)}
+                      className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[44px]"
+                    >
+                      {hospitals.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name} (Load: {h.current_load}%)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Only the hospital coordinator (or admin) adds beds */}
+                {view === 'coordinator' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBedModal(true)}
+                    className="col-span-2 sm:col-span-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-md flex items-center justify-center gap-1.5 min-h-[44px] transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add beds</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Voice alerts: new ambulance requests are read aloud in the chosen language */}
+            {voicePanelOpen && (
+              <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2 animate-fade-in">
+                <span className="text-sm font-bold text-slate-700">Read new requests and allotted beds aloud</span>
+                <VoiceSettingsBar
+                  availability={voiceAvailability}
+                  settings={voiceSettings}
+                  onChange={updateVoiceSettings}
+                  playerStatus={voicePlayer.status}
+                  playerError={voicePlayer.error}
+                  onUnlock={voicePlayer.unlock}
+                  label="Voice alerts"
                 />
               </div>
             )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Incoming request heads-up (read-only: the coordinator accepts or rejects) */}
-            {displayReservation &&
-              (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
-                <div
-                  role="status"
-                  className={`p-4 rounded-2xl border-2 flex items-start gap-3 ${
-                    displayReservation.status === 'pending'
-                      ? 'bg-red-50 border-red-300 text-red-900'
-                      : 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                  }`}
-                >
-                  <Ambulance className="w-6 h-6 shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-0.5">
-                    <strong className="text-sm font-black">
-                      {displayReservation.status === 'pending'
-                        ? 'Incoming ambulance request'
-                        : 'Bed allotted: patient on the way'}
-                    </strong>
-                    <span className="text-xs font-semibold">
-                      {displayReservation.bed_type.toUpperCase()} bed
-                      {displayReservation.patient_urgency ? ` · ${displayReservation.patient_urgency}` : ''}
-                      {displayReservation.eta_minutes ? ` · ETA ${displayReservation.eta_minutes} min` : ''}
+
+            {/* =========================================================================
+            VIEW 1: WARD NURSE (bed counts; sees requests but no accept/reject)
+           ========================================================================= */}
+            {view === 'nurse' && (
+              <div className="space-y-6">
+                {/* Bed-by-bed view (which bed numbers are taken): optional, below the quick update */}
+                <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm">
+                  <summary className="list-none cursor-pointer select-none px-4 min-h-[52px] flex items-center justify-between gap-2 text-sm font-bold text-slate-800">
+                    Bed-by-bed view: mark which bed numbers are taken
+                    <span className="text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+                  </summary>
+                  <div className="p-4 pt-0">
+                    <BedUpdateGrid
+                      hospital={currentHospital}
+                      bedInventory={bedInventories}
+                      capabilities={capabilities}
+                      onUpdateCount={handleUpdateCount}
+                    />
+                  </div>
+                </details>
+
+                {/* Patient Bed Occupancy History & Handover Audit Trail with total patient details */}
+                <BedHistoryLogTable
+                  logs={bedHistoryLogs}
+                  hospitalName={currentHospital?.name || 'Hospital'}
+                  onSelectHandover={(handover) => setSelectedHandoverForModal(handover)}
+                />
+
+                {/* Nurse Guidance Banner */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-900">
+                  <Lock className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>
+                    <strong>Nurse screen:</strong> keep the free-bed counts right and see past admissions. The bed desk answers ambulance requests.
+                  </span>
+                </div>
+              </div>
+            )}
+
+
+            {/* =========================================================================
+            VIEW 2: HOSPITAL COORDINATOR (accept/reject, arrivals, capacity & audit)
+           ========================================================================= */}
+            {view === 'coordinator' && (
+              <div className="space-y-6">
+                {/* Coordinator KPI Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                      Total beds
                     </span>
-                    <span className="text-xs">
-                      {displayReservation.status === 'pending'
-                        ? 'The hospital coordinator is deciding (2-minute timer). Get the bed ready in case it is accepted.'
-                        : 'Accepted by the coordinator. Prepare the bed to receive the patient.'}
+                    <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
+                      {currentHospital?.emergency_capacity || 0} Beds
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Emergency capacity
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                      Free now
+                    </span>
+                    <span className="text-2xl font-black font-mono text-emerald-600 mt-1 block">
+                      {bedInventories.reduce((sum, b) => sum + b.available_beds, 0)}
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      All bed types
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                      ICU + ventilator
+                    </span>
+                    <span className="text-2xl font-black font-mono text-blue-600 mt-1 block">
+                      {(bedInventories.find((b) => b.bed_type === 'icu')?.available_beds || 0) +
+                        (bedInventories.find((b) => b.bed_type === 'ventilator')?.available_beds || 0)}
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Free right now
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                      How full
+                    </span>
+                    <span className="text-2xl font-black font-mono text-amber-600 mt-1 block">
+                      {currentHospital?.current_load}%
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      Of all beds in use
                     </span>
                   </div>
                 </div>
-              )}
-            {!(displayReservation &&
-              (displayReservation.status === 'pending' || displayReservation.status === 'accepted')) && (
-              <div className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center gap-3 text-slate-600">
-                <Ambulance className="w-6 h-6 text-slate-400 shrink-0" />
-                <span className="text-sm font-semibold">No ambulance on the way right now</span>
-              </div>
-            )}
-            {/* Messages from the crew also show on the ward screen */}
-            {displayReservation && (displayReservation.status === 'pending' || displayReservation.status === 'accepted') && (
-              <QuickMessages
-                key={`nurse-${displayReservation.id}`}
-                reservationId={displayReservation.id}
-                from="hospital"
-                author={currentHospital.name}
-              />
-            )}
-          </div>
-        )}
 
-        {/* Accepted ambulances moving along the road to this hospital (coordinator: keeps the
-            nurse page light on cheap phones) */}
-        {view === 'coordinator' && (
-          <IncomingAmbulanceMap key={currentHospital.id} hospital={currentHospital} incoming={incomingAmbulances} />
-        )}
+                {/* Capacity Update Grid */}
+                {currentHospital && (
+                  <BedUpdateGrid
+                    hospital={currentHospital}
+                    bedInventory={bedInventories}
+                    capabilities={capabilities}
+                    onUpdateCount={handleUpdateCount}
+                    onUpdateTotalBeds={handleUpdateTotalBeds}
+                  />
+                )}
 
-        {/* Nurse: the 10-second update comes right after "is an ambulance coming?" */}
-        {view === 'nurse' && (
-          <>
-            <ConfirmCountsCard oldestUpdatedAt={oldestCountAt} onConfirm={handleConfirmCounts} />
-            <QuickBedUpdate bedInventory={bedInventories} onUpdateCount={handleUpdateCount} />
-          </>
-        )}
-
-        {/* Admin only: preview either hospital screen. Staff get the screen for their role. */}
-        {!isHospitalStaff && (
-          <div className="bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
-            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-sm" role="group" aria-label="Screen to preview">
-              <button
-                type="button"
-                onClick={() => setAdminView('nurse')}
-                aria-pressed={view === 'nurse'}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all min-h-[44px] ${
-                  view === 'nurse'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <HeartPulse className="w-4 h-4" />
-                <span>Nurse screen</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminView('coordinator')}
-                aria-pressed={view === 'coordinator'}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all min-h-[44px] ${
-                  view === 'coordinator'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <Building2 className="w-4 h-4" />
-                <span>Hospital Coordinator screen</span>
-              </button>
-            </div>
-
-            <div className="text-right px-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                Admin preview
-              </span>
-              <span className="text-xs font-black text-slate-800">
-                {view === 'nurse' ? 'What ward nurses see' : 'What hospital coordinators see'}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Hospital Header (admins can switch hospital; staff are fixed to their own) */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                  view === 'nurse'
-                    ? 'text-blue-700 bg-blue-50'
-                    : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
-                }`}
-              >
-                {view === 'nurse' ? 'Nurse' : 'Coordinator'}
-              </span>
-              <span className="text-xs text-slate-400">
-                {view === 'nurse' ? 'Update free beds' : 'Manage beds'}
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-              {currentHospital.name}
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">{currentHospital.address}</p>
-
-            {/* Emergency department status: coordinator switches it, everyone sees it */}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">ED status</span>
-              {view === 'coordinator' ? (
-                <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden" role="group" aria-label="Emergency department status">
-                  {(['open', 'busy', 'diversion'] as const).map((status) => {
-                    const active = (currentHospital.ed_status ?? 'open') === status;
-                    const color =
-                      status === 'open'
-                        ? 'bg-emerald-600 text-white'
-                        : status === 'busy'
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-red-600 text-white';
-                    return (
-                      <button
-                        key={status}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => handleEdStatus(status)}
-                        className={`px-4 min-h-[48px] text-sm font-extrabold capitalize ${
-                          active ? color : 'bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        {status}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <span
-                  className={`text-xs font-extrabold capitalize px-2.5 py-1 rounded-full ${
-                    (currentHospital.ed_status ?? 'open') === 'open'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : currentHospital.ed_status === 'busy'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-red-100 text-red-800'
-                  }`}
-                >
-                  {currentHospital.ed_status ?? 'open'}
-                </span>
-              )}
-              <span className="text-xs text-slate-500">
-                Reliability <strong className="text-slate-700">{currentHospital.reliability ?? 100}/100</strong>
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-2.5 sm:justify-end">
-            <TelegramConnectButton key={`${currentHospital.id}-${view}`} hospitalId={currentHospital.id} role={view} />
-            <button
-              type="button"
-              onClick={() => setShowVoiceSettings((open) => !open)}
-              aria-expanded={voicePanelOpen}
-              className={`px-3 py-2 rounded-lg border font-bold text-sm flex items-center justify-center gap-1.5 min-h-[44px] ${
-                voicePanelOpen
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              Voice alerts {voiceSettings.announce ? 'on' : 'off'}
-            </button>
-            {!isHospitalStaff && (
-              <div className="col-span-2 flex flex-col gap-1">
-                <label htmlFor="hospital-select" className="text-xs font-semibold text-slate-500">
-                  Operating Hospital:
-                </label>
-                <select
-                  id="hospital-select"
-                  value={currentHospital.id}
-                  onChange={(e) => setAdminHospitalId(e.target.value)}
-                  className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[44px]"
-                >
-                  {hospitals.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.name} (Load: {h.current_load}%)
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Only the hospital coordinator (or admin) adds beds */}
-            {view === 'coordinator' && (
-              <button
-                type="button"
-                onClick={() => setShowAddBedModal(true)}
-                className="col-span-2 sm:col-span-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-md flex items-center justify-center gap-1.5 min-h-[44px] transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add beds</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Voice alerts: new ambulance requests are read aloud in the chosen language */}
-        {voicePanelOpen && (
-          <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2 animate-fade-in">
-            <span className="text-sm font-bold text-slate-700">Read new requests and allotted beds aloud</span>
-            <VoiceSettingsBar
-              availability={voiceAvailability}
-              settings={voiceSettings}
-              onChange={updateVoiceSettings}
-              playerStatus={voicePlayer.status}
-              playerError={voicePlayer.error}
-              onUnlock={voicePlayer.unlock}
-              label="Voice alerts"
-            />
-          </div>
-        )}
-
-        {/* =========================================================================
-            VIEW 1: WARD NURSE (bed counts; sees requests but no accept/reject)
-           ========================================================================= */}
-        {view === 'nurse' && (
-          <div className="space-y-6">
-            {/* Bed-by-bed view (which bed numbers are taken): optional, below the quick update */}
-            <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm">
-              <summary className="list-none cursor-pointer select-none px-4 min-h-[52px] flex items-center justify-between gap-2 text-sm font-bold text-slate-800">
-                Bed-by-bed view: mark which bed numbers are taken
-                <span className="text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
-              </summary>
-              <div className="p-4 pt-0">
-                <BedUpdateGrid
-                  hospital={currentHospital}
-                  bedInventory={bedInventories}
-                  capabilities={capabilities}
-                  onUpdateCount={handleUpdateCount}
+                {/* Patient Bed Occupancy History & Handover Audit Trail ("who was there earlier") */}
+                <BedHistoryLogTable
+                  logs={bedHistoryLogs}
+                  hospitalName={currentHospital?.name || 'Hospital'}
+                  onSelectHandover={(handover) => setSelectedHandoverForModal(handover)}
                 />
               </div>
-            </details>
-
-            {/* Patient Bed Occupancy History & Handover Audit Trail with total patient details */}
-            <BedHistoryLogTable
-              logs={bedHistoryLogs}
-              hospitalName={currentHospital?.name || 'Hospital'}
-              onSelectHandover={(handover) => setSelectedHandoverForModal(handover)}
-            />
-
-            {/* Nurse Guidance Banner */}
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-900">
-              <Lock className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>
-                <strong>Nurse screen:</strong> keep the free-bed counts right and see past admissions. The bed desk answers ambulance requests.
-              </span>
-            </div>
-          </div>
-        )}
-
-
-        {/* =========================================================================
-            VIEW 2: HOSPITAL COORDINATOR (accept/reject, arrivals, capacity & audit)
-           ========================================================================= */}
-        {view === 'coordinator' && (
-          <div className="space-y-6">
-            {/* Coordinator KPI Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  Total beds
-                </span>
-                <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
-                  {currentHospital?.emergency_capacity || 0} Beds
-                </span>
-                <span className="text-xs text-slate-400 mt-1 block">
-                  Emergency capacity
-                </span>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  Free now
-                </span>
-                <span className="text-2xl font-black font-mono text-emerald-600 mt-1 block">
-                  {bedInventories.reduce((sum, b) => sum + b.available_beds, 0)}
-                </span>
-                <span className="text-xs text-slate-400 mt-1 block">
-                  All bed types
-                </span>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  ICU + ventilator
-                </span>
-                <span className="text-2xl font-black font-mono text-blue-600 mt-1 block">
-                  {(bedInventories.find((b) => b.bed_type === 'icu')?.available_beds || 0) +
-                    (bedInventories.find((b) => b.bed_type === 'ventilator')?.available_beds || 0)}
-                </span>
-                <span className="text-xs text-slate-400 mt-1 block">
-                  Free right now
-                </span>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                  How full
-                </span>
-                <span className="text-2xl font-black font-mono text-amber-600 mt-1 block">
-                  {currentHospital?.current_load}%
-                </span>
-                <span className="text-xs text-slate-400 mt-1 block">
-                  Of all beds in use
-                </span>
-              </div>
-            </div>
-
-            {/* Capacity Update Grid */}
-            {currentHospital && (
-              <BedUpdateGrid
-                hospital={currentHospital}
-                bedInventory={bedInventories}
-                capabilities={capabilities}
-                onUpdateCount={handleUpdateCount}
-                onUpdateTotalBeds={handleUpdateTotalBeds}
-              />
             )}
 
-            {/* Patient Bed Occupancy History & Handover Audit Trail ("who was there earlier") */}
-            <BedHistoryLogTable
-              logs={bedHistoryLogs}
-              hospitalName={currentHospital?.name || 'Hospital'}
-              onSelectHandover={(handover) => setSelectedHandoverForModal(handover)}
-            />
-          </div>
-        )}
-
-        {/* Demo Helper Action (admin running the demo, coordinator screen: it creates a request) */}
-        {view === 'coordinator' && (role === 'admin' || demoMode) && (
-        <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-          <div>
-            <strong className="text-slate-800 font-semibold block">Need to test incoming emergency alert & countdown?</strong>
-            <span>Tap below to send a test ambulance request (demo only).</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleSimulateIncomingEmergency}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm flex items-center gap-1.5 min-h-[44px]"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Send test ambulance request</span>
-          </button>
-        </div>
-        )}
-        </>
+            {/* Demo Helper Action (admin running the demo, coordinator screen: it creates a request) */}
+            {view === 'coordinator' && (role === 'admin' || demoMode) && (
+              <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+                <div>
+                  <strong className="text-slate-800 font-semibold block">Need to test incoming emergency alert & countdown?</strong>
+                  <span>Tap below to send a test ambulance request (demo only).</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSimulateIncomingEmergency}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm flex items-center gap-1.5 min-h-[44px]"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Send test ambulance request</span>
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

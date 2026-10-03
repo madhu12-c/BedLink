@@ -74,11 +74,10 @@ export function AddBedModal({
               {bedTypeOptions.map((opt) => (
                 <label
                   key={opt.type}
-                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                    bedType === opt.type
+                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${bedType === opt.type
                       ? 'bg-blue-50/80 border-blue-500 ring-1 ring-blue-500'
                       : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <input

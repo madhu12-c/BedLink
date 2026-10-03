@@ -41,22 +41,20 @@ export function BedUpdateGrid({
           </span>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                hasCardiac
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${hasCardiac
                   ? 'bg-red-50 text-red-800 border-red-200'
                   : 'bg-slate-100 text-slate-400 border-slate-200 opacity-60'
-              }`}
+                }`}
             >
               <HeartPulse className="w-3.5 h-3.5" />
               Cardiac {hasCardiac ? '' : '(no)'}
             </span>
 
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                hasBurns
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${hasBurns
                   ? 'bg-amber-50 text-amber-800 border-amber-200'
                   : 'bg-slate-100 text-slate-400 border-slate-200 opacity-60'
-              }`}
+                }`}
             >
               <Flame className="w-3.5 h-3.5" />
               Burns {hasBurns ? '' : '(no)'}

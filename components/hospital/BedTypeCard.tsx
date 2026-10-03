@@ -175,10 +175,10 @@ export function BedTypeCard({
   return (
     <div
       className={`bg-white rounded-xl border p-4 sm:p-5 flex flex-col justify-between h-full transition-all duration-200 shadow-xs hover:shadow-md ${justSaved
-          ? 'border-emerald-400 ring-2 ring-emerald-400/20'
-          : errorMessage
-            ? 'border-rose-400 ring-2 ring-rose-400/20'
-            : 'border-slate-200 hover:border-slate-300'
+        ? 'border-emerald-400 ring-2 ring-emerald-400/20'
+        : errorMessage
+          ? 'border-rose-400 ring-2 ring-rose-400/20'
+          : 'border-slate-200 hover:border-slate-300'
         }`}
       role="region"
       aria-label={`${meta.label} inventory: ${currentAvailable} available of ${inventory.total_beds}`}
@@ -272,8 +272,8 @@ export function BedTypeCard({
                         title={`Bed ${bedNum}: ${isAvailable ? 'Available (Click to Mark Occupied)' : 'Occupied (Click to Mark Available)'}`}
                         aria-label={`Bed ${bedNum}: ${isAvailable ? 'Available' : 'Occupied'}. Click to toggle.`}
                         className={`flex items-center justify-center rounded-md text-xs font-mono font-bold h-6 min-w-[26px] select-none transition-all duration-150 cursor-pointer transform active:scale-90 hover:scale-105 shadow-2xs ${isAvailable
-                            ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:ring-1 hover:ring-emerald-400'
-                            : 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 hover:ring-1 hover:ring-rose-400'
+                          ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:ring-1 hover:ring-emerald-400'
+                          : 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 hover:ring-1 hover:ring-rose-400'
                           } disabled:cursor-not-allowed disabled:opacity-60`}
                       >
                         {bedNum}

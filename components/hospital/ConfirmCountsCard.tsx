@@ -55,9 +55,8 @@ export function ConfirmCountsCard({ oldestUpdatedAt, onConfirm }: ConfirmCountsC
 
   return (
     <section
-      className={`p-4 rounded-2xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-        overdue ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'
-      }`}
+      className={`p-4 rounded-2xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${overdue ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'
+        }`}
       aria-label="Confirm bed counts"
     >
       <div className="flex flex-col gap-1">
@@ -79,11 +78,10 @@ export function ConfirmCountsCard({ oldestUpdatedAt, onConfirm }: ConfirmCountsC
         type="button"
         onClick={handleConfirm}
         disabled={!oldestUpdatedAt || justConfirmed}
-        className={`w-full sm:w-auto px-5 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 min-h-[56px] shadow-md transition-colors disabled:cursor-default ${
-          justConfirmed
+        className={`w-full sm:w-auto px-5 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 min-h-[56px] shadow-md transition-colors disabled:cursor-default ${justConfirmed
             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
             : 'bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60'
-        }`}
+          }`}
       >
         <CheckCircle2 className="w-5 h-5" />
         {justConfirmed ? 'Confirmed just now' : 'All counts still correct'}

@@ -121,22 +121,20 @@ export function BedHistoryLogTable({
             <button
               type="button"
               onClick={() => setFilterCategory('all')}
-              className={`px-2.5 py-1 rounded-md transition-all ${
-                filterCategory === 'all'
+              className={`px-2.5 py-1 rounded-md transition-all ${filterCategory === 'all'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               All
             </button>
             <button
               type="button"
               onClick={() => setFilterCategory('procedures')}
-              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                filterCategory === 'procedures'
+              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${filterCategory === 'procedures'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-purple-700 hover:bg-purple-50'
-              }`}
+                }`}
             >
               <Syringe className="w-3 h-3" />
               <span>Procedures</span>
@@ -144,11 +142,10 @@ export function BedHistoryLogTable({
             <button
               type="button"
               onClick={() => setFilterCategory('medications')}
-              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                filterCategory === 'medications'
+              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${filterCategory === 'medications'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-blue-700 hover:bg-blue-50'
-              }`}
+                }`}
             >
               <Pill className="w-3 h-3" />
               <span>Medicines</span>
@@ -222,9 +219,8 @@ export function BedHistoryLogTable({
                   <React.Fragment key={log.id}>
                     <tr
                       onClick={() => toggleExpand(log.id)}
-                      className={`hover:bg-slate-50/90 transition-colors cursor-pointer ${
-                        isExpanded ? 'bg-blue-50/30' : ''
-                      }`}
+                      className={`hover:bg-slate-50/90 transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50/30' : ''
+                        }`}
                     >
                       {/* Bed Unit */}
                       <td className="py-3 px-4">
@@ -253,13 +249,12 @@ export function BedHistoryLogTable({
                               </span>
                               {log.triage_level && (
                                 <span
-                                  className={`w-2 h-2 rounded-full shrink-0 ${
-                                    log.triage_level === 'red'
+                                  className={`w-2 h-2 rounded-full shrink-0 ${log.triage_level === 'red'
                                       ? 'bg-red-500'
                                       : log.triage_level === 'yellow'
-                                      ? 'bg-amber-500'
-                                      : 'bg-emerald-500'
-                                  }`}
+                                        ? 'bg-amber-500'
+                                        : 'bg-emerald-500'
+                                    }`}
                                   title={`Triage: ${log.triage_level.toUpperCase()}`}
                                 />
                               )}
@@ -429,13 +424,12 @@ export function BedHistoryLogTable({
                       {/* Status */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                            isOccupied
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${isOccupied
                               ? 'bg-blue-100 text-blue-800'
                               : isCleaning
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
                         >
                           {log.status}
                         </span>
@@ -554,9 +548,8 @@ export function BedHistoryLogTable({
                                     <div className="bg-white p-2 rounded-lg border border-slate-200">
                                       <span className="text-xs text-slate-400 block font-bold">SpO2 PULSE OX</span>
                                       <span
-                                        className={`font-mono font-bold text-sm ${
-                                          log.vitals.spo2 < 92 ? 'text-red-600' : 'text-emerald-700'
-                                        }`}
+                                        className={`font-mono font-bold text-sm ${log.vitals.spo2 < 92 ? 'text-red-600' : 'text-emerald-700'
+                                          }`}
                                       >
                                         {log.vitals.spo2}%
                                       </span>
