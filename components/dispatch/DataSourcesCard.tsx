@@ -3,11 +3,12 @@
 import React from 'react';
 import { Database } from 'lucide-react';
 import { DIRECTORY_HOSPITALS } from '@/lib/data/directoryHospitals';
+import { AMBULANCE_FLEETS } from '@/lib/data/ambulanceFleets';
 
 const SOURCES: { title: string; text: string }[] = [
   {
     title: 'Hospitals',
-    text: 'Government hospital directory (data.gov.in National Hospital Directory, Esri India Living Atlas): 30,000+ hospitals in India with map points. Mumbai: 31 government hospitals, listed below and shown as grey pins on the map.'
+    text: 'Government hospital directory (data.gov.in National Hospital Directory, Esri India Living Atlas): 30,000+ hospitals in India with map points. Mumbai: 31 government hospitals, listed below and shown as purple GOVT pins on the map.'
   },
   {
     title: 'Free treatment',
@@ -16,10 +17,6 @@ const SOURCES: { title: string; text: string }[] = [
   {
     title: 'Live free beds',
     text: 'No public source has live ICU beds for private hospitals (BMC\'s new dashboard covers civic hospitals only). The ward nurse updates in 10 seconds, on the app or Telegram; every count shows its age.'
-  },
-  {
-    title: 'Ambulances',
-    text: '108 in Maharashtra = MEMS (Sumeet SSG BVG): 1,756 ambulances from Nov 2025, 255 advanced life support, 1,274 basic. Private: RED.Health 5,000+ in 550+ cities, Dial 1298 (Ziqitza) about 50 in Mumbai. Any fleet logs in the same way.'
   }
 ];
 
@@ -38,6 +35,19 @@ export function DataSourcesCard() {
             {s.text}
           </li>
         ))}
+        <li className="text-xs text-slate-600 leading-snug">
+          <strong className="text-slate-900">Ambulances: </strong>
+          any fleet plugs in; each crew is one login or one Telegram link, nothing to install. Target fleets:
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {AMBULANCE_FLEETS.map((f) => (
+              <li key={f.id}>
+                • <strong className="text-slate-800">{f.name}</strong> ({f.kind === 'government' ? 'govt' : 'private'},{' '}
+                {f.ambulances.toLocaleString('en-IN')}
+                {f.id === 'redhealth' ? '+' : ''}): {f.detail}
+              </li>
+            ))}
+          </ul>
+        </li>
       </ul>
       <details className="group rounded-lg border border-slate-200 bg-slate-50">
         <summary className="list-none cursor-pointer select-none px-3 min-h-[40px] flex items-center justify-between text-xs font-bold text-slate-800">

@@ -6,6 +6,7 @@ import { Activity, AlertTriangle, ChevronDown, Loader2, LogIn, Users } from 'luc
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { landingPathFor, parseRole, ROLE_LABELS, USER_ROLES } from '@/lib/auth/roles';
 import demoUsers from '@/lib/auth/demo-users.json';
+import { fleetForEmail } from '@/lib/data/ambulanceFleets';
 
 interface LoginFormProps {
   /** Page the user asked for before being sent to login. */
@@ -192,6 +193,15 @@ export function LoginForm({ next, initialError, demoMode }: LoginFormProps) {
                           title={`${u.name}: ${u.email}`}
                         >
                           {u.label}
+                          {(() => {
+                            const crew = fleetForEmail(u.email);
+                            return crew ? (
+                              <span className="ml-1 font-medium text-slate-500">
+                                · {crew.fleet.name}
+                                {crew.vehicle ? ` ${crew.vehicle}` : ''}
+                              </span>
+                            ) : null;
+                          })()}
                         </button>
                       ))}
                   </div>

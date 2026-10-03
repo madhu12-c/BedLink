@@ -20,6 +20,7 @@ import { StabiliseSuggestion } from '@/components/dispatch/StabiliseSuggestion';
 import { VitalsForm } from '@/components/dispatch/VitalsForm';
 import { TelegramConnectButton } from '@/components/shared/TelegramConnectButton';
 import { DataSourcesCard } from '@/components/dispatch/DataSourcesCard';
+import { FleetBadge } from '@/components/dispatch/FleetBadge';
 import { CasualtyHoldResult, MassCasualtyPanel } from '@/components/dispatch/MassCasualtyPanel';
 import { CasualtyPlanRow } from '@/lib/dispatch/massCasualty';
 import { persistReservationStatus, resetDemoInDatabase } from '@/lib/supabase/sync';
@@ -769,6 +770,7 @@ export default function DispatcherPage() {
             onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
           />
           {massCasualtyButton}
+          <FleetBadge />
           {crewTelegramCard}
           <DataSourcesCard />
           {showDemoControls && (
@@ -909,6 +911,7 @@ export default function DispatcherPage() {
               onQuickLoadCriticalScenario={showDemoControls ? handleQuickLoadCriticalScenario : undefined}
             />
             {massCasualtyButton}
+            <FleetBadge />
             {crewTelegramCard}
             <DataSourcesCard />
             {/* Demo actions (admin only) */}
